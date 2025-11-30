@@ -485,7 +485,7 @@ function handleEdit(personne: Personne) {
 					className="w-full"
 					onClick={() => handleEdit(personne)}
 				>
-				Edit className="mr-2 h-4 w-4" />
+				<Edit className="mr-2 h-4 w-4" />
 					Modifier
 				</Button>
 				</div>
