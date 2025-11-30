@@ -1,12 +1,12 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation" // 🔑 pour navigation fluide
 import { supabase } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import Link from "next/link"
 import { Plus, Search, Package, AlertTriangle, TrendingDown } from "lucide-react"
 import type { Article } from "@/lib/types"
 
@@ -15,6 +15,7 @@ type ArticleWithFournisseur = Article & {
 }
 
 export default function ArticlesPage() {
+  const router = useRouter() // 👈 hook de navigation Next.js
   const [articles, setArticles] = useState<ArticleWithFournisseur[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
@@ -44,16 +45,16 @@ export default function ArticlesPage() {
     }
   }
 
-  // 🔍 Gestion intelligente de la recherche
+  // 🔍 Recherche intelligente
   const handleSearchChange = async (value: string) => {
     setSearchTerm(value)
 
     const trimmed = value.trim()
-    if (trimmed.length < 6) return // trop court pour être un série/MAC valide
+    if (trimmed.length < 6) return
 
-    // Regex pour MAC (format AA:BB:CC:DD:EE:FF ou AA-BB-CC-DD-EE-FF)
+    // Regex pour MAC (AA:BB:CC:DD:EE:FF ou AA-BB-CC-DD-EE-FF)
     const macRegex = /^([0-9A-Fa-f]{2}[:\-]){5}([0-9A-Fa-f]{2})$/
-    // Regex pour numéro de série (alphanumérique, ≥6 caractères)
+    // Regex pour numéro de série (alphanumérique ≥6 caractères)
     const serialRegex = /^[A-Za-z0-9]{6,}$/
 
     const isLikelyMAC = macRegex.test(trimmed)
@@ -68,12 +69,11 @@ export default function ArticlesPage() {
           .limit(1)
 
         if (data?.[0]?.article_id) {
-          // Redirige immédiatement si trouvé
-          window.location.href = `/articles/${data[0].article_id}`
+          router.push(`/articles/${data[0].article_id}`) // ✅ Navigation fluide
+          return
         }
       } catch (err) {
         console.warn("Erreur lors de la recherche par série/MAC:", err)
-        // On continue le filtrage normal si échec
       }
     }
   }
@@ -123,12 +123,13 @@ export default function ArticlesPage() {
             Gérez votre catalogue d'articles et stocks
           </p>
         </div>
-        <Link href="/articles/new">
-          <Button className="btn-shimmer">
-            <Plus className="mr-2 h-4 w-4" />
-            Nouvel article
-          </Button>
-        </Link>
+        <Button
+          className="btn-shimmer"
+          onClick={() => router.push("/articles/new")}
+        >
+          <Plus className="mr-2 h-4 w-4" />
+          Nouvel article
+        </Button>
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
@@ -236,7 +237,7 @@ export default function ArticlesPage() {
                       <tr 
                         key={article.id} 
                         className="border-b hover:bg-accent transition-colors cursor-pointer"
-                        onClick={() => window.location.href = `/articles/${article.id}`}
+                        onClick={() => router.push(`/articles/${article.id}`)} // ✅ Navigation fluide
                       >
                         <td className="p-3 font-mono text-sm">{article.numero_article}</td>
                         <td className="p-3">
@@ -266,17 +267,18 @@ export default function ArticlesPage() {
                           </div>
                         </td>
                         <td className="p-3">
-						<Button
-							size="sm"
-							variant="ghost"
-							onClick={(e) => {
-							e.stopPropagation(); // ✅ Empêche le onClick de la ligne
-							window.location.href = `/articles/${article.id}`;
-							}}
-							>
-								Voir détails
-							</Button>
-							</td>
+                          {/* ✅ Bouton "Voir détails" sans conflit */}
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={(e) => {
+                              e.stopPropagation(); // 🔒 Empêche le clic de la ligne
+                              router.push(`/articles/${article.id}`);
+                            }}
+                          >
+                            Voir détails
+                          </Button>
+                        </td>
                       </tr>
                     )
                   })}
