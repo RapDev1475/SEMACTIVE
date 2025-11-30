@@ -103,45 +103,50 @@ export default function MouvementsPage() {
 	}
 	}
 
-  async function searchArticles(searchValue: string) {
-    if (!searchValue.trim()) {
-      fetchArticles()
-      return
-    }
-
-    try {
-      // Rechercher d'abord par numéro de série ou MAC
-      const { data: serialData } = await supabase
-        .from('numeros_serie')
-        .select('article_id')
-        .or(`numero_serie.ilike.%${searchValue}%,adresse_mac.ilike.%${searchValue}%`)
-
-      let articleIds: string[] = []
-      
-      if (serialData && serialData.length > 0) {
-        articleIds = [...new Set(serialData.map(s => s.article_id))]
-      }
-
-      // Rechercher les articles
-      let query = supabase
-        .from('articles')
-        .select('*')
-        .order('nom')
-
-      // Si on a des IDs depuis les numéros de série, les inclure
-      // Sinon chercher par nom ou numéro article
-      if (articleIds.length > 0) {
-        query = query.in('id', articleIds)
-      } else {
-        query = query.or(`nom.ilike.%${searchValue}%,numero_article.ilike.%${searchValue}%`)
-      }
-
-      const { data } = await query
-      setArticles(data || [])
-    } catch (error) {
-      console.error('Error searching articles:', error)
-    }
+async function searchArticles(searchValue: string) {
+  if (!searchValue.trim()) {
+    fetchArticles()
+    return
   }
+
+  try {
+    // Rechercher d'abord par numéro de série ou MAC
+    const { data: serialData } = await supabase
+      .from('numeros_serie')
+      .select('article_id')
+      .or(`numero_serie.ilike.%${searchValue}%,adresse_mac.ilike.%${searchValue}%`)
+
+    let articleIds: string[] = []
+    
+    if (serialData && serialData.length > 0) {
+      articleIds = [...new Set(serialData.map(s => s.article_id))]
+    }
+
+    // Rechercher les articles
+    let query = supabase
+      .from('articles')
+      .select('*')
+      .order('nom')
+
+    // Si on a des IDs depuis les numéros de série, les inclure
+    // Sinon chercher par nom ou numéro article
+    if (articleIds.length > 0) {
+      query = query.in('id', articleIds)
+    } else {
+      query = query.or(`nom.ilike.%${searchValue}%,numero_article.ilike.%${searchValue}%`)
+    }
+
+    const { data } = await query
+    setArticles(data || [])
+    
+    // AUTO-SÉLECTION : Si un seul résultat, le sélectionner automatiquement
+    if (data && data.length === 1) {
+      setFormData({...formData, article_id: data[0].id})
+    }
+  } catch (error) {
+    console.error('Error searching articles:', error)
+  }
+}
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
