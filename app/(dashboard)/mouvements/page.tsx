@@ -89,19 +89,19 @@ export default function MouvementsPage() {
     }
   }
 
-  async function fetchPersonnes() {
-    try {
-      const { data } = await supabase
-        .from('personnes')
-        .select('id, nom, prenom, type')
-        .eq('type', 'technicien')
-        .order('nom')
-
-      setPersonnes(data || [])
-    } catch (error) {
-      console.error('Error fetching personnes:', error)
-    }
-  }
+	async function fetchPersonnes() {
+	try {
+		const { data } = await supabase
+		.from('personnes')
+		.select('*')  // ← Changez ici
+		.eq('type', 'technicien')
+		.order('nom')
+	
+		setPersonnes(data || [])
+	} catch (error) {
+		console.error('Error fetching personnes:', error)
+	}
+	}
 
   async function searchArticles(searchValue: string) {
     if (!searchValue.trim()) {
