@@ -1,12 +1,12 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation" // 🔑 pour navigation fluide
 import { supabase } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import Link from "next/link"
 import { Plus, Search, Package, AlertTriangle, TrendingDown } from "lucide-react"
 import type { Article } from "@/lib/types"
 
@@ -15,7 +15,6 @@ type ArticleWithFournisseur = Article & {
 }
 
 export default function ArticlesPage() {
-  const router = useRouter() // 👈 hook de navigation Next.js
   const [articles, setArticles] = useState<ArticleWithFournisseur[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
@@ -42,39 +41,6 @@ export default function ArticlesPage() {
       console.error('Error fetching articles:', error)
     } finally {
       setLoading(false)
-    }
-  }
-
-  // 🔍 Recherche intelligente
-  const handleSearchChange = async (value: string) => {
-    setSearchTerm(value)
-
-    const trimmed = value.trim()
-    if (trimmed.length < 6) return
-
-    // Regex pour MAC (AA:BB:CC:DD:EE:FF ou AA-BB-CC-DD-EE-FF)
-    const macRegex = /^([0-9A-Fa-f]{2}[:\-]){5}([0-9A-Fa-f]{2})$/
-    // Regex pour numéro de série (alphanumérique ≥6 caractères)
-    const serialRegex = /^[A-Za-z0-9]{6,}$/
-
-    const isLikelyMAC = macRegex.test(trimmed)
-    const isLikelySerial = serialRegex.test(trimmed)
-
-    if (isLikelyMAC || isLikelySerial) {
-      try {
-        const { data } = await supabase
-          .from('numeros_serie')
-          .select('article_id')
-          .or(`numero_serie.eq.${trimmed},adresse_mac.eq.${trimmed}`)
-          .limit(1)
-
-        if (data?.[0]?.article_id) {
-          router.push(`/articles/${data[0].article_id}`) // ✅ Navigation fluide
-          return
-        }
-      } catch (err) {
-        console.warn("Erreur lors de la recherche par série/MAC:", err)
-      }
     }
   }
 
@@ -123,13 +89,6 @@ export default function ArticlesPage() {
             Gérez votre catalogue d'articles et stocks
           </p>
         </div>
-        <Button
-          className="btn-shimmer"
-          onClick={() => router.push("/articles/new")}
-        >
-          <Plus className="mr-2 h-4 w-4" />
-          Nouvel article
-        </Button>
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
@@ -174,9 +133,9 @@ export default function ArticlesPage() {
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Rechercher par nom, numéro, EAN, ou coller un N° série / MAC..."
+                placeholder="Rechercher par nom, numéro ou code EAN..."
                 value={searchTerm}
-                onChange={(e) => handleSearchChange(e.target.value)}
+                onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10"
               />
             </div>
@@ -231,14 +190,13 @@ export default function ArticlesPage() {
                 </thead>
                 <tbody>
                   {filteredArticles.map((article) => {
-					console.log("Article ID:", article.id, typeof article.id);
                     const status = getStockStatus(article)
                     const StatusIcon = status.icon
                     return (
                       <tr 
                         key={article.id} 
                         className="border-b hover:bg-accent transition-colors cursor-pointer"
-                        onClick={() => router.push(`/articles/${article.id}`)} // ✅ Navigation fluide
+                        onClick={() => window.location.href = `/articles/${article.id}`}
                       >
                         <td className="p-3 font-mono text-sm">{article.numero_article}</td>
                         <td className="p-3">
@@ -267,16 +225,14 @@ export default function ArticlesPage() {
                             </Badge>
                           </div>
                         </td>
-                          <td className="p-3">
-							<Button
-							size="sm"
-							variant="ghost"
-							onClick={() => router.push(`/articles/${article.id}`)}
-							>
-							Voir détails
-							</Button>
-						</td>
-						</tr>
+                        <td className="p-3">
+                          <Link href={`/articles/${article.id}`}>
+                            <Button size="sm" variant="ghost">
+                              Voir détails
+                            </Button>
+                          </Link>
+                        </td>
+                      </tr>
                     )
                   })}
                 </tbody>
