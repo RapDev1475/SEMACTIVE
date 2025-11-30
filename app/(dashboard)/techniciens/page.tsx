@@ -22,7 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Plus, Search, Users, User, Phone, Mail } from "lucide-react"
+import { Plus, Search, Users, User, Phone, Mail, Edit } from "lucide-react"
 import type { Personne } from "@/lib/types"
 
 export default function TechniciensPage() {
@@ -31,6 +31,7 @@ export default function TechniciensPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [filterType, setFilterType] = useState<string>("all")
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [editingPerson, setEditingPerson] = useState<Personne | null>(null)
   
 const [formData, setFormData] = useState({
   nom: "",
@@ -65,34 +66,61 @@ const [formData, setFormData] = useState({
     }
   }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    
-    try {
+async function handleSubmit(e: React.FormEvent) {
+  e.preventDefault()
+  
+  try {
+    if (editingPerson) {
+      // Mode édition
+      const { error } = await supabase
+        .from('personnes')
+        .update(formData)
+        .eq('id', editingPerson.id)
+
+      if (error) throw error
+    } else {
+      // Mode création
       const { error } = await supabase
         .from('personnes')
         .insert([formData])
 
       if (error) throw error
-
-      setDialogOpen(false)
-      fetchPersonnes()
-      
-      setFormData({
-		nom: "",
-		prenom: "",
-		type: "technicien",
-		email: "",
-		telephone: "",
-		entreprise: "",
-		numero_perid: "",     // ← Ajoutez cette ligne
-		erp_id: "",           // ← Ajoutez cette ligne
-		remarques: "",
-		})
-    } catch (error: any) {
-      alert("Erreur: " + error.message)
     }
+
+    setDialogOpen(false)
+    setEditingPerson(null)
+    fetchPersonnes()
+    
+    setFormData({
+      nom: "",
+      prenom: "",
+      type: "technicien",
+      email: "",
+      telephone: "",
+      entreprise: "",
+      numero_perid: "",
+      erp_id: "",
+      remarques: "",
+    })
+  } catch (error: any) {
+    alert("Erreur: " + error.message)
   }
+}
+function handleEdit(personne: Personne) {
+  setEditingPerson(personne)
+  setFormData({
+    nom: personne.nom,
+    prenom: personne.prenom || "",
+    type: personne.type,
+    email: personne.email || "",
+    telephone: personne.telephone || "",
+    entreprise: personne.entreprise || "",
+    numero_perid: personne.numero_perid || "",
+    erp_id: personne.erp_id || "",
+    remarques: personne.remarques || "",
+  })
+  setDialogOpen(true)
+}
 
   const filteredPersonnes = personnes.filter(p => {
     const matchesSearch = 
@@ -140,7 +168,26 @@ const [formData, setFormData] = useState({
             Gérez vos techniciens, clients et contacts
           </p>
         </div>
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <Dialog 
+				open={dialogOpen} 
+				onOpenChange={(open) => {
+					setDialogOpen(open)
+					if (!open) {
+					setEditingPerson(null)
+					setFormData({
+						nom: "",
+						prenom: "",
+						type: "technicien",
+						email: "",
+						telephone: "",
+						entreprise: "",
+						numero_perid: "",
+						erp_id: "",
+						remarques: "",
+					})
+					}
+				}}
+				>
           <DialogTrigger asChild>
             <Button className="btn-shimmer">
               <Plus className="mr-2 h-4 w-4" />
@@ -149,11 +196,16 @@ const [formData, setFormData] = useState({
           </DialogTrigger>
           <DialogContent className="max-w-2xl">
             <DialogHeader>
-              <DialogTitle>Ajouter une personne</DialogTitle>
-              <DialogDescription>
-                Ajoutez un technicien, client ou autre contact
-              </DialogDescription>
-            </DialogHeader>
+				<DialogTitle>
+					{editingPerson ? "Modifier la personne" : "Ajouter une personne"}
+				</DialogTitle>
+				<DialogDescription>
+					{editingPerson 
+					? "Modifiez les informations de cette personne"
+					: "Ajoutez un technicien, client ou autre contact"
+					}
+				</DialogDescription>
+				</DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -277,7 +329,7 @@ const [formData, setFormData] = useState({
                   Annuler
                 </Button>
                 <Button type="submit">
-                  Ajouter
+                  {editingPerson ? "Mettre à jour" : "Ajouter"}
                 </Button>
               </div>
             </form>
@@ -426,6 +478,17 @@ const [formData, setFormData] = useState({
                     {personne.remarques}
                   </p>
                 )}
+				<div className="pt-3 border-t">
+				<Button 
+					variant="outline" 
+					size="sm" 
+					className="w-full"
+					onClick={() => handleEdit(personne)}
+				>
+				Edit className="mr-2 h-4 w-4" />
+					Modifier
+				</Button>
+				</div>
               </CardContent>
             </Card>
           ))
