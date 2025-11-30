@@ -341,7 +341,7 @@ export default function MouvementsPage() {
               <div className="space-y-2">
                 <Label htmlFor="personne_id">Technicien</Label>
                 <Select 
-				value={formData.personne_id || "none"}  {/* ← Changez ici */}
+				value={formData.personne_id || "none"}
 				onValueChange={(value) => setFormData({...formData, personne_id: value === "none" ? "" : value})}  {/* ← Et ici */}
 				>
 				<SelectTrigger>
