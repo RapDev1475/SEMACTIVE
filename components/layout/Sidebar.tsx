@@ -13,6 +13,7 @@ import {
   Users,
   PackageCheck,
   ChevronRight,
+  Hash,
 } from "lucide-react"
 
 interface SidebarProps {
@@ -67,6 +68,11 @@ const navigation = [
     href: "/receptions",
     icon: PackageCheck,
   },
+  {
+  name: "Numéros de série",
+  href: "/numeros-serie",
+  icon: Hash,
+},
 ]
 
 export function Sidebar({ open, onClose }: SidebarProps) {
