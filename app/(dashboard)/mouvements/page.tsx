@@ -38,6 +38,7 @@ export default function MouvementsPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [filterType, setFilterType] = useState<string>("all")
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [articleSearch, setArticleSearch] = useState("")
   
   const [formData, setFormData] = useState({
     article_id: "",
@@ -101,7 +102,45 @@ export default function MouvementsPage() {
       console.error('Error fetching personnes:', error)
     }
   }
+async function searchArticles(searchValue: string) {
+  if (!searchValue.trim()) {
+    fetchArticles()
+    return
+  }
 
+  try {
+    // Rechercher d'abord par numéro de série ou MAC
+    const { data: serialData } = await supabase
+      .from('numeros_serie')
+      .select('article_id')
+      .or(`numero_serie.ilike.%${searchValue}%,adresse_mac.ilike.%${searchValue}%`)
+
+    let articleIds: string[] = []
+    
+    if (serialData && serialData.length > 0) {
+      articleIds = [...new Set(serialData.map(s => s.article_id))]
+    }
+
+    // Rechercher les articles
+    let query = supabase
+      .from('articles')
+      .select('*')
+      .order('nom')
+
+    // Si on a des IDs depuis les numéros de série, les inclure
+    // Sinon chercher par nom ou numéro article
+    if (articleIds.length > 0) {
+      query = query.in('id', articleIds)
+    } else {
+      query = query.or(`nom.ilike.%${searchValue}%,numero_article.ilike.%${searchValue}%`)
+    }
+
+    const { data } = await query
+    setArticles(data || [])
+  } catch (error) {
+    console.error('Error searching articles:', error)
+  }
+}
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     
@@ -153,6 +192,7 @@ export default function MouvementsPage() {
         quantite: 1,
         remarques: "",
       })
+	  setArticleSearch("")
     } catch (error: any) {
       alert("Erreur: " + error.message)
     }
@@ -246,24 +286,40 @@ export default function MouvementsPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="article_id">Article *</Label>
-                <Select 
-                  value={formData.article_id} 
-                  onValueChange={(value) => setFormData({...formData, article_id: value})}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Sélectionnez un article" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {articles.map((article) => (
-                      <SelectItem key={article.id} value={article.id}>
-                        {article.nom} ({article.numero_article})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
+  <Label htmlFor="article_search">Article *</Label>
+  <div className="space-y-2">
+    <Input
+      id="article_search"
+      placeholder="Rechercher par nom, numéro, n° série ou MAC..."
+      value={articleSearch}
+      onChange={(e) => {
+        setArticleSearch(e.target.value)
+        searchArticles(e.target.value)
+      }}
+    />
+    <Select 
+      value={formData.article_id} 
+      onValueChange={(value) => setFormData({...formData, article_id: value})}
+    >
+      <SelectTrigger>
+        <SelectValue placeholder="Sélectionnez un article" />
+      </SelectTrigger>
+      <SelectContent>
+        {articles.length === 0 ? (
+          <div className="p-2 text-sm text-muted-foreground text-center">
+            {articleSearch ? 'Aucun article trouvé' : 'Commencez à taper pour rechercher'}
+          </div>
+        ) : (
+          articles.map((article) => (
+            <SelectItem key={article.id} value={article.id}>
+              {article.nom} ({article.numero_article})
+            </SelectItem>
+          ))
+        )}
+      </SelectContent>
+    </Select>
+  </div>
+</div>
               <div className="space-y-2">
                 <Label htmlFor="personne_id">Technicien</Label>
                 <Select 
