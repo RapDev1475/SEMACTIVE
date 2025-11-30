@@ -267,20 +267,16 @@ export default function ArticlesPage() {
                             </Badge>
                           </div>
                         </td>
-                        <td className="p-3">
-                          {/* ✅ Bouton "Voir détails" sans conflit */}
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={(e) => {
-                              e.stopPropagation(); // 🔒 Empêche le clic de la ligne
-                              router.push(`/articles/${article.id}`);
-                            }}
-                          >
-                            Voir détails
-                          </Button>
-                        </td>
-                      </tr>
+                          <td className="p-3">
+							<Button
+							size="sm"
+							variant="ghost"
+							onClick={() => router.push(`/articles/${article.id}`)}
+							>
+							Voir détails
+							</Button>
+						</td>
+						</tr>
                     )
                   })}
                 </tbody>
