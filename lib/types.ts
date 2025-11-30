@@ -55,14 +55,16 @@ export interface NumeroSerie {
   article?: Article;
 }
 
-export interface Personne {
-  id: string;
-  nom: string;
-  prenom?: string;
-  type: 'technicien' | 'gestionnaire' | 'client' | 'transporteur' | 'fournisseur' | 'autre';
-  email?: string;
-  telephone?: string;
-  created_at?: string;
+export type Personne = {
+  id: string
+  nom: string
+  prenom?: string
+  type: "technicien" | "client" | "gestionnaire" | "transporteur" | "fournisseur" | "autre"
+  email?: string
+  telephone?: string
+  entreprise?: string        // ← Ajoutez cette ligne
+  remarques?: string         // ← Ajoutez cette ligne si elle n'existe pas
+  created_at: string
 }
 
 export interface Client {
