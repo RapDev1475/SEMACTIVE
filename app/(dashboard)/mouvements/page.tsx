@@ -75,26 +75,18 @@ export default function MouvementsPage() {
     }
   }
 
-		async function fetchArticles() {
-		try {
-			const { data } = await supabase
-			.from('articles')
-			.select(`
-				id,
-				nom,
-				numero_article,
-				quantite_stock,
-				stock_minimum,
-				stock_maximum,
-				point_commande
-			`)
-			.order('nom')
+			async function fetchArticles() {
+			try {
+				const { data } = await supabase
+				.from('articles')
+				.select('*')  // ← Sélectionner tous les champs
+				.order('nom')
 
-			setArticles(data || [])
-		} catch (error) {
-			console.error('Error fetching articles:', error)
-		}
-		}
+				setArticles(data || [])
+			} catch (error) {
+				console.error('Error fetching articles:', error)
+			}
+			}
 
   async function fetchPersonnes() {
     try {
