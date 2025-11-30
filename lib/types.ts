@@ -3,7 +3,7 @@
 export type Article = {
   id: string
   numero_article: string
-  code_ean?: string
+  code_ean: string
   description?: string
   nom: string
   categorie?: string  // ← AJOUTEZ CETTE LIGNE
