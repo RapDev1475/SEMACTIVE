@@ -231,14 +231,13 @@ export default function ArticlesPage() {
                             </Badge>
                           </div>
                         </td>
-                        <td className="p-3">
-                          <Link href={`/articles/${article.id}`}>
-                            <Button size="sm" variant="ghost">
-                              Voir détails
-                            </Button>
-                          </Link>
-                        </td>
-                      </tr>
+                        <td className="p-3" onClick={(e) => e.stopPropagation()}>
+								<Link href={`/articles/${article.id}`}>
+								<Button size="sm" variant="ghost">
+								Voir détails
+								</Button>
+							</Link>
+							</td>
                     )
                   })}
                 </tbody>
