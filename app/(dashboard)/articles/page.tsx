@@ -19,6 +19,7 @@ export default function ArticlesPage() {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [filterStatus, setFilterStatus] = useState<string>("all")
+  const [filterCategorie, setFilterCategorie] = useState<string>("all")
 
   useEffect(() => {
     fetchArticles()
@@ -81,17 +82,22 @@ async function searchBySerialOrMac(searchValue: string) {
     setLoading(false)
   }
 }
-  const filteredArticles = articles.filter(article => {
-    const matchesSearch = 
-      article.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      article.numero_article.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (article.code_ean && article.code_ean.toLowerCase().includes(searchTerm.toLowerCase()))
+		const filteredArticles = articles.filter(article => {
+		const matchesSearch = 
+			article.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
+			article.numero_article.toLowerCase().includes(searchTerm.toLowerCase()) ||
+			(article.code_ean && article.code_ean.toLowerCase().includes(searchTerm.toLowerCase()))
 
-    if (filterStatus === "all") return matchesSearch
-    if (filterStatus === "alert") return matchesSearch && article.quantite_stock <= article.point_commande
-    if (filterStatus === "low") return matchesSearch && article.quantite_stock <= article.stock_minimum
-    return matchesSearch
-  })
+		const matchesStatus = 
+			filterStatus === "all" || 
+			(filterStatus === "alert" && article.quantite_stock <= article.point_commande) ||
+			(filterStatus === "low" && article.quantite_stock <= article.stock_minimum)
+  
+		const matchesCategorie = 
+			filterCategorie === "all" || article.categorie === filterCategorie  // ← NOUVEAU
+
+		return matchesSearch && matchesStatus && matchesCategorie  // ← MODIFIÉ
+		})
 
   const stats = {
     total: articles.length,
@@ -209,6 +215,23 @@ async function searchBySerialOrMac(searchValue: string) {
               >
                 Stock bas
               </Button>
+			    <select
+					value={filterCategorie}
+					onChange={(e) => setFilterCategorie(e.target.value)}
+					className="flex h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+				>
+					<option value="all">Toutes catégories</option>
+					<option value="Signalisation">Signalisation</option>
+					<option value="Outils">Outils</option>
+					<option value="Matériel">Matériel</option>
+					<option value="EPI">EPI</option>
+					<option value="Consommables">Consommables</option>
+					<option value="Électronique">Électronique</option>
+					<option value="Réseau">Réseau</option>
+					<option value="Câblage">Câblage</option>
+					<option value="Connectique">Connectique</option>
+					<option value="Autre">Autre</option>
+				</select>
             </div>
           </div>
         </CardContent>
@@ -231,6 +254,7 @@ async function searchBySerialOrMac(searchValue: string) {
                   <tr className="border-b">
                     <th className="text-left p-3 font-medium">Numéro</th>
                     <th className="text-left p-3 font-medium">Nom</th>
+					<th className="text-left p-3 font-medium">Catégorie</th>
                     <th className="text-left p-3 font-medium">Fournisseur</th>
                     <th className="text-right p-3 font-medium">Stock</th>
                     <th className="text-right p-3 font-medium">Min/Max</th>
@@ -256,6 +280,9 @@ async function searchBySerialOrMac(searchValue: string) {
                             <p className="text-xs text-muted-foreground">{article.code_ean}</p>
                           </div>
                         </td>
+						<td className="p-3 text-sm text-muted-foreground">  {/* ← NOUVEAU */}
+						{article.categorie || 'Non classé'}
+						</td>
                         <td className="p-3 text-sm text-muted-foreground">
                           {article.fournisseur?.nom || 'Non défini'}
                         </td>

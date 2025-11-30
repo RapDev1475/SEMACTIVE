@@ -51,6 +51,7 @@ export default function EditArticlePage() {
         nom: article.nom,
         numero_article: article.numero_article,
         code_ean: article.code_ean || null,
+		categorie: article.categorie || null,
         quantite_stock: Number(article.quantite_stock),
         stock_minimum: Number(article.stock_minimum),
         stock_maximum: Number(article.stock_maximum),
@@ -130,6 +131,26 @@ export default function EditArticlePage() {
                   onChange={(e) => setArticle({ ...article, conditionnement: e.target.value })}
                 />
               </div>
+			  <div>
+				<label className="text-sm font-medium">Catégorie</label>
+				<select
+					value={article.categorie || ''}
+					onChange={(e) => setArticle({ ...article, categorie: e.target.value })}
+					className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+				>
+					<option value="">Non classé</option>
+					<option value="Signalisation">Signalisation</option>
+					<option value="Outils">Outils</option>
+					<option value="Matériel">Matériel</option>
+					<option value="EPI">EPI (Équipement de Protection Individuelle)</option>
+					<option value="Consommables">Consommables</option>
+					<option value="Électronique">Électronique</option>
+					<option value="Réseau">Réseau</option>
+					<option value="Câblage">Câblage</option>
+					<option value="Connectique">Connectique</option>
+					<option value="Autre">Autre</option>
+				</select>
+				</div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 pt-4">

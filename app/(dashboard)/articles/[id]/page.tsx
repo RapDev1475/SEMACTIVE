@@ -241,6 +241,12 @@ export default function ArticleDetailPage() {
                   <p className="text-sm text-muted-foreground">TVA</p>
                   <p className="font-medium">{article.taux_tva}%</p>
                 </div>
+				<div>
+					<p className="text-sm text-muted-foreground">Catégorie</p>
+					<p className="font-medium">
+						{article.categorie || 'Non classé'}
+					</p>
+				</div>
               </div>
 
               <div className="pt-4 border-t">
