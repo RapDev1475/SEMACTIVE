@@ -42,24 +42,23 @@ export default function EditArticlePage() {
     const fetchArticle = async () => {
       try {
         // Charger les fournisseurs
-        const {  fournData } = await supabase
+        const { data: fournData, error: fournError } = await supabase
           .from('fournisseurs')
           .select('id, nom')
           .order('nom')
+        if (fournError) throw fournError
         setFournisseurs(fournData || [])
 
         // Charger l'article
-        const {  artData, error } = await supabase
+        const { data: artData, error: artError } = await supabase
           .from('articles')
           .select('*')
           .eq('id', articleId)
           .single()
-
-        if (error) throw error
+        if (artError) throw artError
 
         setArticle({
           ...artData,
-          // S'assurer que gestion_par_serie est un booléen
           gestion_par_serie: Boolean(artData.gestion_par_serie),
         })
       } catch (error) {
@@ -111,7 +110,6 @@ export default function EditArticlePage() {
         gestion_par_serie,
       }
 
-      // Seulement inclure quantite_stock si gestion_par_serie = false
       if (!gestion_par_serie) {
         updates.quantite_stock = quantite_stock
       }

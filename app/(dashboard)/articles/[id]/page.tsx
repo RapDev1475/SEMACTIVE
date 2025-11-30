@@ -6,7 +6,7 @@ import { supabase } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Package, AlertTriangle, TrendingDown, Hash, Wifi, Calendar, User, MapPin } from "lucide-react"
+import { Package, AlertTriangle, TrendingDown, Hash, Wifi, Calendar, MapPin } from "lucide-react"
 import Link from "next/link"
 import type { Article } from "@/lib/types"
 
@@ -41,7 +41,7 @@ export default function ArticleDetailPage() {
     setLoading(true)
     try {
       // 1. Charger l'article avec fournisseur
-      const {  artData, error: artError } = await supabase
+      const { data: artData, error: artError } = await supabase
         .from('articles')
         .select(`
           *,
@@ -55,11 +55,15 @@ export default function ArticleDetailPage() {
       // 2. Charger le stock réel (via vue)
       let quantite_stock_reelle = 0
       if (artData.gestion_par_serie) {
-        const {  stockData } = await supabase
+        const { data: stockData, error: stockError } = await supabase
           .from('v_stock_warehouse_seneffe')
           .select('quantite_en_stock')
           .eq('article_id', articleId)
           .single()
+
+        if (stockError) {
+          console.warn('Erreur chargement stock série:', stockError)
+        }
         quantite_stock_reelle = stockData?.quantite_en_stock || 0
       } else {
         quantite_stock_reelle = artData.quantite_stock || 0
@@ -74,7 +78,7 @@ export default function ArticleDetailPage() {
 
       // 3. Si traçable, charger les numéros de série
       if (artData.gestion_par_serie) {
-        const {  serieData, error: serieError } = await supabase
+        const { data: serieData, error: serieError } = await supabase
           .from('numeros_serie')
           .select('*')
           .eq('article_id', articleId)
