@@ -348,7 +348,7 @@ export default function MouvementsPage() {
 					<SelectValue placeholder="Sélectionnez un technicien (optionnel)" />
 				</SelectTrigger>
 				<SelectContent>
-					<SelectItem value="none">Aucun</SelectItem>  {/* ← Changez "" en "none" */}
+					<SelectItem value="none">Aucun</SelectItem>  
 					{personnes.map((personne) => (
 					<SelectItem key={personne.id} value={personne.id}>
 						{personne.nom} {personne.prenom}
