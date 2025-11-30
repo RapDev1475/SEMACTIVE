@@ -141,15 +141,20 @@ async function searchBySerialOrMac(searchValue: string) {
 			(article.code_ean && article.code_ean.toLowerCase().includes(searchTerm.toLowerCase()))
 
 		const matchesStatus = 
-  filterStatus === "all" || 
-  (filterStatus === "alert" && article.quantite_stock_reelle <= article.point_commande) ||
-  (filterStatus === "low" && article.quantite_stock_reelle <= article.stock_minimum)
+		ilterStatus === "all" || 
+		(filterStatus === "alert" && article.quantite_stock_reelle <= article.point_commande) ||
+		(filterStatus === "low" && article.quantite_stock_reelle <= article.stock_minimum)
   
 		const matchesCategorie = 
 			filterCategorie === "all" || article.categorie === filterCategorie  // ← NOUVEAU
 
 		return matchesSearch && matchesStatus && matchesCategorie  // ← MODIFIÉ
 		})
+		const stats = {
+			total: articles.length,
+			alertes: articles.filter(a => a.quantite_stock_reelle <= a.point_commande).length,
+			stockBas: articles.filter(a => a.quantite_stock_reelle <= a.stock_minimum).length,
+			}
 
 const getStockStatus = (article: ArticleWithRelations) => {
   if (article.quantite_stock_reelle <= article.stock_minimum) {
