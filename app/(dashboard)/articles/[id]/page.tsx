@@ -266,12 +266,17 @@ export default function ArticlesPage() {
                           </div>
                         </td>
                         <td className="p-3">
-                          <Link href={`/articles/${article.id}`}>
-                            <Button size="sm" variant="ghost">
-                              Voir détails
-                            </Button>
-                          </Link>
-                        </td>
+						<Button
+							size="sm"
+							variant="ghost"
+							onClick={(e) => {
+							e.stopPropagation(); // ✅ Empêche le onClick de la ligne
+							window.location.href = `/articles/${article.id}`;
+							}}
+							>
+								Voir détails
+							</Button>
+							</td>
                       </tr>
                     )
                   })}
