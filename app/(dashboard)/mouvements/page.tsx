@@ -338,25 +338,25 @@ export default function MouvementsPage() {
                 </div>
               )}
 
-              <div className="space-y-2">
-                <Label htmlFor="personne_id">Technicien</Label>
-                <Select 
-				value={formData.personne_id || "none"}
-				onValueChange={(value) => setFormData({...formData, personne_id: value === "none" ? "" : value})}  {/* ← Et ici */}
+				<div className="space-y-2">
+				<Label htmlFor="personne_id">Technicien</Label>
+				<Select 
+					value={formData.personne_id || "none"}
+					onValueChange={(value) => setFormData({...formData, personne_id: value === "none" ? "" : value})}
 				>
-				<SelectTrigger>
+					<SelectTrigger>
 					<SelectValue placeholder="Sélectionnez un technicien (optionnel)" />
-				</SelectTrigger>
-				<SelectContent>
-					<SelectItem value="none">Aucun</SelectItem>  
+					</SelectTrigger>
+					<SelectContent>
+					<SelectItem value="none">Aucun</SelectItem>
 					{personnes.map((personne) => (
-					<SelectItem key={personne.id} value={personne.id}>
+						<SelectItem key={personne.id} value={personne.id}>
 						{personne.nom} {personne.prenom}
-					</SelectItem>
+						</SelectItem>
 					))}
 					</SelectContent>
 				</Select>
-              </div>
+				</div>
 
               <div className="space-y-2">
                 <Label htmlFor="quantite">Quantité *</Label>
