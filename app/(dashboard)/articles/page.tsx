@@ -12,7 +12,7 @@ import type { Article } from "@/lib/types"
 
 type ArticleWithRelations = Article & {
   fournisseur?: { nom: string }
-  quantite_stock_reelle?: number // champ calculé, pas dans la DB
+  quantite_stock_reelle: number // champ calculé, pas dans la DB
 }
 
 export default function ArticlesPage() {
