@@ -58,6 +58,11 @@ const navigation = [
     icon: Users,
   },
   {
+  name: "Techniciens",
+  href: "/techniciens",
+  icon: Users,
+},
+  {
     name: "Réceptions",
     href: "/receptions",
     icon: PackageCheck,
