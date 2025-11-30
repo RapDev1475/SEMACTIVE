@@ -92,9 +92,9 @@ export default function TechniciensPage() {
 
   const filteredPersonnes = personnes.filter(p => {
     const matchesSearch = 
-      p.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.prenom.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (p.email && p.email.toLowerCase().includes(searchTerm.toLowerCase()))
+	 p.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
+	(p.prenom && p.prenom.toLowerCase().includes(searchTerm.toLowerCase())) ||
+	(p.email && p.email.toLowerCase().includes(searchTerm.toLowerCase()))
     
     if (filterType === "all") return matchesSearch
     return matchesSearch && p.type === filterType
