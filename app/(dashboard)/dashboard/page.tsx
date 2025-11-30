@@ -195,7 +195,7 @@ export default function DashboardPage() {
 
       <div className="grid gap-6 md:grid-cols-2">
         {/* Alertes de réapprovisionnement */}
-        <Card>
+        <Card className="min-h-[500px]">
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle>Alertes de réapprovisionnement</CardTitle>
@@ -247,7 +247,7 @@ export default function DashboardPage() {
         </Card>
 
         {/* Derniers mouvements */}
-        <Card>
+        <Card className="min-h-[500px]">
           <CardHeader>
             <CardTitle>Derniers mouvements</CardTitle>
             <CardDescription>
