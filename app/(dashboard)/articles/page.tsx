@@ -30,7 +30,8 @@ export default function ArticlesPage() {
     setLoading(true)
     try {
       // 1. Charger les articles
-      const {  articlesData, error: articlesError } = await supabase
+      const {  data, error: articlesError } = await supabase...
+		const articlesData = data
         .from('articles')
         .select(`
           *,
