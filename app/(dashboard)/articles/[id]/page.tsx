@@ -124,10 +124,10 @@ export default function ArticleDetailPage() {
             {article.numero_article} • {article.code_ean}
           </p>
         </div>
-        <Button>
-          <Edit className="mr-2 h-4 w-4" />
-          Modifier
-        </Button>
+			<Button onClick={() => router.push(`/articles/${article.id}/edit`)}>
+				<Edit className="mr-2 h-4 w-4" />
+				Modifier
+			</Button>
       </div>
 
       {/* Informations principales */}
