@@ -18,6 +18,7 @@ export type Article = {
   fournisseur_id?: string
   created_at: string
   updated_at: string
+  gestion_par_serie: boolean
 }
 
 export interface Fournisseur {

@@ -4,95 +4,93 @@ import { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ArrowLeft, Edit, Package, History, Hash } from "lucide-react"
+import { Package, AlertTriangle, TrendingDown, Hash, Wifi, Calendar, User, MapPin } from "lucide-react"
 import Link from "next/link"
-import type { Article, Mouvement } from "@/lib/types"
+import type { Article } from "@/lib/types"
 
 type ArticleWithRelations = Article & {
-  fournisseur?: {   nom: string 
-					numero_tva?: string
-					email?: string
-					telephone?: string
-					}
+  fournisseur?: { nom: string }
+  quantite_stock_reelle: number
 }
 
 type NumeroSerie = {
   id: string
-  numero_serie: string
-  adresse_mac?: string
-  localisation?: string
-  statut: string
+  numero_serie: string | null
+  adresse_mac: string | null
+  localisation: string
+  date_creation: string
 }
 
 export default function ArticleDetailPage() {
-  const params = useParams()
   const router = useRouter()
+  const params = useParams()
+  const articleId = params?.id as string
+
   const [article, setArticle] = useState<ArticleWithRelations | null>(null)
-  const [mouvements, setMouvements] = useState<Mouvement[]>([])
   const [numerosSerie, setNumerosSerie] = useState<NumeroSerie[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (params.id) {
-      fetchArticleDetails()
-    }
-  }, [params.id])
+    if (!articleId) return
+    fetchArticle()
+  }, [articleId])
 
-  async function fetchArticleDetails() {
+  async function fetchArticle() {
     setLoading(true)
     try {
-      // Fetch article avec fournisseur
-      const { data: articleData, error: articleError } = await supabase
+      // 1. Charger l'article avec fournisseur
+      const {  artData, error: artError } = await supabase
         .from('articles')
         .select(`
           *,
-          fournisseur:fournisseurs(nom, numero_tva, email, telephone)
+          fournisseur:fournisseurs(nom)
         `)
-        .eq('id', params.id)
+        .eq('id', articleId)
         .single()
 
-      if (articleError) throw articleError
-      setArticle(articleData)
+      if (artError) throw artError
 
-      // Fetch mouvements
-      const { data: mouvementsData } = await supabase
-        .from('mouvements')
-        .select(`
-          *,
-          personne:personnes(nom, prenom)
-        `)
-        .eq('article_id', params.id)
-        .order('date_mouvement', { ascending: false })
-        .limit(20)
+      // 2. Charger le stock réel (via vue)
+      let quantite_stock_reelle = 0
+      if (artData.gestion_par_serie) {
+        const {  stockData } = await supabase
+          .from('v_stock_warehouse_seneffe')
+          .select('quantite_en_stock')
+          .eq('article_id', articleId)
+          .single()
+        quantite_stock_reelle = stockData?.quantite_en_stock || 0
+      } else {
+        quantite_stock_reelle = artData.quantite_stock || 0
+      }
 
-      setMouvements(mouvementsData || [])
+      const articleWithStock: ArticleWithRelations = {
+        ...artData,
+        quantite_stock_reelle,
+      }
 
-      // Fetch numéros de série
-      const { data: serialsData } = await supabase
-        .from('numeros_serie')
-        .select('*')
-        .eq('article_id', params.id)
-        .order('created_at', { ascending: false })
+      setArticle(articleWithStock)
 
-      setNumerosSerie(serialsData || [])
+      // 3. Si traçable, charger les numéros de série
+      if (artData.gestion_par_serie) {
+        const {  serieData, error: serieError } = await supabase
+          .from('numeros_serie')
+          .select('*')
+          .eq('article_id', articleId)
+          .order('date_creation', { ascending: false })
 
+        if (serieError) {
+          console.error('Erreur chargement numéros de série:', serieError)
+        } else {
+          setNumerosSerie(serieData || [])
+        }
+      }
     } catch (error) {
-      console.error('Error fetching article details:', error)
+      console.error('Erreur chargement article:', error)
+      alert("Impossible de charger l'article")
     } finally {
       setLoading(false)
-    }
-  }
-
-  const getStatusBadge = (quantite: number, min: number, max: number) => {
-    if (quantite <= min) {
-      return <Badge className="bg-red-100 text-red-800">Stock critique</Badge>
-    } else if (quantite <= min * 1.5) {
-      return <Badge className="bg-orange-100 text-orange-800">Stock bas</Badge>
-    } else {
-      return <Badge className="bg-green-100 text-green-800">Stock OK</Badge>
     }
   }
 
@@ -105,274 +103,193 @@ export default function ArticleDetailPage() {
   }
 
   if (!article) {
-    return (
-      <div className="text-center py-12">
-        <p className="text-muted-foreground">Article non trouvé</p>
-        <Link href="/articles">
-          <Button className="mt-4">Retour aux articles</Button>
-        </Link>
-      </div>
-    )
+    return <div className="p-6">Article non trouvé</div>
   }
+
+  const getStockStatus = () => {
+    if (article.quantite_stock_reelle <= article.stock_minimum) {
+      return { badge: "bg-red-100 text-red-800", label: "Stock bas", icon: AlertTriangle }
+    } else if (article.quantite_stock_reelle <= article.point_commande) {
+      return { badge: "bg-orange-100 text-orange-800", label: "Alerte", icon: TrendingDown }
+    } else {
+      return { badge: "bg-green-100 text-green-800", label: "OK", icon: Package }
+    }
+  }
+
+  const status = getStockStatus()
+  const StatusIcon = status.icon
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-4">
-        <Button variant="outline" size="icon" onClick={() => router.back()}>
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <div className="flex-1">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center justify-between">
+        <div>
           <h1 className="text-3xl font-bold tracking-tight">{article.nom}</h1>
           <p className="text-muted-foreground mt-1">
-            {article.numero_article} • {article.code_ean}
+            {article.numero_article} • {article.categorie}
           </p>
         </div>
-			<Button onClick={() => router.push(`/articles/${article.id}/edit`)}>
-				<Edit className="mr-2 h-4 w-4" />
-				Modifier
-			</Button>
+        <div className="flex gap-2">
+          <Button asChild variant="outline">
+            <Link href="/articles">Retour à la liste</Link>
+          </Button>
+          <Button asChild>
+            <Link href={`/articles/${article.id}/edit`}>Modifier</Link>
+          </Button>
+        </div>
       </div>
 
-      {/* Informations principales */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-6 md:grid-cols-2">
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Stock actuel
-            </CardTitle>
+          <CardHeader>
+            <CardTitle>Informations générales</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{article.quantite_stock}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Min: {article.stock_minimum} • Max: {article.stock_maximum}
-            </p>
-            <div className="mt-2">
-              {getStatusBadge(article.quantite_stock, article.stock_minimum, article.stock_maximum)}
+          <CardContent className="space-y-3">
+            <div>
+              <p className="text-sm text-muted-foreground">Numéro article</p>
+              <p className="font-mono">{article.numero_article}</p>
+            </div>
+            {article.code_ean && (
+              <div>
+                <p className="text-sm text-muted-foreground">Code EAN</p>
+                <p className="font-mono">{article.code_ean}</p>
+              </div>
+            )}
+            <div>
+              <p className="text-sm text-muted-foreground">Fournisseur</p>
+              <p>{article.fournisseur?.nom || 'Non défini'}</p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Description</p>
+              <p>{article.description || 'Aucune'}</p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Gestion par série</p>
+              <Badge variant={article.gestion_par_serie ? "default" : "secondary"}>
+                {article.gestion_par_serie ? "Oui (traçable)" : "Non (quantité)"}
+              </Badge>
             </div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Point de commande
-            </CardTitle>
+          <CardHeader>
+            <CardTitle>Stock et prix</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{article.point_commande}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              {article.conditionnement}
-            </p>
-          </CardContent>
-        </Card>
+          <CardContent className="space-y-4">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <Badge className={status.badge}>
+                  <StatusIcon className="h-3 w-3 mr-1" />
+                  {status.label}
+                </Badge>
+              </div>
+              <p className="text-2xl font-bold">{article.quantite_stock_reelle}</p>
+              <p className="text-sm text-muted-foreground">
+                {article.gestion_par_serie 
+                  ? "Unités disponibles (Warehouse Seneffe)" 
+                  : "Quantité en stock"}
+              </p>
+            </div>
 
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Prix achat
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{article.prix_achat?.toFixed(2)}€</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              HT
-            </p>
-          </CardContent>
-        </Card>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-sm text-muted-foreground">Seuil minimum</p>
+                <p>{article.stock_minimum}</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Point commande</p>
+                <p>{article.point_commande}</p>
+              </div>
+            </div>
 
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Prix vente
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{article.prix_vente?.toFixed(2)}€</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              TVA {article.taux_tva}%
-            </p>
+            <div className="grid grid-cols-2 gap-4 pt-2 border-t">
+              <div>
+                <p className="text-sm text-muted-foreground">Prix d'achat</p>
+                <p className="font-semibold">{article.prix_achat?.toFixed(2)} €</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Prix de vente</p>
+                <p className="font-semibold">{article.prix_vente?.toFixed(2)} €</p>
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Onglets */}
-      <Tabs defaultValue="details" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="details">
-            <Package className="mr-2 h-4 w-4" />
-            Détails
-          </TabsTrigger>
-          <TabsTrigger value="mouvements">
-            <History className="mr-2 h-4 w-4" />
-            Mouvements ({mouvements.length})
-          </TabsTrigger>
-          <TabsTrigger value="serials">
-            <Hash className="mr-2 h-4 w-4" />
-            N° Série ({numerosSerie.length})
-          </TabsTrigger>
-        </TabsList>
-
-        {/* Onglet Détails */}
-        <TabsContent value="details">
-          <Card>
-            <CardHeader>
-              <CardTitle>Informations détaillées</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-muted-foreground">Numéro article</p>
-                  <p className="font-medium">{article.numero_article}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Code EAN</p>
-                  <p className="font-medium font-mono">{article.code_ean}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Fournisseur</p>
-                  <p className="font-medium">{article.fournisseur?.nom || 'Non défini'}</p>
-				    {article.fournisseur?.numero_tva && (
-					<p className="text-xs text-muted-foreground mt-1">
-					TVA: {article.fournisseur.numero_tva}
-					</p>
-				)}
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Référence fournisseur</p>
-                  <p className="font-medium">{article.reference_fournisseur || 'N/A'}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Conditionnement</p>
-                  <p className="font-medium">{article.conditionnement}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">TVA</p>
-                  <p className="font-medium">{article.taux_tva}%</p>
-                </div>
-				<div>
-					<p className="text-sm text-muted-foreground">Catégorie</p>
-					<p className="font-medium">
-						{article.categorie || 'Non classé'}
-					</p>
-				</div>
+      {/* Section Numéros de série (uniquement si traçable) */}
+      {article.gestion_par_serie && (
+        <Card>
+          <CardHeader>
+            <CardTitle>
+              <div className="flex items-center gap-2">
+                <Hash className="h-5 w-5" />
+                Numéros de série / Adresses MAC
               </div>
-
-              <div className="pt-4 border-t">
-                <h3 className="font-semibold mb-2">Valeurs de stock</h3>
-                <div className="grid grid-cols-3 gap-4">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Valeur achat totale</p>
-                    <p className="text-lg font-bold">
-                      {(article.quantite_stock * (article.prix_achat || 0)).toFixed(2)}€
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Valeur vente totale</p>
-                    <p className="text-lg font-bold">
-                      {(article.quantite_stock * (article.prix_vente || 0)).toFixed(2)}€
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Marge potentielle</p>
-                    <p className="text-lg font-bold text-green-600">
-                      {(article.quantite_stock * ((article.prix_vente || 0) - (article.prix_achat || 0))).toFixed(2)}€
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Onglet Mouvements */}
-        <TabsContent value="mouvements">
-          <Card>
-            <CardHeader>
-              <CardTitle>Historique des mouvements</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {mouvements.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  <History className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                  <p>Aucun mouvement enregistré</p>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {mouvements.map((mouvement) => (
-                    <div
-                      key={mouvement.id}
-                      className="flex items-center justify-between p-3 rounded-lg border hover:bg-accent transition-colors"
-                    >
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline">
-                            {mouvement.type_mouvement}
-                          </Badge>
-                          <p className="text-sm font-medium">
-                            Quantité: {mouvement.quantite}
-                          </p>
+            </CardTitle>
+            <CardDescription>
+              {numerosSerie.length} unité(s) enregistrée(s)
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {numerosSerie.length === 0 ? (
+              <p className="text-muted-foreground py-4">Aucun numéro de série associé à cet article.</p>
+            ) : (
+              <div className="space-y-3">
+                {numerosSerie.map((ns) => (
+                  <div key={ns.id} className="flex items-center justify-between p-3 border rounded-lg">
+                    <div className="flex items-center gap-3">
+                      {ns.numero_serie ? (
+                        <div className="flex items-center gap-1">
+                          <Hash className="h-4 w-4 text-muted-foreground" />
+                          <span className="font-mono text-sm">{ns.numero_serie}</span>
                         </div>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {mouvement.personne?.nom || 'Système'} • {new Date(mouvement.date_mouvement).toLocaleString('fr-BE')}
-                        </p>
-                        {mouvement.remarques && (
-                          <p className="text-xs text-muted-foreground mt-1">
-                            {mouvement.remarques}
-                          </p>
-                        )}
+                      ) : ns.adresse_mac ? (
+                        <div className="flex items-center gap-1">
+                          <Wifi className="h-4 w-4 text-muted-foreground" />
+                          <span className="font-mono text-sm">{ns.adresse_mac}</span>
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground italic">Aucun identifiant</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                      <div className="flex items-center gap-1">
+                        <MapPin className="h-3.5 w-3.5" />
+                        <span>{ns.localisation || 'Inconnue'}</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Calendar className="h-3.5 w-3.5" />
+                        <span>{new Date(ns.date_creation).toLocaleDateString('fr-BE')}</span>
                       </div>
                     </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="mt-4 flex justify-end">
+              <Button asChild size="sm">
+                <Link href={`/numeros-serie?article_id=${article.id}`}>
+                  Gérer les numéros de série
+                </Link>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
-        {/* Onglet Numéros de série */}
-        <TabsContent value="serials">
-          <Card>
-            <CardHeader>
-              <CardTitle>Numéros de série et adresses MAC</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {numerosSerie.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  <Hash className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                  <p>Aucun numéro de série enregistré</p>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {numerosSerie.map((serial) => (
-                    <div
-                      key={serial.id}
-                      className="flex items-center justify-between p-3 rounded-lg border"
-                    >
-                      <div className="flex-1">
-                        <p className="font-mono font-semibold">{serial.numero_serie}</p>
-                        {serial.adresse_mac && (
-                          <p className="text-sm text-muted-foreground font-mono">
-                            MAC: {serial.adresse_mac}
-                          </p>
-                        )}
-                        {serial.localisation && (
-                          <p className="text-xs text-muted-foreground mt-1">
-                            📍 {serial.localisation}
-                          </p>
-                        )}
-                      </div>
-                      <Badge variant={serial.statut === 'disponible' ? 'default' : 'secondary'}>
-                        {serial.statut}
-                      </Badge>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+      {/* Actions rapides */}
+      <div className="flex gap-3 justify-end">
+        <Button asChild variant="outline">
+          <Link href={`/mouvements?article_id=${article.id}`}>
+            Voir les mouvements
+          </Link>
+        </Button>
+        <Button asChild>
+          <Link href={`/mouvements/new?article_id=${article.id}`}>
+            Nouveau mouvement
+          </Link>
+        </Button>
+      </div>
     </div>
   )
 }

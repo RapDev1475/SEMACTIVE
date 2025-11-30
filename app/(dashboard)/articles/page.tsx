@@ -12,7 +12,7 @@ import type { Article } from "@/lib/types"
 
 type ArticleWithRelations = Article & {
   fournisseur?: { nom: string }
-  quantite_stock_reelle: number // champ calculé, pas dans la DB
+  quantite_stock_reelle: number // ✅ toujours défini
 }
 
 export default function ArticlesPage() {
@@ -26,82 +26,21 @@ export default function ArticlesPage() {
     fetchArticles()
   }, [])
 
-async function fetchArticles() {
-  setLoading(true)
-  try {
-    // 1. Charger tous les articles
-    const { data: articlesData, error: articlesError } = await supabase
-      .from('articles')
-      .select(`
-        *,
-        fournisseur:fournisseurs(nom)
-      `)
-      .order('nom')
-
-    if (articlesError) throw articlesError
-
-    // 2. Charger le stock des articles traçables (via vue)
-    const { data: stockSerieData, error: stockError } = await supabase
-      .from('v_stock_warehouse_seneffe')
-      .select('article_id, quantite_en_stock')
-
-    if (stockError) console.warn('Erreur chargement stock série:', stockError)
-
-    const stockMap = new Map(
-      (stockSerieData || []).map(item => [item.article_id, item.quantite_en_stock])
-    )
-
-    // 3. Mapper avec le bon stock
-    const articlesWithRealStock: ArticleWithRelations[] = (articlesData || []).map(article => {
-      if (article.gestion_par_serie) {
-        return {
-          ...article,
-          quantite_stock_reelle: stockMap.get(article.id) || 0,
-        }
-      } else {
-        return {
-          ...article,
-          quantite_stock_reelle: article.quantite_stock || 0,
-        }
-      }
-    })
-
-    setArticles(articlesWithRealStock)
-  } catch (error) {
-    console.error('Error fetching articles:', error)
-  } finally {
-    setLoading(false)
-  }
-}
-async function searchBySerialOrMac(searchValue: string) {
-  if (!searchValue.trim()) {
-    fetchArticles()
-    return
-  }
-
-  setLoading(true)
-  try {
-    const { data: serialData } = await supabase
-      .from('numeros_serie')
-      .select('article_id')
-      .or(`numero_serie.ilike.%${searchValue}%,adresse_mac.ilike.%${searchValue}%`)
-
-    if (serialData && serialData.length > 0) {
-      const articleIds = [...new Set(serialData.map(s => s.article_id))]
-
-      // Charger les articles
-      const { data: articlesData, error: articlesError } = await supabase
+  async function fetchArticles() {
+    setLoading(true)
+    try {
+      // 1. Charger les articles
+      const {  articlesData, error: articlesError } = await supabase
         .from('articles')
         .select(`
           *,
           fournisseur:fournisseurs(nom)
         `)
-        .in('id', articleIds)
         .order('nom')
 
       if (articlesError) throw articlesError
 
-      // Charger le stock réel (pour les articles traçables)
+      // 2. Charger le stock des articles traçables
       const { data: stockSerieData } = await supabase
         .from('v_stock_warehouse_seneffe')
         .select('article_id, quantite_en_stock')
@@ -110,7 +49,8 @@ async function searchBySerialOrMac(searchValue: string) {
         (stockSerieData || []).map(item => [item.article_id, item.quantite_en_stock])
       )
 
-      const articlesWithRealStock = (articlesData || []).map(article => {
+      // 3. Mapper avec le vrai stock
+      const articlesWithRealStock: ArticleWithRelations[] = (articlesData || []).map(article => {
         if (article.gestion_par_serie) {
           return {
             ...article,
@@ -125,47 +65,106 @@ async function searchBySerialOrMac(searchValue: string) {
       })
 
       setArticles(articlesWithRealStock)
-    } else {
-      setArticles([])
+    } catch (error) {
+      console.error('Error fetching articles:', error)
+    } finally {
+      setLoading(false)
     }
-  } catch (error) {
-    console.error('Error searching by serial/MAC:', error)
-  } finally {
-    setLoading(false)
   }
-}
-		const filteredArticles = articles.filter(article => {
-		const matchesSearch = 
-			article.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
-			article.numero_article.toLowerCase().includes(searchTerm.toLowerCase()) ||
-			(article.code_ean && article.code_ean.toLowerCase().includes(searchTerm.toLowerCase()))
 
-		const matchesStatus = 
-		ilterStatus === "all" || 
-		(filterStatus === "alert" && article.quantite_stock_reelle <= article.point_commande) ||
-		(filterStatus === "low" && article.quantite_stock_reelle <= article.stock_minimum)
-  
-		const matchesCategorie = 
-			filterCategorie === "all" || article.categorie === filterCategorie  // ← NOUVEAU
+  async function searchBySerialOrMac(searchValue: string) {
+    if (!searchValue.trim()) {
+      fetchArticles()
+      return
+    }
 
-		return matchesSearch && matchesStatus && matchesCategorie  // ← MODIFIÉ
-		})
-		const stats = {
-			total: articles.length,
-			alertes: articles.filter(a => a.quantite_stock_reelle <= a.point_commande).length,
-			stockBas: articles.filter(a => a.quantite_stock_reelle <= a.stock_minimum).length,
-			}
+    setLoading(true)
+    try {
+      const {  serialData } = await supabase
+        .from('numeros_serie')
+        .select('article_id')
+        .or(`numero_serie.ilike.%${searchValue}%,adresse_mac.ilike.%${searchValue}%`)
 
-const getStockStatus = (article: ArticleWithRelations) => {
-  if (article.quantite_stock_reelle <= article.stock_minimum) {
-    return { badge: "bg-red-100 text-red-800", label: "Stock bas", icon: AlertTriangle }
-  } else if (article.quantite_stock_reelle <= article.point_commande) {
-    return { badge: "bg-orange-100 text-orange-800", label: "Alerte", icon: TrendingDown }
-  } else {
-    return { badge: "bg-green-100 text-green-800", label: "OK", icon: Package }
+      if (serialData && serialData.length > 0) {
+        const articleIds = [...new Set(serialData.map(s => s.article_id))]
+
+        const {  articlesData, error: articlesError } = await supabase
+          .from('articles')
+          .select(`
+            *,
+            fournisseur:fournisseurs(nom)
+          `)
+          .in('id', articleIds)
+          .order('nom')
+
+        if (articlesError) throw articlesError
+
+        const { data: stockSerieData } = await supabase
+          .from('v_stock_warehouse_seneffe')
+          .select('article_id, quantite_en_stock')
+
+        const stockMap = new Map(
+          (stockSerieData || []).map(item => [item.article_id, item.quantite_en_stock])
+        )
+
+        const articlesWithRealStock: ArticleWithRelations[] = (articlesData || []).map(article => {
+          if (article.gestion_par_serie) {
+            return {
+              ...article,
+              quantite_stock_reelle: stockMap.get(article.id) || 0,
+            }
+          } else {
+            return {
+              ...article,
+              quantite_stock_reelle: article.quantite_stock || 0,
+            }
+          }
+        })
+
+        setArticles(articlesWithRealStock)
+      } else {
+        setArticles([])
+      }
+    } catch (error) {
+      console.error('Error searching by serial/MAC:', error)
+    } finally {
+      setLoading(false)
+    }
   }
-}
 
+  const filteredArticles = articles.filter(article => {
+    const matchesSearch = 
+      article.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      article.numero_article.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (article.code_ean && article.code_ean.toLowerCase().includes(searchTerm.toLowerCase()))
+
+    const matchesStatus = 
+      filterStatus === "all" || 
+      (filterStatus === "alert" && article.quantite_stock_reelle <= article.point_commande) ||
+      (filterStatus === "low" && article.quantite_stock_reelle <= article.stock_minimum)
+
+    const matchesCategorie = 
+      filterCategorie === "all" || article.categorie === filterCategorie
+
+    return matchesSearch && matchesStatus && matchesCategorie
+  })
+
+  // ✅ stats bien définies
+  const stats = {
+    total: articles.length,
+    alertes: articles.filter(a => a.quantite_stock_reelle <= a.point_commande).length,
+    stockBas: articles.filter(a => a.quantite_stock_reelle <= a.stock_minimum).length,
+  }
+
+  const getStockStatus = (article: ArticleWithRelations) => {
+    if (article.quantite_stock_reelle <= article.stock_minimum) {
+      return { badge: "bg-red-100 text-red-800", label: "Stock bas", icon: AlertTriangle }
+    } else if (article.quantite_stock_reelle <= article.point_commande) {
+      return { badge: "bg-orange-100 text-orange-800", label: "Alerte", icon: TrendingDown }
+    } else {
+      return { badge: "bg-green-100 text-green-800", label: "OK", icon: Package }
+    }
+  }
 
   if (loading) {
     return (
@@ -225,29 +224,29 @@ const getStockStatus = (article: ArticleWithRelations) => {
       <Card>
         <CardContent className="pt-6">
           <div className="flex flex-col gap-4 md:flex-row md:items-center">
-			<div className="flex gap-2 flex-1">
-			<div className="relative flex-1">
-				<Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-				<Input
-				placeholder="Rechercher par nom, numéro ou code EAN..."
-				value={searchTerm}
-				onChange={(e) => setSearchTerm(e.target.value)}
-				className="pl-10"
-				/>
-			</div>
-			<div className="relative flex-1">
-				<Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-				<Input
-				placeholder="Rechercher par n° série ou MAC..."
-				onKeyPress={(e) => {
-					if (e.key === 'Enter') {
-					searchBySerialOrMac((e.target as HTMLInputElement).value)
-					}
-				}}
-				className="pl-10"
-				/>
-			</div>
-			</div>
+            <div className="flex gap-2 flex-1">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Rechercher par nom, numéro ou code EAN..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Rechercher par n° série ou MAC..."
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter') {
+                      searchBySerialOrMac((e.target as HTMLInputElement).value)
+                    }
+                  }}
+                  className="pl-10"
+                />
+              </div>
+            </div>
             <div className="flex gap-2">
               <Button 
                 variant={filterStatus === "all" ? "default" : "outline"}
@@ -267,23 +266,23 @@ const getStockStatus = (article: ArticleWithRelations) => {
               >
                 Stock bas
               </Button>
-			    <select
-					value={filterCategorie}
-					onChange={(e) => setFilterCategorie(e.target.value)}
-					className="flex h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
-				>
-					<option value="all">Toutes catégories</option>
-					<option value="Signalisation">Signalisation</option>
-					<option value="Outils">Outils</option>
-					<option value="Matériel">Matériel</option>
-					<option value="EPI">EPI</option>
-					<option value="Consommables">Consommables</option>
-					<option value="Électronique">Électronique</option>
-					<option value="Réseau">Réseau</option>
-					<option value="Câblage">Câblage</option>
-					<option value="Connectique">Connectique</option>
-					<option value="Autre">Autre</option>
-				</select>
+              <select
+                value={filterCategorie}
+                onChange={(e) => setFilterCategorie(e.target.value)}
+                className="flex h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+              >
+                <option value="all">Toutes catégories</option>
+                <option value="Signalisation">Signalisation</option>
+                <option value="Outils">Outils</option>
+                <option value="Matériel">Matériel</option>
+                <option value="EPI">EPI</option>
+                <option value="Consommables">Consommables</option>
+                <option value="Électronique">Électronique</option>
+                <option value="Réseau">Réseau</option>
+                <option value="Câblage">Câblage</option>
+                <option value="Connectique">Connectique</option>
+                <option value="Autre">Autre</option>
+              </select>
             </div>
           </div>
         </CardContent>
@@ -306,7 +305,7 @@ const getStockStatus = (article: ArticleWithRelations) => {
                   <tr className="border-b">
                     <th className="text-left p-3 font-medium">Numéro</th>
                     <th className="text-left p-3 font-medium">Nom</th>
-					<th className="text-left p-3 font-medium">Catégorie</th>
+                    <th className="text-left p-3 font-medium">Catégorie</th>
                     <th className="text-left p-3 font-medium">Fournisseur</th>
                     <th className="text-right p-3 font-medium">Stock</th>
                     <th className="text-right p-3 font-medium">Min/Max</th>
@@ -332,15 +331,15 @@ const getStockStatus = (article: ArticleWithRelations) => {
                             <p className="text-xs text-muted-foreground">{article.code_ean}</p>
                           </div>
                         </td>
-						<td className="p-3 text-sm text-muted-foreground">  {/* ← NOUVEAU */}
-						{article.categorie || 'Non classé'}
-						</td>
+                        <td className="p-3 text-sm text-muted-foreground">
+                          {article.categorie || 'Non classé'}
+                        </td>
                         <td className="p-3 text-sm text-muted-foreground">
                           {article.fournisseur?.nom || 'Non défini'}
                         </td>
                         <td className="p-3 text-right font-semibold">
-						{article.quantite_stock_reelle}
-						</td>
+                          {article.quantite_stock_reelle}
+                        </td>
                         <td className="p-3 text-right text-sm text-muted-foreground">
                           {article.stock_minimum} / {article.stock_maximum}
                         </td>
