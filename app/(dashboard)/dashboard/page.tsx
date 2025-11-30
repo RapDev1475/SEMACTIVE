@@ -167,7 +167,7 @@ export default function DashboardPage() {
         {statCards.map((stat, index) => {
           const Icon = stat.icon
           return (
-            <Card key={index} className="overflow-hidden hover:shadow-lg transition-shadow dashboard-card" style={{ animationDelay: `${index * 0.1}s` }}>
+            <Card key={index} className="overflow-hidden hover:shadow-lg transition-shadow">
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">
                   {stat.title}
@@ -195,7 +195,7 @@ export default function DashboardPage() {
 
       <div className="grid gap-6 md:grid-cols-2">
         {/* Alertes de réapprovisionnement */}
-        <Card className="dashboard-section" style={{ animationDelay: "0.4s" }}>
+        <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle>Alertes de réapprovisionnement</CardTitle>
@@ -247,7 +247,7 @@ export default function DashboardPage() {
         </Card>
 
         {/* Derniers mouvements */}
-        <Card className="dashboard-section" style={{ animationDelay: "0.5s" }}>
+        <Card>
           <CardHeader>
             <CardTitle>Derniers mouvements</CardTitle>
             <CardDescription>
