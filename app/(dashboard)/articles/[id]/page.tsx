@@ -89,6 +89,12 @@ export default function ArticlesPage() {
             Gérez votre catalogue d'articles et stocks
           </p>
         </div>
+        <Link href="/articles/new">
+          <Button className="btn-shimmer">
+            <Plus className="mr-2 h-4 w-4" />
+            Nouvel article
+          </Button>
+        </Link>
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
