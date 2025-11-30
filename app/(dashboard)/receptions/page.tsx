@@ -8,10 +8,21 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { PackageCheck, ScanLine, Plus } from "lucide-react"
-import type { ReceptionCommande, BonCommande } from "@/lib/types"
+import type { BonCommande } from "@/lib/types"
+
+type ReceptionWithRelations = {
+  id: string
+  bon_commande_id: string
+  article_id: string
+  quantite_recue: number
+  date_reception: string
+  remarques?: string
+  article?: { nom: string; numero_article: string }
+  bon_commande?: { numero_commande: string }
+}
 
 export default function ReceptionsPage() {
-  const [receptions, setReceptions] = useState<ReceptionCommande[]>([])
+  const [receptions, setReceptions] = useState<ReceptionWithRelations[]>([])
   const [commandesEnCours, setCommandesEnCours] = useState<BonCommande[]>([])
   const [loading, setLoading] = useState(true)
   const [scanMode, setScanMode] = useState(false)
