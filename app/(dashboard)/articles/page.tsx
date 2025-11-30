@@ -16,7 +16,7 @@ type ArticleWithRelations = Article & {
 }
 
 export default function ArticlesPage() {
-  const [articles, setArticles] = useState<ArticleWithFournisseur[]>([])
+  const [articles, setArticles] = useState<ArticleWithRelations[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [filterStatus, setFilterStatus] = useState<string>("all")
