@@ -32,15 +32,17 @@ export default function TechniciensPage() {
   const [filterType, setFilterType] = useState<string>("all")
   const [dialogOpen, setDialogOpen] = useState(false)
   
-  const [formData, setFormData] = useState({
-    nom: "",
-    prenom: "",
-    type: "technicien" as "technicien" | "client" | "fournisseur" | "autre",
-    email: "",
-    telephone: "",
-    entreprise: "",
-    remarques: "",
-  })
+const [formData, setFormData] = useState({
+  nom: "",
+  prenom: "",
+  type: "technicien" as "technicien" | "client" | "gestionnaire" | "transporteur" | "fournisseur" | "autre",
+  email: "",
+  telephone: "",
+  entreprise: "",
+  numero_perid: "",     // ← Ajoutez cette ligne
+  erp_id: "",           // ← Ajoutez cette ligne
+  remarques: "",
+})
 
   useEffect(() => {
     fetchPersonnes()
@@ -77,14 +79,16 @@ export default function TechniciensPage() {
       fetchPersonnes()
       
       setFormData({
-        nom: "",
-        prenom: "",
-        type: "technicien",
-        email: "",
-        telephone: "",
-        entreprise: "",
-        remarques: "",
-      })
+		nom: "",
+		prenom: "",
+		type: "technicien",
+		email: "",
+		telephone: "",
+		entreprise: "",
+		numero_perid: "",     // ← Ajoutez cette ligne
+		erp_id: "",           // ← Ajoutez cette ligne
+		remarques: "",
+		})
     } catch (error: any) {
       alert("Erreur: " + error.message)
     }
@@ -92,9 +96,11 @@ export default function TechniciensPage() {
 
   const filteredPersonnes = personnes.filter(p => {
     const matchesSearch = 
-	 p.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
-	(p.prenom && p.prenom.toLowerCase().includes(searchTerm.toLowerCase())) ||
-	(p.email && p.email.toLowerCase().includes(searchTerm.toLowerCase()))
+		p.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
+		(p.prenom && p.prenom.toLowerCase().includes(searchTerm.toLowerCase())) ||
+		(p.email && p.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
+		(p.numero_perid && p.numero_perid.toLowerCase().includes(searchTerm.toLowerCase())) ||
+		(p.erp_id && p.erp_id.toLowerCase().includes(searchTerm.toLowerCase()))
     
     if (filterType === "all") return matchesSearch
     return matchesSearch && p.type === filterType
@@ -189,6 +195,39 @@ export default function TechniciensPage() {
                   </SelectContent>
                 </Select>
               </div>
+			  {formData.type === 'technicien' && (
+				<div className="grid grid-cols-2 gap-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+					<div className="col-span-2">
+					<p className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-3">
+						Identifiants technicien
+					</p>
+					</div>
+					<div className="space-y-2">
+					<Label htmlFor="numero_perid">Numéro PERID</Label>
+					<Input
+						id="numero_perid"
+						value={formData.numero_perid}
+					onChange={(e) => setFormData({...formData, numero_perid: e.target.value})}
+						placeholder="ID Proximus/Orange"
+					/>
+					<p className="text-xs text-muted-foreground">
+						Identifiant Proximus ou Orange
+					</p>
+					</div>
+					<div className="space-y-2">
+					<Label htmlFor="erp_id">ERP ID</Label>
+					<Input
+						id="erp_id"
+						value={formData.erp_id}
+						onChange={(e) => setFormData({...formData, erp_id: e.target.value})}
+						placeholder="ID interne"
+					/>
+					<p className="text-xs text-muted-foreground">
+						Identifiant interne entreprise
+					</p>
+					</div>
+				</div>
+				)}
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -350,6 +389,22 @@ export default function TechniciensPage() {
                 </div>
               </CardHeader>
               <CardContent className="space-y-2">
+			  {personne.type === 'technicien' && (personne.numero_perid || personne.erp_id) && (
+			<div className="space-y-1 pb-2 border-b">
+			{personne.numero_perid && (
+				<div className="flex items-center justify-between text-sm">
+				<span className="text-muted-foreground">PERID:</span>
+				<span className="font-mono font-semibold">{personne.numero_perid}</span>
+				</div>
+			)}
+			{personne.erp_id && (
+				<div className="flex items-center justify-between text-sm">
+				<span className="text-muted-foreground">ERP ID:</span>
+				<span className="font-mono font-semibold">{personne.erp_id}</span>
+				</div>
+			)}
+		</div>
+		)}
                 {personne.email && (
                   <div className="flex items-center gap-2 text-sm">
                     <Mail className="h-4 w-4 text-muted-foreground" />
