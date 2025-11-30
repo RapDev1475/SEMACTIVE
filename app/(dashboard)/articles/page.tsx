@@ -161,15 +161,6 @@ const getStockStatus = (article: ArticleWithRelations) => {
   }
 }
 
-  const getStockStatus = (article: Article) => {
-    if (article.quantite_stock <= article.stock_minimum) {
-      return { badge: "bg-red-100 text-red-800", label: "Stock bas", icon: AlertTriangle }
-    } else if (article.quantite_stock <= article.point_commande) {
-      return { badge: "bg-orange-100 text-orange-800", label: "Alerte", icon: TrendingDown }
-    } else {
-      return { badge: "bg-green-100 text-green-800", label: "OK", icon: Package }
-    }
-  }
 
   if (loading) {
     return (
