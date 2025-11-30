@@ -215,3 +215,11 @@ body {
   background-color: hsl(240 10% 3.9%) !important;
   border: 1px solid hsl(240 3.7% 15.9%);
 }
+html, body {
+  height: 100%;
+  overflow: hidden;
+}
+
+body > div:first-child {
+  height: 100%;
+}
