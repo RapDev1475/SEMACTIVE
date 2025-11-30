@@ -238,6 +238,7 @@ export default function ArticlesPage() {
 								</Button>
 							</Link>
 							</td>
+							</tr>
                     )
                   })}
                 </tbody>
