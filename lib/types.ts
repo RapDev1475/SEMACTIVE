@@ -59,7 +59,7 @@ export interface Personne {
   id: string;
   nom: string;
   prenom?: string;
-  type: 'technicien' | 'gestionnaire' | 'client' | 'transporteur';
+  type: 'technicien' | 'gestionnaire' | 'client' | 'transporteur' | 'fournisseur' | 'autre';
   email?: string;
   telephone?: string;
   created_at?: string;
