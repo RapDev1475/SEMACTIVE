@@ -32,6 +32,7 @@ export interface Fournisseur {
   email?: string;
   site_web?: string;
   contact_principal?: string;
+  numero_tva?: string;
   conditions_paiement?: string;
   delai_livraison_jours?: number;
   remarques?: string;

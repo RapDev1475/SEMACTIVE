@@ -12,7 +12,11 @@ import Link from "next/link"
 import type { Article, Mouvement } from "@/lib/types"
 
 type ArticleWithRelations = Article & {
-  fournisseur?: { nom: string }
+  fournisseur?: {   nom: string 
+					numero_tva?: string
+					email?: string
+					telephone?: string
+					}
 }
 
 type NumeroSerie = {
@@ -45,7 +49,7 @@ export default function ArticleDetailPage() {
         .from('articles')
         .select(`
           *,
-          fournisseur:fournisseurs(nom)
+          fournisseur:fournisseurs(nom, numero_tva, email, telephone)
         `)
         .eq('id', params.id)
         .single()
@@ -228,6 +232,11 @@ export default function ArticleDetailPage() {
                 <div>
                   <p className="text-sm text-muted-foreground">Fournisseur</p>
                   <p className="font-medium">{article.fournisseur?.nom || 'Non défini'}</p>
+				    {article.fournisseur?.numero_tva && (
+					<p className="text-xs text-muted-foreground mt-1">
+					TVA: {article.fournisseur.numero_tva}
+					</p>
+				)}
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Référence fournisseur</p>

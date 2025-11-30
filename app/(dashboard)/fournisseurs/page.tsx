@@ -36,6 +36,7 @@ export default function FournisseursPage() {
     email: "",
     site_web: "",
     contact_principal: "",
+	numero_tva: "",
     conditions_paiement: "",
     delai_livraison_jours: 7,
     remarques: "",
@@ -106,6 +107,7 @@ export default function FournisseursPage() {
       email: fournisseur.email || "",
       site_web: fournisseur.site_web || "",
       contact_principal: fournisseur.contact_principal || "",
+	  numero_tva: fournisseur.numero_tva || "",
       conditions_paiement: fournisseur.conditions_paiement || "",
       delai_livraison_jours: fournisseur.delai_livraison_jours || 7,
       remarques: fournisseur.remarques || "",
@@ -126,6 +128,7 @@ export default function FournisseursPage() {
       email: "",
       site_web: "",
       contact_principal: "",
+	  numero_tva: "",
       conditions_paiement: "",
       delai_livraison_jours: 7,
       remarques: "",
@@ -133,11 +136,12 @@ export default function FournisseursPage() {
     })
   }
 
-  const filteredFournisseurs = fournisseurs.filter(f =>
-    f.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (f.code_fournisseur && f.code_fournisseur.toLowerCase().includes(searchTerm.toLowerCase())) ||
-    (f.email && f.email.toLowerCase().includes(searchTerm.toLowerCase()))
-  )
+	const filteredFournisseurs = fournisseurs.filter(f =>
+	f.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
+	(f.code_fournisseur && f.code_fournisseur.toLowerCase().includes(searchTerm.toLowerCase())) ||
+	(f.email && f.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
+	(f.numero_tva && f.numero_tva.toLowerCase().includes(searchTerm.toLowerCase()))
+	)
 
   const stats = {
     total: fournisseurs.length,
@@ -286,6 +290,15 @@ export default function FournisseursPage() {
                   placeholder="https://www.exemple.be"
                 />
               </div>
+			  <div className="space-y-2">
+				<Label htmlFor="numero_tva">Numéro de TVA</Label>
+				<Input
+					id="numero_tva"
+					value={formData.numero_tva}
+					onChange={(e) => setFormData({...formData, numero_tva: e.target.value})}
+					placeholder="BE 0123.456.789"
+				/>
+				</div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -390,7 +403,7 @@ export default function FournisseursPage() {
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Rechercher par nom, code ou email..."
+              placeholder="Rechercher par nom, code, email ou TVA..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10"
@@ -457,6 +470,13 @@ export default function FournisseursPage() {
                     </a>
                   </div>
                 )}
+				{fournisseur.numero_tva && (
+				<div className="flex items-center gap-2 text-sm">
+					<Badge variant="outline" className="text-xs">
+					TVA: {fournisseur.numero_tva}
+					</Badge>
+				</div>
+				)}
                 {fournisseur.delai_livraison_jours && (
                   <p className="text-xs text-muted-foreground pt-2 border-t">
                     Délai de livraison: {fournisseur.delai_livraison_jours} jours
