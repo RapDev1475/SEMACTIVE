@@ -24,9 +24,6 @@
     --input: 240 5.9% 90%;
     --ring: 221 83% 53%;
     --radius: 0.5rem;
-    --success: 142 76% 36%;
-    --warning: 38 92% 50%;
-    --info: 199 89% 48%;
   }
 
   .dark {
@@ -53,10 +50,6 @@
 }
 
 @layer base {
-  * {
-    @apply border-border;
-  }
-  
   body {
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
@@ -84,7 +77,6 @@
 }
 
 @layer components {
-  /* Animations personnalisées */
   .animate-fade-in {
     animation: fadeIn 0.5s ease-in-out;
   }
@@ -101,54 +93,18 @@
     animation: scaleIn 0.3s ease-out;
   }
 
-  /* Gradient backgrounds */
   .bg-gradient-primary {
     background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--accent)) 100%);
   }
 
-  .bg-gradient-secondary {
-    background: linear-gradient(135deg, hsl(var(--secondary)) 0%, hsl(var(--muted)) 100%);
-  }
-
-  /* Card avec effet glassmorphism */
   .card-glass {
-    @apply bg-white/80 dark:bg-gray-900/80 backdrop-blur-lg border border-gray-200/50 dark:border-gray-700/50;
+    @apply bg-white/80 backdrop-blur-lg border border-gray-200/50;
   }
 
-  /* Effet de scan pour le scanner */
-  .scan-line {
-    position: relative;
-    overflow: hidden;
-  }
-
-  .scan-line::after {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 2px;
-    background: linear-gradient(90deg, transparent, hsl(var(--primary)), transparent);
-    animation: scan 2s linear infinite;
-  }
-
-  /* Badge avec pulse */
-  .badge-pulse {
-    @apply relative;
-  }
-
-  .badge-pulse::before {
-    content: '';
-    @apply absolute inset-0 rounded-full animate-ping opacity-75;
-    background: inherit;
-  }
-
-  /* Input focus moderne */
   .input-modern {
     @apply transition-all duration-200 focus:ring-2 focus:ring-primary/20 focus:border-primary;
   }
 
-  /* Bouton avec effet shimmer */
   .btn-shimmer {
     @apply relative overflow-hidden;
   }
@@ -159,50 +115,56 @@
     animation: shimmer 2s infinite;
   }
 
-  /* Sidebar navigation active state */
   .nav-link {
     @apply flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200;
-    @apply text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800;
+    @apply text-gray-700 hover:bg-gray-100;
   }
 
   .nav-link-active {
     @apply bg-primary/10 text-primary hover:bg-primary/15;
   }
 
-  /* Table row hover */
   .table-row-hover {
-    @apply transition-colors hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer;
+    @apply transition-colors hover:bg-gray-50 cursor-pointer;
   }
 
-  /* Status badges */
   .status-success {
-    @apply bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400;
+    @apply bg-green-100 text-green-800;
   }
 
   .status-warning {
-    @apply bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400;
+    @apply bg-yellow-100 text-yellow-800;
   }
 
   .status-error {
-    @apply bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400;
+    @apply bg-red-100 text-red-800;
   }
 
   .status-info {
-    @apply bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400;
+    @apply bg-blue-100 text-blue-800;
   }
 
-  /* Scrollbar personnalisée */
   .custom-scrollbar::-webkit-scrollbar {
     width: 8px;
     height: 8px;
   }
 
   .custom-scrollbar::-webkit-scrollbar-track {
-    @apply bg-gray-100 dark:bg-gray-800 rounded-full;
+    @apply bg-gray-100 rounded-full;
   }
 
   .custom-scrollbar::-webkit-scrollbar-thumb {
-    @apply bg-gray-300 dark:bg-gray-600 rounded-full hover:bg-gray-400 dark:hover:bg-gray-500;
+    @apply bg-gray-300 rounded-full hover:bg-gray-400;
+  }
+
+  .badge-pulse {
+    @apply relative;
+  }
+
+  .badge-pulse::before {
+    content: '';
+    @apply absolute inset-0 rounded-full animate-ping opacity-75;
+    background: inherit;
   }
 }
 
@@ -248,33 +210,8 @@
   }
 }
 
-@keyframes scan {
-  from {
-    transform: translateY(0);
-  }
-  to {
-    transform: translateY(100vh);
-  }
-}
-
 @keyframes shimmer {
   to {
     left: 100%;
-  }
-}
-
-@keyframes pulse-soft {
-  0%, 100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.7;
-  }
-}
-
-/* Print styles */
-@media print {
-  .no-print {
-    display: none !important;
   }
 }
