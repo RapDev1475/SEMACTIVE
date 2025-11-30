@@ -1,94 +1,108 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { useParams, useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ArrowLeft, Edit, Package, History, Hash } from "lucide-react"
 import Link from "next/link"
-import type { Article, Mouvement } from "@/lib/types"
+import { Plus, Search, Package, AlertTriangle, TrendingDown } from "lucide-react"
+import type { Article } from "@/lib/types"
 
-type ArticleWithRelations = Article & {
+type ArticleWithFournisseur = Article & {
   fournisseur?: { nom: string }
 }
 
-type NumeroSerie = {
-  id: string
-  numero_serie: string
-  adresse_mac?: string
-  localisation?: string
-  statut: string
-}
-
-export default function ArticleDetailPage() {
-  const params = useParams()
-  const router = useRouter()
-  const [article, setArticle] = useState<ArticleWithRelations | null>(null)
-  const [mouvements, setMouvements] = useState<Mouvement[]>([])
-  const [numerosSerie, setNumerosSerie] = useState<NumeroSerie[]>([])
+export default function ArticlesPage() {
+  const [articles, setArticles] = useState<ArticleWithFournisseur[]>([])
   const [loading, setLoading] = useState(true)
+  const [searchTerm, setSearchTerm] = useState("")
+  const [filterStatus, setFilterStatus] = useState<string>("all")
 
   useEffect(() => {
-    if (params.id) {
-      fetchArticleDetails()
-    }
-  }, [params.id])
+    fetchArticles()
+  }, [])
 
-  async function fetchArticleDetails() {
+  async function fetchArticles() {
     setLoading(true)
     try {
-      // Fetch article avec fournisseur
-      const { data: articleData, error: articleError } = await supabase
+      const { data, error } = await supabase
         .from('articles')
         .select(`
           *,
           fournisseur:fournisseurs(nom)
         `)
-        .eq('id', params.id)
-        .single()
+        .order('nom')
 
-      if (articleError) throw articleError
-      setArticle(articleData)
-
-      // Fetch mouvements
-      const { data: mouvementsData } = await supabase
-        .from('mouvements')
-        .select(`
-          *,
-          personne:personnes(nom, prenom)
-        `)
-        .eq('article_id', params.id)
-        .order('date_mouvement', { ascending: false })
-        .limit(20)
-
-      setMouvements(mouvementsData || [])
-
-      // Fetch numéros de série
-      const { data: serialsData } = await supabase
-        .from('numeros_serie')
-        .select('*')
-        .eq('article_id', params.id)
-        .order('created_at', { ascending: false })
-
-      setNumerosSerie(serialsData || [])
-
+      if (error) throw error
+      setArticles(data || [])
     } catch (error) {
-      console.error('Error fetching article details:', error)
+      console.error('Error fetching articles:', error)
     } finally {
       setLoading(false)
     }
   }
 
-  const getStatusBadge = (quantite: number, min: number, max: number) => {
-    if (quantite <= min) {
-      return <Badge className="bg-red-100 text-red-800">Stock critique</Badge>
-    } else if (quantite <= min * 1.5) {
-      return <Badge className="bg-orange-100 text-orange-800">Stock bas</Badge>
+  // 🔍 Gestion intelligente de la recherche
+  const handleSearchChange = async (value: string) => {
+    setSearchTerm(value)
+
+    const trimmed = value.trim()
+    if (trimmed.length < 6) return // trop court pour être un série/MAC valide
+
+    // Regex pour MAC (format AA:BB:CC:DD:EE:FF ou AA-BB-CC-DD-EE-FF)
+    const macRegex = /^([0-9A-Fa-f]{2}[:\-]){5}([0-9A-Fa-f]{2})$/
+    // Regex pour numéro de série (alphanumérique, ≥6 caractères)
+    const serialRegex = /^[A-Za-z0-9]{6,}$/
+
+    const isLikelyMAC = macRegex.test(trimmed)
+    const isLikelySerial = serialRegex.test(trimmed)
+
+    if (isLikelyMAC || isLikelySerial) {
+      try {
+        const { data } = await supabase
+          .from('numeros_serie')
+          .select('article_id')
+          .or(`numero_serie.eq.${trimmed},adresse_mac.eq.${trimmed}`)
+          .limit(1)
+
+        if (data?.[0]?.article_id) {
+          // Redirige immédiatement si trouvé
+          window.location.href = `/articles/${data[0].article_id}`
+        }
+      } catch (err) {
+        console.warn("Erreur lors de la recherche par série/MAC:", err)
+        // On continue le filtrage normal si échec
+      }
+    }
+  }
+
+  const filteredArticles = articles.filter(article => {
+    const matchesSearch = 
+      article.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      article.numero_article.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (article.code_ean && article.code_ean.toLowerCase().includes(searchTerm.toLowerCase()))
+
+    if (filterStatus === "all") return matchesSearch
+    if (filterStatus === "alert") return matchesSearch && article.quantite_stock <= article.point_commande
+    if (filterStatus === "low") return matchesSearch && article.quantite_stock <= article.stock_minimum
+    return matchesSearch
+  })
+
+  const stats = {
+    total: articles.length,
+    alertes: articles.filter(a => a.quantite_stock <= a.point_commande).length,
+    stockBas: articles.filter(a => a.quantite_stock <= a.stock_minimum).length,
+  }
+
+  const getStockStatus = (article: Article) => {
+    if (article.quantite_stock <= article.stock_minimum) {
+      return { badge: "bg-red-100 text-red-800", label: "Stock bas", icon: AlertTriangle }
+    } else if (article.quantite_stock <= article.point_commande) {
+      return { badge: "bg-orange-100 text-orange-800", label: "Alerte", icon: TrendingDown }
     } else {
-      return <Badge className="bg-green-100 text-green-800">Stock OK</Badge>
+      return { badge: "bg-green-100 text-green-800", label: "OK", icon: Package }
     }
   }
 
@@ -100,266 +114,173 @@ export default function ArticleDetailPage() {
     )
   }
 
-  if (!article) {
-    return (
-      <div className="text-center py-12">
-        <p className="text-muted-foreground">Article non trouvé</p>
-        <Link href="/articles">
-          <Button className="mt-4">Retour aux articles</Button>
-        </Link>
-      </div>
-    )
-  }
-
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-4">
-        <Button variant="outline" size="icon" onClick={() => router.back()}>
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <div className="flex-1">
-          <h1 className="text-3xl font-bold tracking-tight">{article.nom}</h1>
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Articles</h1>
           <p className="text-muted-foreground mt-1">
-            {article.numero_article} • {article.code_ean}
+            Gérez votre catalogue d'articles et stocks
           </p>
         </div>
-			<Link href={`/articles/${article.id}/edit`}>
-			<Button>
-				<Edit className="mr-2 h-4 w-4" />
-				Modifier
-			</Button>
-			</Link>
+        <Link href="/articles/new">
+          <Button className="btn-shimmer">
+            <Plus className="mr-2 h-4 w-4" />
+            Nouvel article
+          </Button>
+        </Link>
       </div>
 
-      {/* Informations principales */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-3">
         <Card>
-          <CardHeader className="pb-2">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Stock actuel
+              Total articles
             </CardTitle>
+            <Package className="h-4 w-4 text-blue-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{article.quantite_stock}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Min: {article.stock_minimum} • Max: {article.stock_maximum}
-            </p>
-            <div className="mt-2">
-              {getStatusBadge(article.quantite_stock, article.stock_minimum, article.stock_maximum)}
+            <div className="text-2xl font-bold">{stats.total}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Alertes stock
+            </CardTitle>
+            <AlertTriangle className="h-4 w-4 text-orange-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.alertes}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Stock bas
+            </CardTitle>
+            <TrendingDown className="h-4 w-4 text-red-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.stockBas}</div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Rechercher par nom, numéro, EAN, ou coller un N° série / MAC..."
+                value={searchTerm}
+                onChange={(e) => handleSearchChange(e.target.value)}
+                className="pl-10"
+              />
             </div>
-          </CardContent>
-        </Card>
+            <div className="flex gap-2">
+              <Button 
+                variant={filterStatus === "all" ? "default" : "outline"}
+                onClick={() => setFilterStatus("all")}
+              >
+                Tous
+              </Button>
+              <Button 
+                variant={filterStatus === "alert" ? "default" : "outline"}
+                onClick={() => setFilterStatus("alert")}
+              >
+                En alerte
+              </Button>
+              <Button 
+                variant={filterStatus === "low" ? "default" : "outline"}
+                onClick={() => setFilterStatus("low")}
+              >
+                Stock bas
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Point de commande
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{article.point_commande}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              {article.conditionnement}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Prix achat
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{article.prix_achat?.toFixed(2)}€</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              HT
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Prix vente
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{article.prix_vente?.toFixed(2)}€</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              TVA {article.taux_tva}%
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Onglets */}
-      <Tabs defaultValue="details" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="details">
-            <Package className="mr-2 h-4 w-4" />
-            Détails
-          </TabsTrigger>
-          <TabsTrigger value="mouvements">
-            <History className="mr-2 h-4 w-4" />
-            Mouvements ({mouvements.length})
-          </TabsTrigger>
-          <TabsTrigger value="serials">
-            <Hash className="mr-2 h-4 w-4" />
-            N° Série ({numerosSerie.length})
-          </TabsTrigger>
-        </TabsList>
-
-        {/* Onglet Détails */}
-        <TabsContent value="details">
-          <Card>
-            <CardHeader>
-              <CardTitle>Informations détaillées</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-muted-foreground">Numéro article</p>
-                  <p className="font-medium">{article.numero_article}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Code EAN</p>
-                  <p className="font-medium font-mono">{article.code_ean}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Fournisseur</p>
-                  <p className="font-medium">{article.fournisseur?.nom || 'Non défini'}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Référence fournisseur</p>
-                  <p className="font-medium">{article.reference_fournisseur || 'N/A'}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Conditionnement</p>
-                  <p className="font-medium">{article.conditionnement}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">TVA</p>
-                  <p className="font-medium">{article.taux_tva}%</p>
-                </div>
-              </div>
-
-              <div className="pt-4 border-t">
-                <h3 className="font-semibold mb-2">Valeurs de stock</h3>
-                <div className="grid grid-cols-3 gap-4">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Valeur achat totale</p>
-                    <p className="text-lg font-bold">
-                      {(article.quantite_stock * (article.prix_achat || 0)).toFixed(2)}€
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Valeur vente totale</p>
-                    <p className="text-lg font-bold">
-                      {(article.quantite_stock * (article.prix_vente || 0)).toFixed(2)}€
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Marge potentielle</p>
-                    <p className="text-lg font-bold text-green-600">
-                      {(article.quantite_stock * ((article.prix_vente || 0) - (article.prix_achat || 0))).toFixed(2)}€
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Onglet Mouvements */}
-        <TabsContent value="mouvements">
-          <Card>
-            <CardHeader>
-              <CardTitle>Historique des mouvements</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {mouvements.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  <History className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                  <p>Aucun mouvement enregistré</p>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {mouvements.map((mouvement) => (
-                    <div
-                      key={mouvement.id}
-                      className="flex items-center justify-between p-3 rounded-lg border hover:bg-accent transition-colors"
-                    >
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline">
-                            {mouvement.type_mouvement}
-                          </Badge>
-                          <p className="text-sm font-medium">
-                            Quantité: {mouvement.quantite}
-                          </p>
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {mouvement.personne?.nom || 'Système'} • {new Date(mouvement.date_mouvement).toLocaleString('fr-BE')}
-                        </p>
-                        {mouvement.remarques && (
-                          <p className="text-xs text-muted-foreground mt-1">
-                            {mouvement.remarques}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Onglet Numéros de série */}
-        <TabsContent value="serials">
-          <Card>
-            <CardHeader>
-              <CardTitle>Numéros de série et adresses MAC</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {numerosSerie.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  <Hash className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                  <p>Aucun numéro de série enregistré</p>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {numerosSerie.map((serial) => (
-                    <div
-                      key={serial.id}
-                      className="flex items-center justify-between p-3 rounded-lg border"
-                    >
-                      <div className="flex-1">
-                        <p className="font-mono font-semibold">{serial.numero_serie}</p>
-                        {serial.adresse_mac && (
-                          <p className="text-sm text-muted-foreground font-mono">
-                            MAC: {serial.adresse_mac}
-                          </p>
-                        )}
-                        {serial.localisation && (
-                          <p className="text-xs text-muted-foreground mt-1">
-                            📍 {serial.localisation}
-                          </p>
-                        )}
-                      </div>
-                      <Badge variant={serial.statut === 'disponible' ? 'default' : 'secondary'}>
-                        {serial.statut}
-                      </Badge>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+      <Card>
+        <CardHeader>
+          <CardTitle>{filteredArticles.length} articles</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {filteredArticles.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground">
+              <Package className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <p>Aucun article trouvé</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left p-3 font-medium">Numéro</th>
+                    <th className="text-left p-3 font-medium">Nom</th>
+                    <th className="text-left p-3 font-medium">Fournisseur</th>
+                    <th className="text-right p-3 font-medium">Stock</th>
+                    <th className="text-right p-3 font-medium">Min/Max</th>
+                    <th className="text-right p-3 font-medium">Prix achat</th>
+                    <th className="text-center p-3 font-medium">Statut</th>
+                    <th className="text-center p-3 font-medium"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredArticles.map((article) => {
+                    const status = getStockStatus(article)
+                    const StatusIcon = status.icon
+                    return (
+                      <tr 
+                        key={article.id} 
+                        className="border-b hover:bg-accent transition-colors cursor-pointer"
+                        onClick={() => window.location.href = `/articles/${article.id}`}
+                      >
+                        <td className="p-3 font-mono text-sm">{article.numero_article}</td>
+                        <td className="p-3">
+                          <div>
+                            <p className="font-medium">{article.nom}</p>
+                            <p className="text-xs text-muted-foreground">{article.code_ean}</p>
+                          </div>
+                        </td>
+                        <td className="p-3 text-sm text-muted-foreground">
+                          {article.fournisseur?.nom || 'Non défini'}
+                        </td>
+                        <td className="p-3 text-right font-semibold">
+                          {article.quantite_stock}
+                        </td>
+                        <td className="p-3 text-right text-sm text-muted-foreground">
+                          {article.stock_minimum} / {article.stock_maximum}
+                        </td>
+                        <td className="p-3 text-right font-medium">
+                          {article.prix_achat?.toFixed(2)}€
+                        </td>
+                        <td className="p-3">
+                          <div className="flex items-center justify-center gap-2">
+                            <Badge className={status.badge}>
+                              <StatusIcon className="h-3 w-3 mr-1" />
+                              {status.label}
+                            </Badge>
+                          </div>
+                        </td>
+                        <td className="p-3">
+                          <Link href={`/articles/${article.id}`}>
+                            <Button size="sm" variant="ghost">
+                              Voir détails
+                            </Button>
+                          </Link>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }
