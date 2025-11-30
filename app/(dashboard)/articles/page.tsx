@@ -43,7 +43,44 @@ export default function ArticlesPage() {
       setLoading(false)
     }
   }
+async function searchBySerialOrMac(searchValue: string) {
+  if (!searchValue.trim()) {
+    fetchArticles()
+    return
+  }
 
+  setLoading(true)
+  try {
+    // Rechercher les numéros de série qui matchent
+    const { data: serialData } = await supabase
+      .from('numeros_serie')
+      .select('article_id')
+      .or(`numero_serie.ilike.%${searchValue}%,adresse_mac.ilike.%${searchValue}%`)
+
+    if (serialData && serialData.length > 0) {
+      const articleIds = [...new Set(serialData.map(s => s.article_id))]
+      
+      // Récupérer les articles correspondants
+      const { data, error } = await supabase
+        .from('articles')
+        .select(`
+          *,
+          fournisseur:fournisseurs(nom)
+        `)
+        .in('id', articleIds)
+        .order('nom')
+
+      if (error) throw error
+      setArticles(data || [])
+    } else {
+      setArticles([])
+    }
+  } catch (error) {
+    console.error('Error searching by serial/MAC:', error)
+  } finally {
+    setLoading(false)
+  }
+}
   const filteredArticles = articles.filter(article => {
     const matchesSearch = 
       article.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -130,15 +167,29 @@ export default function ArticlesPage() {
       <Card>
         <CardContent className="pt-6">
           <div className="flex flex-col gap-4 md:flex-row md:items-center">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Rechercher par nom, numéro ou code EAN..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
-            </div>
+			<div className="flex gap-2 flex-1">
+			<div className="relative flex-1">
+				<Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+				<Input
+				placeholder="Rechercher par nom, numéro ou code EAN..."
+				value={searchTerm}
+				onChange={(e) => setSearchTerm(e.target.value)}
+				className="pl-10"
+				/>
+			</div>
+			<div className="relative flex-1">
+				<Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+				<Input
+				placeholder="Rechercher par n° série ou MAC..."
+				onKeyPress={(e) => {
+					if (e.key === 'Enter') {
+					searchBySerialOrMac((e.target as HTMLInputElement).value)
+					}
+				}}
+				className="pl-10"
+				/>
+			</div>
+			</div>
             <div className="flex gap-2">
               <Button 
                 variant={filterStatus === "all" ? "default" : "outline"}
