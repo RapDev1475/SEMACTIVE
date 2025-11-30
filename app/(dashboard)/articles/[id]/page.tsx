@@ -124,10 +124,12 @@ export default function ArticleDetailPage() {
             {article.numero_article} • {article.code_ean}
           </p>
         </div>
-        <Button>
-          <Edit className="mr-2 h-4 w-4" />
-          Modifier
-        </Button>
+			<Link href={`/articles/${article.id}/edit`}>
+			<Button>
+				<Edit className="mr-2 h-4 w-4" />
+				Modifier
+			</Button>
+			</Link>
       </div>
 
       {/* Informations principales */}
