@@ -36,3 +36,11 @@ export default function RootLayout({
     </html>
   )
 }
+html, body {
+  height: 100%;
+  overflow: hidden;
+}
+
+body > div:first-child {
+  height: 100%;
+}

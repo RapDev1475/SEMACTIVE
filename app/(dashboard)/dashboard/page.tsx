@@ -167,7 +167,7 @@ export default function DashboardPage() {
         {statCards.map((stat, index) => {
           const Icon = stat.icon
           return (
-            <Card key={index} className="overflow-hidden hover:shadow-lg transition-shadow">
+            <Card key={index} className="overflow-hidden">
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">
                   {stat.title}
@@ -289,7 +289,7 @@ export default function DashboardPage() {
                 </Link>
               </div>
             ) : (
-              <div className="text-center py-8 text-muted-foreground">
+              <div className="text-center py-8 text-muted-foreground min-h-[350px] flex flex-col items-center justify-center">
                 <Activity className="h-12 w-12 mx-auto mb-2 opacity-50" />
                 <p>Aucun mouvement récent</p>
               </div>
