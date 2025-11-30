@@ -100,7 +100,7 @@ export default function MouvementsPage() {
     try {
       const { data } = await supabase
         .from('personnes')
-        .select('id, nom, prenom, type')
+        .select('id, nom, prenom, type, reated_at')
         .eq('type', 'technicien')
         .order('nom')
 
