@@ -62,8 +62,10 @@ export type Personne = {
   type: "technicien" | "client" | "gestionnaire" | "transporteur" | "fournisseur" | "autre"
   email?: string
   telephone?: string
-  entreprise?: string        // ← Ajoutez cette ligne
-  remarques?: string         // ← Ajoutez cette ligne si elle n'existe pas
+  entreprise?: string
+  remarques?: string
+  numero_perid?: string    // ← Ajoutez cette ligne
+  erp_id?: string          // ← Ajoutez cette ligne
   created_at: string
 }
 
