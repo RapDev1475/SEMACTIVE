@@ -231,6 +231,7 @@ export default function ArticlesPage() {
                 </thead>
                 <tbody>
                   {filteredArticles.map((article) => {
+					console.log("Article ID:", article.id, typeof article.id);
                     const status = getStockStatus(article)
                     const StatusIcon = status.icon
                     return (
