@@ -1,24 +1,21 @@
 // Types pour l'application SEMACTIVE
 
+// @/lib/types.ts
+
 export type Article = {
   id: string
-  numero_article: string
-  code_ean: string
-  description?: string
   nom: string
-  categorie?: string  // ← AJOUTEZ CETTE LIGNE
+  numero_article: string
+  code_ean: string | null
+  description: string | null
+  categorie: string
+  fournisseur_id: string | null
   quantite_stock: number
   stock_minimum: number
   stock_maximum: number
   point_commande: number
-  prix_achat?: number
-  prix_vente?: number
-  taux_tva?: number
-  conditionnement?: string
-  reference_fournisseur?: string
-  fournisseur_id?: string
-  created_at: string
-  updated_at: string
+  prix_achat: number
+  prix_vente: number
   gestion_par_serie: boolean
 }
 
