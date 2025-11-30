@@ -195,3 +195,11 @@ body {
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background-color: hsl(var(--muted-foreground) / 0.5);
 }
+/* Fix scrollbar vertical */
+.dashboard-card {
+  min-height: 180px;
+}
+
+.dashboard-section {
+  min-height: 350px;
+}
