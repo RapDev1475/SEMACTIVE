@@ -41,7 +41,7 @@ export default function MouvementsPage() {
   
   const [formData, setFormData] = useState({
     article_id: "",
-    personne_id: "",
+    personne_id: null as string | null,
     type_mouvement: "reception" as "reception" | "sortie_technicien" | "installation_client" | "retour",
     quantite: 1,
     remarques: "",
@@ -116,11 +116,15 @@ export default function MouvementsPage() {
     try {
       // Insérer le mouvement
       const { error: mouvementError } = await supabase
-        .from('mouvements')
-        .insert([{
-          ...formData,
-          date_mouvement: new Date().toISOString(),
-        }])
+			.from('mouvements')
+			.insert([{
+				article_id: formData.article_id,
+				personne_id: formData.personne_id, // ✅ null si non sélectionné
+				type_mouvement: formData.type_mouvement,
+				quantite: formData.quantite,
+				remarques: formData.remarques || null,
+				date_mouvement: new Date().toISOString(),
+			}])
 
       if (mouvementError) throw mouvementError
 
@@ -271,20 +275,19 @@ export default function MouvementsPage() {
               <div className="space-y-2">
                 <Label htmlFor="personne_id">Technicien</Label>
                 <Select 
-                  value={formData.personne_id} 
-                  onValueChange={(value) => setFormData({...formData, personne_id: value})}
+                  value={formData.personne_id || undefined} 
+                  onValueChange={(value) => setFormData({...formData, personne_id: value || null})}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Sélectionnez un technicien (optionnel)" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Aucun</SelectItem>
-                    {personnes.map((personne) => (
-                      <SelectItem key={personne.id} value={personne.id}>
-                        {personne.nom} {personne.prenom}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
+						{personnes.map((personne) => (
+							<SelectItem key={personne.id} value={personne.id}>
+							{personne.nom} {personne.prenom || ''}
+							</SelectItem>
+						))}
+						</SelectContent>
                 </Select>
               </div>
 
