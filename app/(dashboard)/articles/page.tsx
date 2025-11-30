@@ -12,7 +12,7 @@ import type { Article } from "@/lib/types"
 
 type ArticleWithRelations = Article & {
   fournisseur?: { nom: string }
-  quantite_stock_reelle: number // ✅ toujours défini
+  quantite_stock_reelle: number
 }
 
 export default function ArticlesPage() {
@@ -30,8 +30,7 @@ export default function ArticlesPage() {
     setLoading(true)
     try {
       // 1. Charger les articles
-      const {  data, error: articlesError } = await supabase...
-		const articlesData = data
+      const {  data: articlesData, error: articlesError } = await supabase
         .from('articles')
         .select(`
           *,
@@ -42,7 +41,7 @@ export default function ArticlesPage() {
       if (articlesError) throw articlesError
 
       // 2. Charger le stock des articles traçables
-      const { data: stockSerieData } = await supabase
+      const {  data: stockSerieData } = await supabase
         .from('v_stock_warehouse_seneffe')
         .select('article_id, quantite_en_stock')
 
@@ -81,7 +80,7 @@ export default function ArticlesPage() {
 
     setLoading(true)
     try {
-      const {  serialData } = await supabase
+      const {  data: serialData } = await supabase
         .from('numeros_serie')
         .select('article_id')
         .or(`numero_serie.ilike.%${searchValue}%,adresse_mac.ilike.%${searchValue}%`)
@@ -89,7 +88,7 @@ export default function ArticlesPage() {
       if (serialData && serialData.length > 0) {
         const articleIds = [...new Set(serialData.map(s => s.article_id))]
 
-        const {  articlesData, error: articlesError } = await supabase
+        const {  data: articlesData, error: articlesError } = await supabase
           .from('articles')
           .select(`
             *,
@@ -100,7 +99,7 @@ export default function ArticlesPage() {
 
         if (articlesError) throw articlesError
 
-        const { data: stockSerieData } = await supabase
+        const {  data: stockSerieData } = await supabase
           .from('v_stock_warehouse_seneffe')
           .select('article_id, quantite_en_stock')
 
@@ -150,7 +149,6 @@ export default function ArticlesPage() {
     return matchesSearch && matchesStatus && matchesCategorie
   })
 
-  // ✅ stats bien définies
   const stats = {
     total: articles.length,
     alertes: articles.filter(a => a.quantite_stock_reelle <= a.point_commande).length,
