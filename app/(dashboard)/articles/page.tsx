@@ -10,8 +10,9 @@ import Link from "next/link"
 import { Plus, Search, Package, AlertTriangle, TrendingDown } from "lucide-react"
 import type { Article } from "@/lib/types"
 
-type ArticleWithFournisseur = Article & {
+type ArticleWithRelations = Article & {
   fournisseur?: { nom: string }
+  quantite_stock_reelle?: number // champ calculé, pas dans la DB
 }
 
 export default function ArticlesPage() {
@@ -25,25 +26,53 @@ export default function ArticlesPage() {
     fetchArticles()
   }, [])
 
-  async function fetchArticles() {
-    setLoading(true)
-    try {
-      const { data, error } = await supabase
-        .from('articles')
-        .select(`
-          *,
-          fournisseur:fournisseurs(nom)
-        `)
-        .order('nom')
+async function fetchArticles() {
+  setLoading(true)
+  try {
+    // 1. Charger tous les articles
+    const { data: articlesData, error: articlesError } = await supabase
+      .from('articles')
+      .select(`
+        *,
+        fournisseur:fournisseurs(nom)
+      `)
+      .order('nom')
 
-      if (error) throw error
-      setArticles(data || [])
-    } catch (error) {
-      console.error('Error fetching articles:', error)
-    } finally {
-      setLoading(false)
-    }
+    if (articlesError) throw articlesError
+
+    // 2. Charger le stock des articles traçables (via vue)
+    const { data: stockSerieData, error: stockError } = await supabase
+      .from('v_stock_warehouse_seneffe')
+      .select('article_id, quantite_en_stock')
+
+    if (stockError) console.warn('Erreur chargement stock série:', stockError)
+
+    const stockMap = new Map(
+      (stockSerieData || []).map(item => [item.article_id, item.quantite_en_stock])
+    )
+
+    // 3. Mapper avec le bon stock
+    const articlesWithRealStock: ArticleWithRelations[] = (articlesData || []).map(article => {
+      if (article.gestion_par_serie) {
+        return {
+          ...article,
+          quantite_stock_reelle: stockMap.get(article.id) || 0,
+        }
+      } else {
+        return {
+          ...article,
+          quantite_stock_reelle: article.quantite_stock || 0,
+        }
+      }
+    })
+
+    setArticles(articlesWithRealStock)
+  } catch (error) {
+    console.error('Error fetching articles:', error)
+  } finally {
+    setLoading(false)
   }
+}
 async function searchBySerialOrMac(searchValue: string) {
   if (!searchValue.trim()) {
     fetchArticles()
@@ -52,7 +81,6 @@ async function searchBySerialOrMac(searchValue: string) {
 
   setLoading(true)
   try {
-    // Rechercher les numéros de série qui matchent
     const { data: serialData } = await supabase
       .from('numeros_serie')
       .select('article_id')
@@ -60,9 +88,9 @@ async function searchBySerialOrMac(searchValue: string) {
 
     if (serialData && serialData.length > 0) {
       const articleIds = [...new Set(serialData.map(s => s.article_id))]
-      
-      // Récupérer les articles correspondants
-      const { data, error } = await supabase
+
+      // Charger les articles
+      const { data: articlesData, error: articlesError } = await supabase
         .from('articles')
         .select(`
           *,
@@ -71,8 +99,32 @@ async function searchBySerialOrMac(searchValue: string) {
         .in('id', articleIds)
         .order('nom')
 
-      if (error) throw error
-      setArticles(data || [])
+      if (articlesError) throw articlesError
+
+      // Charger le stock réel (pour les articles traçables)
+      const { data: stockSerieData } = await supabase
+        .from('v_stock_warehouse_seneffe')
+        .select('article_id, quantite_en_stock')
+
+      const stockMap = new Map(
+        (stockSerieData || []).map(item => [item.article_id, item.quantite_en_stock])
+      )
+
+      const articlesWithRealStock = (articlesData || []).map(article => {
+        if (article.gestion_par_serie) {
+          return {
+            ...article,
+            quantite_stock_reelle: stockMap.get(article.id) || 0,
+          }
+        } else {
+          return {
+            ...article,
+            quantite_stock_reelle: article.quantite_stock || 0,
+          }
+        }
+      })
+
+      setArticles(articlesWithRealStock)
     } else {
       setArticles([])
     }
@@ -89,9 +141,9 @@ async function searchBySerialOrMac(searchValue: string) {
 			(article.code_ean && article.code_ean.toLowerCase().includes(searchTerm.toLowerCase()))
 
 		const matchesStatus = 
-			filterStatus === "all" || 
-			(filterStatus === "alert" && article.quantite_stock <= article.point_commande) ||
-			(filterStatus === "low" && article.quantite_stock <= article.stock_minimum)
+  filterStatus === "all" || 
+  (filterStatus === "alert" && article.quantite_stock_reelle <= article.point_commande) ||
+  (filterStatus === "low" && article.quantite_stock_reelle <= article.stock_minimum)
   
 		const matchesCategorie = 
 			filterCategorie === "all" || article.categorie === filterCategorie  // ← NOUVEAU
@@ -99,11 +151,15 @@ async function searchBySerialOrMac(searchValue: string) {
 		return matchesSearch && matchesStatus && matchesCategorie  // ← MODIFIÉ
 		})
 
-  const stats = {
-    total: articles.length,
-    alertes: articles.filter(a => a.quantite_stock <= a.point_commande).length,
-    stockBas: articles.filter(a => a.quantite_stock <= a.stock_minimum).length,
+const getStockStatus = (article: ArticleWithRelations) => {
+  if (article.quantite_stock_reelle <= article.stock_minimum) {
+    return { badge: "bg-red-100 text-red-800", label: "Stock bas", icon: AlertTriangle }
+  } else if (article.quantite_stock_reelle <= article.point_commande) {
+    return { badge: "bg-orange-100 text-orange-800", label: "Alerte", icon: TrendingDown }
+  } else {
+    return { badge: "bg-green-100 text-green-800", label: "OK", icon: Package }
   }
+}
 
   const getStockStatus = (article: Article) => {
     if (article.quantite_stock <= article.stock_minimum) {
@@ -287,8 +343,8 @@ async function searchBySerialOrMac(searchValue: string) {
                           {article.fournisseur?.nom || 'Non défini'}
                         </td>
                         <td className="p-3 text-right font-semibold">
-                          {article.quantite_stock}
-                        </td>
+						{article.quantite_stock_reelle}
+						</td>
                         <td className="p-3 text-right text-sm text-muted-foreground">
                           {article.stock_minimum} / {article.stock_maximum}
                         </td>
