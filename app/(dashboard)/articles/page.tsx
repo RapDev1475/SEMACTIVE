@@ -38,20 +38,20 @@ export default function ArticlesPage() {
   async function fetchArticles() {
     setLoading(true)
     try {
-      // 1. Charger les articles avec catégorie
+      // 1. Charger les articles avec catégorie (jointure LEFT)
       const { data: articlesData, error: articlesError } = await supabase
         .from('articles')
         .select(`
           *,
           fournisseur:fournisseurs(nom),
-          categorie_info:categories(nom)
+          categorie_info:categories!left(nom)
         `)
         .order('nom')
 
       if (articlesError) throw articlesError
 
       // 2. Charger le stock des articles traçables
-      const { data: stockSerieData } = await supabase
+      const {  stockSerieData } = await supabase
         .from('v_stock_warehouse_seneffe')
         .select('article_id, quantite_en_stock')
 
@@ -104,7 +104,7 @@ export default function ArticlesPage() {
 
     setLoading(true)
     try {
-      const { data: serialData } = await supabase
+      const {  serialData } = await supabase
         .from('numeros_serie')
         .select('article_id')
         .or(`numero_serie.ilike.%${searchValue}%,adresse_mac.ilike.%${searchValue}%`)
@@ -112,19 +112,19 @@ export default function ArticlesPage() {
       if (serialData && serialData.length > 0) {
         const articleIds = [...new Set(serialData.map(s => s.article_id))]
 
-        const { data: articlesData, error: articlesError } = await supabase
+        const {  articlesData, error: articlesError } = await supabase
           .from('articles')
           .select(`
             *,
             fournisseur:fournisseurs(nom),
-            categorie_info:categories(nom)
+            categorie_info:categories!left(nom)
           `)
           .in('id', articleIds)
           .order('nom')
 
         if (articlesError) throw articlesError
 
-        const { data: stockSerieData } = await supabase
+        const {  stockSerieData } = await supabase
           .from('v_stock_warehouse_seneffe')
           .select('article_id, quantite_en_stock')
 
@@ -357,7 +357,7 @@ export default function ArticlesPage() {
                           </div>
                         </td>
                         <td className="p-3 text-sm text-muted-foreground">
-                          {article.categorie_info?.nom || 'Non classé'}
+                          {article.categorie_info?.nom || article.categorie || 'Non classé'}
                         </td>
                         <td className="p-3 text-sm text-muted-foreground">
                           {article.fournisseur?.nom || 'Non défini'}

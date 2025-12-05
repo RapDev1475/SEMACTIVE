@@ -48,7 +48,7 @@ export default function ArticleDetailPage() {
         .select(`
           *,
           fournisseur:fournisseurs(nom),
-          categorie_info:categories(nom)
+          categorie_info:categories!left(nom)
         `)
         .eq('id', articleId)
         .single()
