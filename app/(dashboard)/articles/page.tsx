@@ -48,7 +48,7 @@ async function fetchArticles() {
     const categoriesMap = new Map(categoriesData?.map(cat => [cat.nom, cat]) || [])
 
     // Charger les articles
-    const {  articlesData, error: articlesError } = await supabase
+    const { data: articlesData, error: articlesError } = await supabase
       .from('articles')
       .select(`
         *,
