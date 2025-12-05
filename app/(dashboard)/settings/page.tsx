@@ -34,12 +34,17 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
 
-  // États pour l'ajout/édition
+  // États pour l'ajout
   const [newCategorie, setNewCategorie] = useState("")
   const [newEmplacement, setNewEmplacement] = useState("")
   const [newEmplacementDesc, setNewEmplacementDesc] = useState("")
   const [newTypeMouvement, setNewTypeMouvement] = useState("")
   const [newTypeMouvementDesc, setNewTypeMouvementDesc] = useState("")
+
+  // États pour l'édition
+  const [editingCategorie, setEditingCategorie] = useState<{id: string, nom: string} | null>(null)
+  const [editingEmplacement, setEditingEmplacement] = useState<{id: string, nom: string, description: string | null} | null>(null)
+  const [editingTypeMouvement, setEditingTypeMouvement] = useState<{id: string, nom: string, description: string | null} | null>(null)
 
   useEffect(() => {
     fetchSettings()
@@ -83,6 +88,7 @@ export default function SettingsPage() {
     }
   }
 
+  // --- CATÉGORIES ---
   const handleAddCategorie = async () => {
     if (!newCategorie.trim()) return
 
@@ -102,6 +108,34 @@ export default function SettingsPage() {
     }
   }
 
+  const startEditCategorie = (categorie: Categorie) => {
+    setEditingCategorie({ id: categorie.id, nom: categorie.nom })
+  }
+
+  const saveEditCategorie = async () => {
+    if (!editingCategorie || !editingCategorie.nom.trim()) return
+
+    try {
+      const { error } = await supabase
+        .from('categories')
+        .update({ nom: editingCategorie.nom.trim() })
+        .eq('id', editingCategorie.id)
+
+      if (error) throw error
+
+      toast.success("Catégorie mise à jour")
+      setEditingCategorie(null)
+      fetchSettings() // Recharger
+    } catch (error: any) {
+      console.error('Erreur mise à jour catégorie:', error)
+      toast.error("Erreur lors de la mise à jour de la catégorie")
+    }
+  }
+
+  const cancelEditCategorie = () => {
+    setEditingCategorie(null)
+  }
+
   const handleDeleteCategorie = async (id: string) => {
     try {
       const { error } = await supabase
@@ -119,6 +153,7 @@ export default function SettingsPage() {
     }
   }
 
+  // --- EMPLACEMENTS ---
   const handleAddEmplacement = async () => {
     if (!newEmplacement.trim()) return
 
@@ -142,6 +177,41 @@ export default function SettingsPage() {
     }
   }
 
+  const startEditEmplacement = (emplacement: Emplacement) => {
+    setEditingEmplacement({ 
+      id: emplacement.id, 
+      nom: emplacement.nom,
+      description: emplacement.description || ""
+    })
+  }
+
+  const saveEditEmplacement = async () => {
+    if (!editingEmplacement || !editingEmplacement.nom.trim()) return
+
+    try {
+      const { error } = await supabase
+        .from('emplacements')
+        .update({ 
+          nom: editingEmplacement.nom.trim(),
+          description: editingEmplacement.description || null
+        })
+        .eq('id', editingEmplacement.id)
+
+      if (error) throw error
+
+      toast.success("Emplacement mis à jour")
+      setEditingEmplacement(null)
+      fetchSettings() // Recharger
+    } catch (error: any) {
+      console.error('Erreur mise à jour emplacement:', error)
+      toast.error("Erreur lors de la mise à jour de l'emplacement")
+    }
+  }
+
+  const cancelEditEmplacement = () => {
+    setEditingEmplacement(null)
+  }
+
   const handleDeleteEmplacement = async (id: string) => {
     try {
       const { error } = await supabase
@@ -159,6 +229,7 @@ export default function SettingsPage() {
     }
   }
 
+  // --- TYPES DE MOUVEMENT ---
   const handleAddTypeMouvement = async () => {
     if (!newTypeMouvement.trim()) return
 
@@ -180,6 +251,41 @@ export default function SettingsPage() {
       console.error('Erreur ajout type mouvement:', error)
       toast.error("Erreur lors de l'ajout du type de mouvement")
     }
+  }
+
+  const startEditTypeMouvement = (type: TypeMouvement) => {
+    setEditingTypeMouvement({ 
+      id: type.id, 
+      nom: type.nom,
+      description: type.description || ""
+    })
+  }
+
+  const saveEditTypeMouvement = async () => {
+    if (!editingTypeMouvement || !editingTypeMouvement.nom.trim()) return
+
+    try {
+      const { error } = await supabase
+        .from('types_mouvement')
+        .update({ 
+          nom: editingTypeMouvement.nom.trim(),
+          description: editingTypeMouvement.description || null
+        })
+        .eq('id', editingTypeMouvement.id)
+
+      if (error) throw error
+
+      toast.success("Type de mouvement mis à jour")
+      setEditingTypeMouvement(null)
+      fetchSettings() // Recharger
+    } catch (error: any) {
+      console.error('Erreur mise à jour type mouvement:', error)
+      toast.error("Erreur lors de la mise à jour du type de mouvement")
+    }
+  }
+
+  const cancelEditTypeMouvement = () => {
+    setEditingTypeMouvement(null)
   }
 
   const handleDeleteTypeMouvement = async (id: string) => {
@@ -227,31 +333,65 @@ export default function SettingsPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              <div className="flex gap-2">
-                <Input
-                  placeholder="Nouvelle catégorie..."
-                  value={newCategorie}
-                  onChange={(e) => setNewCategorie(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && handleAddCategorie()}
-                />
-                <Button size="sm" onClick={handleAddCategorie}>
-                  <Plus className="h-4 w-4" />
-                </Button>
+              {/* Formulaire d'ajout */}
+              <div className="space-y-2">
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Nouvelle catégorie..."
+                    value={newCategorie}
+                    onChange={(e) => setNewCategorie(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && handleAddCategorie()}
+                  />
+                  <Button size="sm" onClick={handleAddCategorie}>
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
               
+              {/* Liste des catégories */}
               <div className="space-y-2 max-h-64 overflow-y-auto">
                 {categories.map((cat) => (
-                  <div key={cat.id} className="flex items-center justify-between p-2 border rounded">
-                    <span className="text-sm">{cat.nom}</span>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => handleDeleteCategorie(cat.id)}
-                      className="h-8 w-8 p-0"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
+                  editingCategorie?.id === cat.id ? (
+                    // Mode édition
+                    <div key={cat.id} className="p-2 border rounded flex items-center gap-2">
+                      <Input
+                        value={editingCategorie.nom}
+                        onChange={(e) => setEditingCategorie({...editingCategorie, nom: e.target.value})}
+                        onKeyPress={(e) => e.key === 'Enter' && saveEditCategorie()}
+                        className="flex-1"
+                        autoFocus
+                      />
+                      <Button size="sm" onClick={saveEditCategorie} variant="outline">
+                        <Save className="h-4 w-4" />
+                      </Button>
+                      <Button size="sm" onClick={cancelEditCategorie} variant="outline">
+                        <Edit3 className="h-4 w-4 rotate-45" />
+                      </Button>
+                    </div>
+                  ) : (
+                    // Mode lecture
+                    <div key={cat.id} className="flex items-center justify-between p-2 border rounded">
+                      <span className="text-sm">{cat.nom}</span>
+                      <div className="flex gap-1">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => startEditCategorie(cat)}
+                          className="h-8 w-8 p-0"
+                        >
+                          <Edit3 className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleDeleteCategorie(cat.id)}
+                          className="h-8 w-8 p-0"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  )
                 ))}
               </div>
             </div>
@@ -268,6 +408,7 @@ export default function SettingsPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
+              {/* Formulaire d'ajout */}
               <div className="space-y-2">
                 <Input
                   placeholder="Nom de l'emplacement..."
@@ -280,30 +421,68 @@ export default function SettingsPage() {
                   onChange={(e) => setNewEmplacementDesc(e.target.value)}
                   onKeyPress={(e) => e.key === 'Enter' && handleAddEmplacement()}
                 />
+                <Button size="sm" onClick={handleAddEmplacement} className="w-full">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Ajouter emplacement
+                </Button>
               </div>
-              <Button size="sm" onClick={handleAddEmplacement} className="w-full">
-                <Plus className="h-4 w-4 mr-2" />
-                Ajouter emplacement
-              </Button>
               
+              {/* Liste des emplacements */}
               <div className="space-y-2 max-h-64 overflow-y-auto">
                 {emplacements.map((emp) => (
-                  <div key={emp.id} className="flex items-center justify-between p-2 border rounded">
-                    <div>
-                      <span className="text-sm font-medium block">{emp.nom}</span>
-                      {emp.description && (
-                        <span className="text-xs text-muted-foreground block">{emp.description}</span>
-                      )}
+                  editingEmplacement?.id === emp.id ? (
+                    // Mode édition
+                    <div key={emp.id} className="p-2 border rounded space-y-2">
+                      <Input
+                        value={editingEmplacement.nom}
+                        onChange={(e) => setEditingEmplacement({...editingEmplacement, nom: e.target.value})}
+                        className="w-full"
+                        autoFocus
+                      />
+                      <Input
+                        value={editingEmplacement.description || ""}
+                        onChange={(e) => setEditingEmplacement({...editingEmplacement, description: e.target.value})}
+                        placeholder="Description..."
+                        className="w-full"
+                      />
+                      <div className="flex gap-2 justify-end">
+                        <Button size="sm" onClick={saveEditEmplacement} variant="outline">
+                          <Save className="h-4 w-4" />
+                        </Button>
+                        <Button size="sm" onClick={cancelEditEmplacement} variant="outline">
+                          <Edit3 className="h-4 w-4 rotate-45" />
+                        </Button>
+                      </div>
                     </div>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => handleDeleteEmplacement(emp.id)}
-                      className="h-8 w-8 p-0"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
+                  ) : (
+                    // Mode lecture
+                    <div key={emp.id} className="flex items-center justify-between p-2 border rounded">
+                      <div>
+                        <span className="text-sm font-medium block">{emp.nom}</span>
+                        {emp.description && (
+                          <span className="text-xs text-muted-foreground block">{emp.description}</span>
+                        )}
+                      </div>
+                      <div className="flex gap-1">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => startEditEmplacement(emp)}
+                          className="h-8 w-8 p-0"
+                        >
+                          <Edit3 className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleDeleteEmplacement(emp.id)}
+                          className="h-8 w-8 p-0"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  )
                 ))}
               </div>
             </div>
@@ -320,6 +499,7 @@ export default function SettingsPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
+              {/* Formulaire d'ajout */}
               <div className="space-y-2">
                 <Input
                   placeholder="Nom du type de mouvement..."
@@ -332,30 +512,68 @@ export default function SettingsPage() {
                   onChange={(e) => setNewTypeMouvementDesc(e.target.value)}
                   onKeyPress={(e) => e.key === 'Enter' && handleAddTypeMouvement()}
                 />
+                <Button size="sm" onClick={handleAddTypeMouvement} className="w-full">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Ajouter type
+                </Button>
               </div>
-              <Button size="sm" onClick={handleAddTypeMouvement} className="w-full">
-                <Plus className="h-4 w-4 mr-2" />
-                Ajouter type
-              </Button>
               
+              {/* Liste des types de mouvements */}
               <div className="space-y-2 max-h-64 overflow-y-auto">
                 {typesMouvement.map((type) => (
-                  <div key={type.id} className="flex items-center justify-between p-2 border rounded">
-                    <div>
-                      <span className="text-sm font-medium block">{type.nom}</span>
-                      {type.description && (
-                        <span className="text-xs text-muted-foreground block">{type.description}</span>
-                      )}
+                  editingTypeMouvement?.id === type.id ? (
+                    // Mode édition
+                    <div key={type.id} className="p-2 border rounded space-y-2">
+                      <Input
+                        value={editingTypeMouvement.nom}
+                        onChange={(e) => setEditingTypeMouvement({...editingTypeMouvement, nom: e.target.value})}
+                        className="w-full"
+                        autoFocus
+                      />
+                      <Input
+                        value={editingTypeMouvement.description || ""}
+                        onChange={(e) => setEditingTypeMouvement({...editingTypeMouvement, description: e.target.value})}
+                        placeholder="Description..."
+                        className="w-full"
+                      />
+                      <div className="flex gap-2 justify-end">
+                        <Button size="sm" onClick={saveEditTypeMouvement} variant="outline">
+                          <Save className="h-4 w-4" />
+                        </Button>
+                        <Button size="sm" onClick={cancelEditTypeMouvement} variant="outline">
+                          <Edit3 className="h-4 w-4 rotate-45" />
+                        </Button>
+                      </div>
                     </div>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => handleDeleteTypeMouvement(type.id)}
-                      className="h-8 w-8 p-0"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
+                  ) : (
+                    // Mode lecture
+                    <div key={type.id} className="flex items-center justify-between p-2 border rounded">
+                      <div>
+                        <span className="text-sm font-medium block">{type.nom}</span>
+                        {type.description && (
+                          <span className="text-xs text-muted-foreground block">{type.description}</span>
+                        )}
+                      </div>
+                      <div className="flex gap-1">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => startEditTypeMouvement(type)}
+                          className="h-8 w-8 p-0"
+                        >
+                          <Edit3 className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleDeleteTypeMouvement(type.id)}
+                          className="h-8 w-8 p-0"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  )
                 ))}
               </div>
             </div>
