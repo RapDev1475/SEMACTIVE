@@ -22,7 +22,6 @@ type NumeroSerieWithArticle = {
   localisation?: string
   statut: string
   created_at: string
-  dernier_mouvement?: string
   article?: {
     nom: string
     numero_article: string
@@ -37,10 +36,12 @@ export default function NumerosSeriesPage() {
   const [filterStatut, setFilterStatut] = useState<string>("all")
   const [filterLocalisation, setFilterLocalisation] = useState<string>("all")
   const [localisations, setLocalisations] = useState<string[]>([])
+  const [statuts, setStatuts] = useState<string[]>([])
 
   useEffect(() => {
     fetchNumerosSerie()
     fetchLocalisations()
+    fetchStatuts()
   }, [])
 
   async function fetchNumerosSerie() {
@@ -56,56 +57,7 @@ export default function NumerosSeriesPage() {
 
       if (seriesError) throw seriesError
 
-      const { data: mouvementsData } = await supabase
-        .from('mouvements')
-        .select('numero_serie_id, type_mouvement, date_mouvement')
-        .not('numero_serie_id', 'is', null)
-        .order('date_mouvement', { ascending: false })
-
-      const dernierMouvementMap = new Map()
-      mouvementsData?.forEach(mouv => {
-        if (!dernierMouvementMap.has(mouv.numero_serie_id)) {
-          dernierMouvementMap.set(mouv.numero_serie_id, mouv.type_mouvement)
-        }
-      })
-
-      const seriesWithStatut = (seriesData || []).map(serie => {
-        const dernierMouvement = dernierMouvementMap.get(serie.id)
-        let statut = 'disponible'
-
-        if (dernierMouvement) {
-          switch (dernierMouvement) {
-            case 'reception':
-              statut = 'disponible'
-              break
-            case 'sortie_technicien':
-              statut = 'en_utilisation'
-              break
-            case 'sortie_transport':
-              statut = 'en_transport'
-              break
-            case 'installation_client':
-              statut = 'chez_client'
-              break
-            case 'retour':
-              statut = 'disponible'
-              break
-            case 'transfert_depot':
-              statut = 'disponible'
-              break
-            default:
-              statut = 'disponible'
-          }
-        }
-
-        return {
-          ...serie,
-          statut,
-          dernier_mouvement: dernierMouvement
-        }
-      })
-
-      setNumerosSerie(seriesWithStatut)
+      setNumerosSerie(seriesData || [])
     } catch (error) {
       console.error('Error fetching numeros serie:', error)
     } finally {
@@ -129,6 +81,22 @@ export default function NumerosSeriesPage() {
     }
   }
 
+  async function fetchStatuts() {
+    try {
+      const { data } = await supabase
+        .from('numeros_serie')
+        .select('statut')
+        .not('statut', 'is', null)
+
+      if (data) {
+        const uniqueStatuts = Array.from(new Set(data.map(d => d.statut).filter(Boolean)))
+        setStatuts(uniqueStatuts as string[])
+      }
+    } catch (error) {
+      console.error('Error fetching statuts:', error)
+    }
+  }
+
   const filteredSeries = numerosSerie.filter(serie => {
     const matchesSearch = 
       serie.numero_serie.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -145,28 +113,15 @@ export default function NumerosSeriesPage() {
   const stats = {
     total: numerosSerie.length,
     disponible: numerosSerie.filter(s => s.statut === 'disponible').length,
-    utilise: numerosSerie.filter(s => s.statut === 'en_utilisation' || s.statut === 'en_transport').length,
-    client: numerosSerie.filter(s => s.statut === 'chez_client').length,
+    autres: numerosSerie.filter(s => s.statut !== 'disponible').length,
   }
 
   const getStatusBadge = (statut: string) => {
     const variants: Record<string, string> = {
       disponible: 'bg-green-100 text-green-800',
-      en_utilisation: 'bg-blue-100 text-blue-800',
-      en_transport: 'bg-purple-100 text-purple-800',
-      chez_client: 'bg-orange-100 text-orange-800',
+      destruction: 'bg-red-100 text-red-800',
     }
     return variants[statut] || 'bg-gray-100 text-gray-800'
-  }
-
-  const getStatusLabel = (statut: string) => {
-    const labels: Record<string, string> = {
-      disponible: 'Disponible',
-      en_utilisation: 'En utilisation',
-      en_transport: 'En transport',
-      chez_client: 'Chez client',
-    }
-    return labels[statut] || statut
   }
 
   if (loading) {
@@ -188,7 +143,7 @@ export default function NumerosSeriesPage() {
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-3">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -214,23 +169,12 @@ export default function NumerosSeriesPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              En utilisation
+              Autres
             </CardTitle>
-            <Package className="h-4 w-4 text-blue-600" />
+            <Package className="h-4 w-4 text-gray-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.utilise}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Chez client
-            </CardTitle>
-            <Package className="h-4 w-4 text-orange-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.client}</div>
+            <div className="text-2xl font-bold">{stats.autres}</div>
           </CardContent>
         </Card>
       </div>
@@ -253,10 +197,9 @@ export default function NumerosSeriesPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Tous les statuts</SelectItem>
-                <SelectItem value="disponible">Disponible</SelectItem>
-                <SelectItem value="en_utilisation">En utilisation</SelectItem>
-                <SelectItem value="en_transport">En transport</SelectItem>
-                <SelectItem value="chez_client">Chez client</SelectItem>
+                {statuts.map((statut) => (
+                  <SelectItem key={statut} value={statut}>{statut}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
             <Select value={filterLocalisation} onValueChange={setFilterLocalisation}>
@@ -298,7 +241,7 @@ export default function NumerosSeriesPage() {
                     <div className="flex items-center gap-3 mb-2">
                       <p className="font-mono font-bold text-lg">{serie.numero_serie}</p>
                       <Badge className={getStatusBadge(serie.statut)}>
-                        {getStatusLabel(serie.statut)}
+                        {serie.statut}
                       </Badge>
                     </div>
                     
