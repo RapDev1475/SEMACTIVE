@@ -53,14 +53,14 @@ export default function EditArticlePage() {
 
         // Charger l'article
         const { data: artData, error: artError } = await supabase
-  .from('articles')
-  .select(`
-    *,
-    fournisseur:fournisseurs(nom),
-    categorie_info:categories!left(nom)
-  `)
-  .eq('id', articleId)
-  .single()
+          .from('articles')
+          .select(`
+            *,
+            fournisseur:fournisseurs(nom),
+            categorie_info:categories!left(nom)
+          `)
+          .eq('id', articleId)
+          .single()
         if (artError) throw artError
 
         setArticle({

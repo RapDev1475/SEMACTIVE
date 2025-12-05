@@ -80,72 +80,72 @@ export default function NewArticlePage() {
     fetchData()
   })
 
-const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault()
-  
-  setSubmitting(true)
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    setSubmitting(true)
 
-  try {
-    const {
-      nom,
-      numero_article,
-      code_ean,
-      description,
-      categorie,
-      fournisseur_id,
-      quantite_stock,
-      stock_minimum,
-      stock_maximum,
-      point_commande,
-      prix_achat,
-      prix_vente,
-      gestion_par_serie
-    } = formData
+    try {
+      const {
+        nom,
+        numero_article,
+        code_ean,
+        description,
+        categorie,
+        fournisseur_id,
+        quantite_stock,
+        stock_minimum,
+        stock_maximum,
+        point_commande,
+        prix_achat,
+        prix_vente,
+        gestion_par_serie
+      } = formData
 
-    // Vérifier que le numéro d'article est unique
-    const { data: existingArticle, error: checkError } = await supabase
-      .from('articles')
-      .select('id')
-      .eq('numero_article', numero_article)
-      .single()
+      // Vérifier que le numéro d'article est unique
+      const { data: existingArticle, error: checkError } = await supabase
+        .from('articles')
+        .select('id')
+        .eq('numero_article', numero_article)
+        .single()
 
-    if (existingArticle) {
-      toast.error("Un article avec ce numéro existe déjà")
+      if (existingArticle) {
+        toast.error("Un article avec ce numéro existe déjà")
+        setSubmitting(false)
+        return
+      }
+
+      const newArticle: Omit<Article, 'id'> = {
+        nom,
+        numero_article,
+        code_ean: code_ean || null,
+        description: description || null,
+        categorie, // Utiliser la catégorie sélectionnée
+        fournisseur_id: fournisseur_id || null,
+        quantite_stock: gestion_par_serie ? 0 : quantite_stock, // Toujours inclure cette propriété
+        stock_minimum,
+        stock_maximum,
+        point_commande,
+        prix_achat,
+        prix_vente,
+        gestion_par_serie,
+      }
+
+      const { error } = await supabase
+        .from('articles')
+        .insert([newArticle])
+
+      if (error) throw error
+
+      toast.success("Article créé avec succès")
+      router.push('/articles')
+    } catch (error: any) {
+      console.error('Erreur création:', error)
+      toast.error("Erreur lors de la création : " + (error.message || "inconnue"))
+    } finally {
       setSubmitting(false)
-      return
     }
-
-    const newArticle: Omit<Article, 'id'> = {
-      nom,
-      numero_article,
-      code_ean: code_ean || null,
-      description: description || null,
-      categorie, // Utiliser la catégorie sélectionnée
-      fournisseur_id: fournisseur_id || null,
-      quantite_stock: gestion_par_serie ? 0 : quantite_stock, // Toujours inclure cette propriété
-      stock_minimum,
-      stock_maximum,
-      point_commande,
-      prix_achat,
-      prix_vente,
-      gestion_par_serie,
-    }
-
-    const { error } = await supabase
-      .from('articles')
-      .insert([newArticle])
-
-    if (error) throw error
-
-    toast.success("Article créé avec succès")
-    router.push('/articles')
-  } catch (error: any) {
-    console.error('Erreur création:', error)
-    toast.error("Erreur lors de la création : " + (error.message || "inconnue"))
-  } finally {
-    setSubmitting(false)
   }
-}
 
   const handleInputChange = (field: keyof typeof formData, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }))

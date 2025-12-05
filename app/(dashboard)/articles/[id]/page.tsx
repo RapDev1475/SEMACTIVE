@@ -42,8 +42,8 @@ export default function ArticleDetailPage() {
   async function fetchArticle() {
     setLoading(true)
     try {
-      // 1. Charger l'article avec fournisseur et catégorie
-      const { data: artData, error: artError } = await supabase
+      // 1. Charger l'article avec fournisseur et catégorie (jointure LEFT)
+      const {  artData, error: artError } = await supabase
         .from('articles')
         .select(`
           *,
@@ -81,7 +81,7 @@ export default function ArticleDetailPage() {
 
       // 3. Si traçable, charger les numéros de série
       if (artData.gestion_par_serie) {
-        const { data: serieData, error: serieError } = await supabase
+        const {  serieData, error: serieError } = await supabase
           .from('numeros_serie')
           .select('*')
           .eq('article_id', articleId)
@@ -132,7 +132,7 @@ export default function ArticleDetailPage() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">{article.nom}</h1>
           <p className="text-muted-foreground mt-1">
-            {article.numero_article} • {article.categorie_info?.nom || 'Non classé'}
+            {article.numero_article} • {article.categorie_info?.nom || article.categorie || 'Non classé'}
           </p>
         </div>
         <div className="flex gap-2">
@@ -163,7 +163,7 @@ export default function ArticleDetailPage() {
             )}
             <div>
               <p className="text-sm text-muted-foreground">Catégorie</p>
-              <p>{article.categorie_info?.nom || 'Non classé'}</p>
+              <p>{article.categorie_info?.nom || article.categorie || 'Non classé'}</p>
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Fournisseur</p>
