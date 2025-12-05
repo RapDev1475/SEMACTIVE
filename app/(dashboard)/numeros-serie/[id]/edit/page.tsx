@@ -16,21 +16,10 @@ type NumeroSerieData = {
   numero_serie: string
   adresse_mac: string | null
   localisation: string
+  statut: string
   article?: { nom: string; numero_article: string }
   dernier_mouvement?: { personne?: { nom: string; prenom?: string } }
 }
-
-const LOCALISATIONS = [
-  'Entrepot',
-  'Technicien',
-  'Installation',
-  'Retour',
-  'Warehouse',
-  'Warehouse Seneffe',
-  'Warehouse Houthalen',
-  'Stock Technicien',
-  'Warehouse Seneffe OBE KIT16'
-]
 
 export default function EditNumeroSeriePage() {
   const router = useRouter()
@@ -38,15 +27,17 @@ export default function EditNumeroSeriePage() {
   const serieId = params?.id as string
 
   const [serie, setSerie] = useState<NumeroSerieData | null>(null)
+  const [emplacements, setEmplacements] = useState<string[]>([])
+  const [typesMouvement, setTypesMouvement] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
     if (!serieId) return
-    fetchSerie()
+    fetchData()
   }, [serieId])
 
-  async function fetchSerie() {
+  async function fetchData() {
     setLoading(true)
     try {
       const { data: serieData, error: serieError } = await supabase
@@ -69,6 +60,28 @@ export default function EditNumeroSeriePage() {
         .order('date_mouvement', { ascending: false })
         .limit(1)
         .single()
+
+      const { data: emplacementsData } = await supabase
+        .from('emplacements')
+        .select('nom')
+        .order('nom')
+
+      const emplacementsList = emplacementsData?.map(e => e.nom) || []
+      if (serieData.localisation && !emplacementsList.includes(serieData.localisation)) {
+        emplacementsList.unshift(serieData.localisation)
+      }
+      setEmplacements(emplacementsList)
+
+      const { data: typesData } = await supabase
+        .from('types_mouvement')
+        .select('nom')
+        .order('nom')
+
+      const typesList = typesData?.map(t => t.nom) || []
+      if (serieData.statut && !typesList.includes(serieData.statut)) {
+        typesList.unshift(serieData.statut)
+      }
+      setTypesMouvement(typesList)
 
       setSerie({
         ...serieData,
@@ -95,6 +108,7 @@ export default function EditNumeroSeriePage() {
           numero_serie: serie.numero_serie,
           adresse_mac: serie.adresse_mac || null,
           localisation: serie.localisation,
+          statut: serie.statut,
         })
         .eq('id', serieId)
 
@@ -177,8 +191,25 @@ export default function EditNumeroSeriePage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {LOCALISATIONS.map(loc => (
+                  {emplacements.map(loc => (
                     <SelectItem key={loc} value={loc}>{loc}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="statut">Statut *</Label>
+              <Select
+                value={serie.statut}
+                onValueChange={(value) => setSerie({ ...serie, statut: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {typesMouvement.map(type => (
+                    <SelectItem key={type} value={type}>{type}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
