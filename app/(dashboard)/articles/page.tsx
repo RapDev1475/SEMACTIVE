@@ -116,7 +116,7 @@ async function fetchArticles() {
 
     setLoading(true)
     try {
-      const {  serialData } = await supabase
+      const { data: serialData } = await supabase
         .from('numeros_serie')
         .select('article_id')
         .or(`numero_serie.ilike.%${searchValue}%,adresse_mac.ilike.%${searchValue}%`)
