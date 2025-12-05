@@ -13,7 +13,7 @@ import type { Article } from "@/lib/types"
 
 type ArticleWithRelations = Article & {
   fournisseur?: { nom: string }
-  categorie_info?: { nom: string } // Nouvelle relation
+  categorie_info?: { nom: string }
   quantite_stock_reelle: number
 }
 
@@ -35,70 +35,43 @@ export default function ArticlesPage() {
     fetchCategories()
   }, [])
 
-async function fetchArticles() {
-  setLoading(true)
-  try {
-    // Charger toutes les catégories (pour le mapping)
-    const { data: categoriesData, error: categoriesError } = await supabase
-      .from('categories')
-      .select('*')
-      .order('nom')
+  async function fetchArticles() {
+    setLoading(true)
+    try {
+      const { data: articlesData, error: articlesError } = await supabase
+        .from('articles')
+        .select(`
+          *,
+          fournisseur:fournisseurs(nom),
+          categorie_info:categories(nom)
+        `)
+        .order('created_at', { ascending: false })
 
-    if (categoriesError) throw categoriesError
-    const categoriesMap = new Map(categoriesData?.map(cat => [cat.nom, cat]) || [])
+      if (articlesError) throw articlesError
 
-    // Charger les articles
-	const { data: articlesData, error: articlesError } = await supabase
-	.from('articles')
-	.select(`
-		*,
-		fournisseur:fournisseurs(nom),
-		categorie_info:categories(nom)
-	`)
-	.order('created_at', { ascending: false })
+      const { data: stockSerieData } = await supabase
+        .from('v_stock_warehouse_seneffe')
+        .select('article_id, quantite_en_stock')
 
-    if (articlesError) throw articlesError
+      const stockMap = new Map(
+        (stockSerieData || []).map(item => [item.article_id, item.quantite_en_stock])
+      )
 
-    // Charger le stock des articles traçables
-    const { data: stockSerieData } = await supabase
-      .from('v_stock_warehouse_seneffe')
-      .select('article_id, quantite_en_stock')
+      const articlesWithStock = articlesData.map(art => ({
+        ...art,
+        categorie: art.categorie_info?.nom || 'Non classé',
+        quantite_stock_reelle: art.gestion_par_serie 
+          ? (stockMap.get(art.id) || 0)
+          : (art.quantite_stock || 0)
+      }))
 
-    const stockMap = new Map(
-      (stockSerieData || []).map(item => [item.article_id, item.quantite_en_stock])
-    )
-
-    // Mapper avec le vrai stock et la catégorie
-    const articlesWithStock = articlesData.map(art => ({
-	...art,
-	categorie: art.categorie_info?.nom || 'Non classé',
-	quantite_stock_reelle: art.gestion_par_serie 
-		? (stockMap[art.id] || 0)
-		: (art.quantite_stock || 0)
-	}))
-      
-      if (article.gestion_par_serie) {
-        return {
-          ...article,
-          categorie_info,
-          quantite_stock_reelle: stockMap.get(article.id) || 0,
-        }
-      } else {
-        return {
-          ...article,
-          categorie_info,
-          quantite_stock_reelle: article.quantite_stock || 0,
-        }
-      }
-    })
-
-    setArticles(articlesWithRealStock)
-  } catch (error) {
-    console.error('Error fetching articles:', error)
-  } finally {
-    setLoading(false)
+      setArticles(articlesWithStock)
+    } catch (error) {
+      console.error('Error fetching articles:', error)
+    } finally {
+      setLoading(false)
+    }
   }
-}
 
   async function fetchCategories() {
     try {
@@ -127,25 +100,17 @@ async function fetchArticles() {
         .select('article_id')
         .or(`numero_serie.ilike.%${searchValue}%,adresse_mac.ilike.%${searchValue}%`)
 
-      // Charger les catégories
-      const { data: categoriesData, error: categoriesError } = await supabase
-        .from('categories')
-        .select('*')
-        .order('nom')
-
-      if (categoriesError) throw categoriesError
-      const categoriesMap = new Map(categoriesData?.map(cat => [cat.nom, cat]) || [])
-
       let articlesData: any[] = []
 
       if (serialData && serialData.length > 0) {
         const articleIds = [...new Set(serialData.map(s => s.article_id))]
 
-        const {  data, error: articlesError } = await supabase
+        const { data, error: articlesError } = await supabase
           .from('articles')
           .select(`
             *,
-            fournisseur:fournisseurs(nom)
+            fournisseur:fournisseurs(nom),
+            categorie_info:categories(nom)
           `)
           .in('id', articleIds)
           .order('nom')
@@ -153,12 +118,12 @@ async function fetchArticles() {
         if (articlesError) throw articlesError
         articlesData = data || []
       } else {
-        // Si pas de correspondance par série/MAC, chercher par nom/article
-        const {  data, error: articlesError } = await supabase
+        const { data, error: articlesError } = await supabase
           .from('articles')
           .select(`
             *,
-            fournisseur:fournisseurs(nom)
+            fournisseur:fournisseurs(nom),
+            categorie_info:categories(nom)
           `)
           .or(`nom.ilike.%${searchValue}%,numero_article.ilike.%${searchValue}%`)
           .order('nom')
@@ -175,25 +140,15 @@ async function fetchArticles() {
         (stockSerieData || []).map(item => [item.article_id, item.quantite_en_stock])
       )
 
-      const articlesWithRealStock: ArticleWithRelations[] = articlesData.map(article => {
-        const categorie_info = categoriesMap.get(article.categorie)
-        
-        if (article.gestion_par_serie) {
-          return {
-            ...article,
-            categorie_info,
-            quantite_stock_reelle: stockMap.get(article.id) || 0,
-          }
-        } else {
-          return {
-            ...article,
-            categorie_info,
-            quantite_stock_reelle: article.quantite_stock || 0,
-          }
-        }
-      })
+      const articlesWithStock = articlesData.map(art => ({
+        ...art,
+        categorie: art.categorie_info?.nom || 'Non classé',
+        quantite_stock_reelle: art.gestion_par_serie 
+          ? (stockMap.get(art.id) || 0)
+          : (art.quantite_stock || 0)
+      }))
 
-      setArticles(articlesWithRealStock)
+      setArticles(articlesWithStock)
     } catch (error) {
       console.error('Error searching by serial/MAC:', error)
     } finally {
