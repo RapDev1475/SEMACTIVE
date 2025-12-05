@@ -107,6 +107,7 @@ if (existingArticle) {
   return
 }
 
+// Toujours inclure quantite_stock dans l'objet initial
 const newArticle: Omit<Article, 'id'> = {
   nom,
   numero_article,
@@ -114,19 +115,13 @@ const newArticle: Omit<Article, 'id'> = {
   description: description || null,
   categorie,
   fournisseur_id: fournisseur_id || null,
+  quantite_stock: gestion_par_serie ? 0 : quantite_stock, // Valeur conditionnelle dès le début
   stock_minimum,
   stock_maximum,
   point_commande,
   prix_achat,
   prix_vente,
   gestion_par_serie,
-}
-
-// Toujours inclure quantite_stock, mais avec une valeur adaptée
-if (gestion_par_serie) {
-  newArticle.quantite_stock = 0 // Pour les articles traçables
-} else {
-  newArticle.quantite_stock = quantite_stock // Pour les articles non traçables
 }
 
 const { error } = await supabase
