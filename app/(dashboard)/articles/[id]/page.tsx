@@ -43,34 +43,34 @@ export default function ArticleDetailPage() {
     setLoading(true)
     try {
       // 1. Charger l'article avec fournisseur et catégorie (jointure LEFT)
-      const {  artData, error: artError } = await supabase
-        .from('articles')
-        .select(`
-          *,
-          fournisseur:fournisseurs(nom),
-          categorie_info:categories!left(nom)
-        `)
-        .eq('id', articleId)
-        .single()
+      const { data: artData, error: artError } = await supabase
+  .from('articles')
+  .select(`
+    *,
+    fournisseur:fournisseurs(nom),
+    categorie_info:categories!left(nom)
+  `)
+  .eq('id', articleId)
+  .single()
 
       if (artError) throw artError
 
       // 2. Charger le stock réel (via vue)
       let quantite_stock_reelle = 0
-      if (artData.gestion_par_serie) {
-        const { data: stockData, error: stockError } = await supabase
-          .from('v_stock_warehouse_seneffe')
-          .select('quantite_en_stock')
-          .eq('article_id', articleId)
-          .single()
+if (artData.gestion_par_serie) {
+  const { data: stockData, error: stockError } = await supabase
+    .from('v_stock_warehouse_seneffe')
+    .select('quantite_en_stock')
+    .eq('article_id', articleId)
+    .single()
 
-        if (stockError) {
-          console.warn('Erreur chargement stock série:', stockError)
-        }
-        quantite_stock_reelle = stockData?.quantite_en_stock || 0
-      } else {
-        quantite_stock_reelle = artData.quantite_stock || 0
-      }
+  if (stockError) {
+    console.warn('Erreur chargement stock série:', stockError)
+  }
+  quantite_stock_reelle = stockData?.quantite_en_stock || 0
+} else {
+  quantite_stock_reelle = artData.quantite_stock || 0
+}
 
       const articleWithStock: ArticleWithRelations = {
         ...artData,
@@ -80,19 +80,19 @@ export default function ArticleDetailPage() {
       setArticle(articleWithStock)
 
       // 3. Si traçable, charger les numéros de série
-      if (artData.gestion_par_serie) {
-        const {  serieData, error: serieError } = await supabase
-          .from('numeros_serie')
-          .select('*')
-          .eq('article_id', articleId)
-          .order('date_creation', { ascending: false })
+if (artData.gestion_par_serie) {
+  const { data: serieData, error: serieError } = await supabase
+    .from('numeros_serie')
+    .select('*')
+    .eq('article_id', articleId)
+    .order('date_creation', { ascending: false })
 
-        if (serieError) {
-          console.error('Erreur chargement numéros de série:', serieError)
-        } else {
-          setNumerosSerie(serieData || [])
-        }
-      }
+  if (serieError) {
+    console.error('Erreur chargement numéros de série:', serieError)
+  } else {
+    setNumerosSerie(serieData || [])
+  }
+}
     } catch (error) {
       console.error('Erreur chargement article:', error)
       alert("Impossible de charger l'article")
