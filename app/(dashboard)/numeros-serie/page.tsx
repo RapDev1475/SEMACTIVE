@@ -176,11 +176,7 @@ export default function NumerosSeriesPage() {
       </div>
     )
   }
-	<div
-	key={serie.id}
-	className="flex items-center justify-between p-4 rounded-lg border hover:bg-accent transition-colors cursor-pointer"
-	onClick={() => window.location.href = `/numeros-serie/${serie.id}/edit`}
-	>
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -295,7 +291,8 @@ export default function NumerosSeriesPage() {
               {filteredSeries.map((serie) => (
                 <div
                   key={serie.id}
-                  className="flex items-center justify-between p-4 rounded-lg border hover:bg-accent transition-colors"
+                  className="flex items-center justify-between p-4 rounded-lg border hover:bg-accent transition-colors cursor-pointer"
+                  onClick={() => window.location.href = `/numeros-serie/${serie.id}/edit`}
                 >
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-2">
