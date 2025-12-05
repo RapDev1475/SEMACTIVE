@@ -34,6 +34,11 @@ const navigation = [
     href: "/articles",
     icon: Package,
   },
+    {
+    name: "Tracabilité",
+    href: "/numeros-serie",
+    icon: Hash,
+  },
   {
     name: "Fournisseurs",
     href: "/fournisseurs",
@@ -69,11 +74,6 @@ const navigation = [
     name: "Réceptions",
     href: "/receptions",
     icon: PackageCheck,
-  },
-  {
-    name: "Tracabilité",
-    href: "/numeros-serie",
-    icon: Hash,
   },
   {
     name: "Paramètres",
