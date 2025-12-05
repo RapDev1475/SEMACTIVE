@@ -161,7 +161,7 @@ async function fetchArticles() {
         articlesData = data || []
       }
 
-      const {  stockSerieData } = await supabase
+      const { data: stockSerieData } = await supabase
         .from('v_stock_warehouse_seneffe')
         .select('article_id, quantite_en_stock')
 
