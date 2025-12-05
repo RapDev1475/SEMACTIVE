@@ -57,7 +57,7 @@ export default function ArticleDetailPage() {
       // Charger la catégorie correspondante
       let categorie_info = null
       if (artData.categorie_id) {
-        const {  catData, error: catError } = await supabase
+        const { data: catData, error: catError } = await supabase
           .from('categories')
           .select('nom')
           .eq('id', artData.categorie_id)
@@ -71,7 +71,7 @@ export default function ArticleDetailPage() {
       // Charger le stock réel (via vue)
       let quantite_stock_reelle = 0
       if (artData.gestion_par_serie) {
-        const {  stockData, error: stockError } = await supabase
+        const { data: stockData, error: stockError } = await supabase
           .from('v_stock_warehouse_seneffe')
           .select('quantite_en_stock')
           .eq('article_id', articleId)
@@ -95,7 +95,7 @@ export default function ArticleDetailPage() {
 
       // Si traçable, charger les numéros de série
       if (artData.gestion_par_serie) {
-        const {  serieData, error: serieError } = await supabase
+        const { data: serieData, error: serieError } = await supabase
           .from('numeros_serie')
           .select('*')
           .eq('article_id', articleId)
