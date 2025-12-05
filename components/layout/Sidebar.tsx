@@ -71,7 +71,7 @@ const navigation = [
     icon: PackageCheck,
   },
   {
-    name: "Numéros de série",
+    name: "Tracabilité",
     href: "/numeros-serie",
     icon: Hash,
   },
