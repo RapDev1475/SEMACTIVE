@@ -49,6 +49,11 @@ const navigation = [
     href: "/commandes",
     icon: ShoppingCart,
   },
+    {
+    name: "Réceptions",
+    href: "/receptions",
+    icon: PackageCheck,
+  },
   {
     name: "Scanner",
     href: "/scanner",
@@ -69,11 +74,6 @@ const navigation = [
     name: "Techniciens",
     href: "/techniciens",
     icon: Users,
-  },
-  {
-    name: "Réceptions",
-    href: "/receptions",
-    icon: PackageCheck,
   },
   {
     name: "Paramètres",
