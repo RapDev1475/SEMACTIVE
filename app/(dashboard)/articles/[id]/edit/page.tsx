@@ -36,7 +36,7 @@ export default function EditArticlePage() {
     const fetchArticle = async () => {
       try {
         // Charger les catégories
-        const { data: catData, error: catError } = await supabase
+        const {  catData, error: catError } = await supabase
           .from('categories')
           .select('id, nom')
           .order('nom')
@@ -102,7 +102,7 @@ export default function EditArticlePage() {
       // Trouver l'ID de la catégorie sélectionnée
       let categorie_id = null
       if (article.categorie) {
-        const { data: catData, error: catError } = await supabase
+        const {  catData, error: catError } = await supabase
           .from('categories')
           .select('id')
           .eq('nom', article.categorie)

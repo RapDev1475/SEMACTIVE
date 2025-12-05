@@ -35,64 +35,64 @@ export default function ArticlesPage() {
     fetchCategories()
   }, [])
 
-  async function fetchArticles() {
-    setLoading(true)
-    try {
-      // Charger les catégories
-      const { data: categoriesData, error: categoriesError } = await supabase
-        .from('categories')
-        .select('*')
-        .order('nom')
+async function fetchArticles() {
+  setLoading(true)
+  try {
+    // Charger toutes les catégories (pour le mapping)
+    const { data: categoriesData, error: categoriesError } = await supabase
+      .from('categories')
+      .select('*')
+      .order('nom')
 
-      if (categoriesError) throw categoriesError
-      const categoriesMap = new Map(categoriesData?.map(cat => [cat.nom, cat]) || [])
+    if (categoriesError) throw categoriesError
+    const categoriesMap = new Map(categoriesData?.map(cat => [cat.nom, cat]) || [])
 
-      // Charger les articles
-      const {  articlesData, error: articlesError } = await supabase
-        .from('articles')
-        .select(`
-          *,
-          fournisseur:fournisseurs(nom)
-        `)
-        .order('nom')
+    // Charger les articles
+    const {  articlesData, error: articlesError } = await supabase
+      .from('articles')
+      .select(`
+        *,
+        fournisseur:fournisseurs(nom)
+      `)
+      .order('nom')
 
-      if (articlesError) throw articlesError
+    if (articlesError) throw articlesError
 
-      // Charger le stock des articles traçables
-      const {  stockSerieData } = await supabase
-        .from('v_stock_warehouse_seneffe')
-        .select('article_id, quantite_en_stock')
+    // Charger le stock des articles traçables
+    const {  stockSerieData } = await supabase
+      .from('v_stock_warehouse_seneffe')
+      .select('article_id, quantite_en_stock')
 
-      const stockMap = new Map(
-        (stockSerieData || []).map(item => [item.article_id, item.quantite_en_stock])
-      )
+    const stockMap = new Map(
+      (stockSerieData || []).map(item => [item.article_id, item.quantite_en_stock])
+    )
 
-      // Mapper avec le vrai stock et la catégorie
-      const articlesWithRealStock: ArticleWithRelations[] = (articlesData || []).map(article => {
-        const categorie_info = categoriesMap.get(article.categorie)
-        
-        if (article.gestion_par_serie) {
-          return {
-            ...article,
-            categorie_info,
-            quantite_stock_reelle: stockMap.get(article.id) || 0,
-          }
-        } else {
-          return {
-            ...article,
-            categorie_info,
-            quantite_stock_reelle: article.quantite_stock || 0,
-          }
+    // Mapper avec le vrai stock et la catégorie
+    const articlesWithRealStock: ArticleWithRelations[] = (articlesData || []).map(article => {
+      const categorie_info = categoriesMap.get(article.categorie)
+      
+      if (article.gestion_par_serie) {
+        return {
+          ...article,
+          categorie_info,
+          quantite_stock_reelle: stockMap.get(article.id) || 0,
         }
-      })
+      } else {
+        return {
+          ...article,
+          categorie_info,
+          quantite_stock_reelle: article.quantite_stock || 0,
+        }
+      }
+    })
 
-      setArticles(articlesWithRealStock)
-    } catch (error) {
-      console.error('Error fetching articles:', error)
-    } finally {
-      setLoading(false)
-    }
+    setArticles(articlesWithRealStock)
+  } catch (error) {
+    console.error('Error fetching articles:', error)
+  } finally {
+    setLoading(false)
   }
+}
 
   async function fetchCategories() {
     try {
