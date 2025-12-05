@@ -52,15 +52,15 @@ export default function EditArticlePage() {
         setFournisseurs(fournData || [])
 
         // Charger l'article
-        const {  artData, error: artError } = await supabase
-			.from('articles')
-				.select(`
-					*,
-					fournisseur:fournisseurs(nom),
-				categorie_info:categories!left(nom)
-				`)
-				.eq('id', articleId)
-				.single()
+        const { data: artData, error: artError } = await supabase
+  .from('articles')
+  .select(`
+    *,
+    fournisseur:fournisseurs(nom),
+    categorie_info:categories!left(nom)
+  `)
+  .eq('id', articleId)
+  .single()
         if (artError) throw artError
 
         setArticle({
