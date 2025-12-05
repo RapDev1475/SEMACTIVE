@@ -14,18 +14,10 @@ import { Switch } from "@/components/ui/switch"
 import { toast } from "sonner"
 import type { Article } from "@/lib/types"
 
-const CATEGORIES = [
-  "Signalisation",
-  "Outils",
-  "Matériel",
-  "EPI",
-  "Consommables",
-  "Électronique",
-  "Réseau",
-  "Câblage",
-  "Connectique",
-  "Autre"
-]
+type Categorie = {
+  id: string
+  nom: string
+}
 
 export default function NewArticlePage() {
   const router = useRouter()
@@ -35,7 +27,7 @@ export default function NewArticlePage() {
     numero_article: "",
     code_ean: null,
     description: null,
-    categorie: "Autre",
+    categorie: "", // Initialisé vide, sera sélectionné
     fournisseur_id: null,
     quantite_stock: 0,
     stock_minimum: 0,
@@ -46,30 +38,46 @@ export default function NewArticlePage() {
     gestion_par_serie: false,
   })
   
+  const [categories, setCategories] = useState<Categorie[]>([])
   const [fournisseurs, setFournisseurs] = useState<{ id: string; nom: string }[]>([])
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
 
-  // Charger les fournisseurs au montage
+  // Charger les catégories et fournisseurs au montage
   useState(() => {
-    const fetchFournisseurs = async () => {
+    const fetchData = async () => {
       try {
-        const { data, error } = await supabase
+        // Charger les catégories
+        const { data: catData, error: catError } = await supabase
+          .from('categories')
+          .select('id, nom')
+          .order('nom')
+
+        if (catError) throw catError
+        setCategories(catData || [])
+
+        // Charger les fournisseurs
+        const { data: fournData, error: fournError } = await supabase
           .from('fournisseurs')
           .select('id, nom')
           .order('nom')
 
-        if (error) throw error
-        setFournisseurs(data || [])
+        if (fournError) throw fournError
+        setFournisseurs(fournData || [])
+
+        // Sélectionner la première catégorie par défaut
+        if (catData && catData.length > 0) {
+          setFormData(prev => ({ ...prev, categorie: catData[0].nom }))
+        }
       } catch (error: any) {
-        console.error('Erreur chargement fournisseurs:', error)
-        toast.error("Impossible de charger les fournisseurs")
+        console.error('Erreur chargement données:', error)
+        toast.error("Impossible de charger les données")
       } finally {
         setLoading(false)
       }
     }
 
-    fetchFournisseurs()
+    fetchData()
   })
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -78,55 +86,60 @@ export default function NewArticlePage() {
     setSubmitting(true)
 
     try {
-const {
-  nom,
-  numero_article,
-  code_ean,
-  description,
-  categorie,
-  fournisseur_id,
-  quantite_stock,
-  stock_minimum,
-  stock_maximum,
-  point_commande,
-  prix_achat,
-  prix_vente,
-  gestion_par_serie
-} = formData
+      const {
+        nom,
+        numero_article,
+        code_ean,
+        description,
+        categorie,
+        fournisseur_id,
+        quantite_stock,
+        stock_minimum,
+        stock_maximum,
+        point_commande,
+        prix_achat,
+        prix_vente,
+        gestion_par_serie
+      } = formData
 
-// Vérifier que le numéro d'article est unique
-const { data: existingArticle, error: checkError } = await supabase
-  .from('articles')
-  .select('id')
-  .eq('numero_article', numero_article)
-  .single()
+      // Vérifier que le numéro d'article est unique
+      const { data: existingArticle, error: checkError } = await supabase
+        .from('articles')
+        .select('id')
+        .eq('numero_article', numero_article)
+        .single()
 
-if (existingArticle) {
-  toast.error("Un article avec ce numéro existe déjà")
-  setSubmitting(false)
-  return
-}
+      if (existingArticle) {
+        toast.error("Un article avec ce numéro existe déjà")
+        setSubmitting(false)
+        return
+      }
 
-// Toujours inclure quantite_stock dans l'objet initial
-const newArticle: Omit<Article, 'id'> = {
-  nom,
-  numero_article,
-  code_ean: code_ean || null,
-  description: description || null,
-  categorie,
-  fournisseur_id: fournisseur_id || null,
-  quantite_stock: gestion_par_serie ? 0 : quantite_stock, // Valeur conditionnelle dès le début
-  stock_minimum,
-  stock_maximum,
-  point_commande,
-  prix_achat,
-  prix_vente,
-  gestion_par_serie,
-}
+      const newArticle: Omit<Article, 'id'> = {
+        nom,
+        numero_article,
+        code_ean: code_ean || null,
+        description: description || null,
+        categorie, // Utiliser la catégorie sélectionnée
+        fournisseur_id: fournisseur_id || null,
+        stock_minimum,
+        stock_maximum,
+        point_commande,
+        prix_achat,
+        prix_vente,
+        gestion_par_serie,
+      }
 
-const { error } = await supabase
-  .from('articles')
-  .insert([newArticle])
+      if (!gestion_par_serie) {
+        newArticle.quantite_stock = quantite_stock
+      } else {
+        // Pour les articles traçables, on initialise le stock à 0
+        newArticle.quantite_stock = 0
+      }
+
+      const { error } = await supabase
+        .from('articles')
+        .insert([newArticle])
 
       if (error) throw error
 
@@ -207,8 +220,8 @@ const { error } = await supabase
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {CATEGORIES.map(cat => (
-                      <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                    {categories.map(cat => (
+                      <SelectItem key={cat.id} value={cat.nom}>{cat.nom}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>

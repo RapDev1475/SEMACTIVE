@@ -1,3 +1,4 @@
+// app/(dashboard)/articles/[id]/edit/page.tsx
 "use client"
 
 import { useEffect, useState } from "react"
@@ -13,18 +14,10 @@ import { Switch } from "@/components/ui/switch"
 import { toast } from "sonner"
 import type { Article } from "@/lib/types"
 
-const CATEGORIES = [
-  "Signalisation",
-  "Outils",
-  "Matériel",
-  "EPI",
-  "Consommables",
-  "Électronique",
-  "Réseau",
-  "Câblage",
-  "Connectique",
-  "Autre"
-]
+type Categorie = {
+  id: string
+  nom: string
+}
 
 export default function EditArticlePage() {
   const router = useRouter()
@@ -32,6 +25,7 @@ export default function EditArticlePage() {
   const articleId = params?.id as string
 
   const [article, setArticle] = useState<Omit<Article, 'id'> | null>(null)
+  const [categories, setCategories] = useState<Categorie[]>([])
   const [fournisseurs, setFournisseurs] = useState<{ id: string; nom: string }[]>([])
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
@@ -41,6 +35,14 @@ export default function EditArticlePage() {
 
     const fetchArticle = async () => {
       try {
+        // Charger les catégories
+        const { data: catData, error: catError } = await supabase
+          .from('categories')
+          .select('id, nom')
+          .order('nom')
+        if (catError) throw catError
+        setCategories(catData || [])
+
         // Charger les fournisseurs
         const { data: fournData, error: fournError } = await supabase
           .from('fournisseurs')
@@ -84,7 +86,7 @@ export default function EditArticlePage() {
         numero_article,
         code_ean,
         description,
-        categorie,
+        categorie, // Utiliser la catégorie sélectionnée
         fournisseur_id,
         quantite_stock,
         stock_minimum,
@@ -100,7 +102,7 @@ export default function EditArticlePage() {
         numero_article,
         code_ean: code_ean || null,
         description: description || null,
-        categorie,
+        categorie, // Utiliser la catégorie sélectionnée
         fournisseur_id: fournisseur_id || null,
         stock_minimum,
         stock_maximum,
@@ -202,8 +204,8 @@ export default function EditArticlePage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {CATEGORIES.map(cat => (
-                      <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                    {categories.map(cat => (
+                      <SelectItem key={cat.id} value={cat.nom}>{cat.nom}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>

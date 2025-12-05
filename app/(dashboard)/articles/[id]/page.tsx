@@ -1,3 +1,4 @@
+// app/(dashboard)/articles/[id]/page.tsx
 "use client"
 
 import { useEffect, useState } from "react"
@@ -12,6 +13,7 @@ import type { Article } from "@/lib/types"
 
 type ArticleWithRelations = Article & {
   fournisseur?: { nom: string }
+  categorie_info?: { nom: string } // Nouvelle relation
   quantite_stock_reelle: number
 }
 
@@ -40,12 +42,13 @@ export default function ArticleDetailPage() {
   async function fetchArticle() {
     setLoading(true)
     try {
-      // 1. Charger l'article avec fournisseur
+      // 1. Charger l'article avec fournisseur et catégorie
       const { data: artData, error: artError } = await supabase
         .from('articles')
         .select(`
           *,
-          fournisseur:fournisseurs(nom)
+          fournisseur:fournisseurs(nom),
+          categorie_info:categories(nom)
         `)
         .eq('id', articleId)
         .single()
@@ -129,7 +132,7 @@ export default function ArticleDetailPage() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">{article.nom}</h1>
           <p className="text-muted-foreground mt-1">
-            {article.numero_article} • {article.categorie}
+            {article.numero_article} • {article.categorie_info?.nom || 'Non classé'}
           </p>
         </div>
         <div className="flex gap-2">
@@ -158,6 +161,10 @@ export default function ArticleDetailPage() {
                 <p className="font-mono">{article.code_ean}</p>
               </div>
             )}
+            <div>
+              <p className="text-sm text-muted-foreground">Catégorie</p>
+              <p>{article.categorie_info?.nom || 'Non classé'}</p>
+            </div>
             <div>
               <p className="text-sm text-muted-foreground">Fournisseur</p>
               <p>{article.fournisseur?.nom || 'Non défini'}</p>

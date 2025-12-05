@@ -1,3 +1,4 @@
+// app/(dashboard)/articles/page.tsx
 "use client"
 
 import { useEffect, useState } from "react"
@@ -12,11 +13,18 @@ import type { Article } from "@/lib/types"
 
 type ArticleWithRelations = Article & {
   fournisseur?: { nom: string }
+  categorie_info?: { nom: string } // Nouvelle relation
   quantite_stock_reelle: number
+}
+
+type Categorie = {
+  id: string
+  nom: string
 }
 
 export default function ArticlesPage() {
   const [articles, setArticles] = useState<ArticleWithRelations[]>([])
+  const [categories, setCategories] = useState<Categorie[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [filterStatus, setFilterStatus] = useState<string>("all")
@@ -24,24 +32,26 @@ export default function ArticlesPage() {
 
   useEffect(() => {
     fetchArticles()
+    fetchCategories()
   }, [])
 
   async function fetchArticles() {
     setLoading(true)
     try {
-      // 1. Charger les articles
-      const {  data: articlesData, error: articlesError } = await supabase
+      // 1. Charger les articles avec catégorie
+      const { data: articlesData, error: articlesError } = await supabase
         .from('articles')
         .select(`
           *,
-          fournisseur:fournisseurs(nom)
+          fournisseur:fournisseurs(nom),
+          categorie_info:categories(nom)
         `)
         .order('nom')
 
       if (articlesError) throw articlesError
 
       // 2. Charger le stock des articles traçables
-      const {  data: stockSerieData } = await supabase
+      const { data: stockSerieData } = await supabase
         .from('v_stock_warehouse_seneffe')
         .select('article_id, quantite_en_stock')
 
@@ -72,6 +82,20 @@ export default function ArticlesPage() {
     }
   }
 
+  async function fetchCategories() {
+    try {
+      const { data, error } = await supabase
+        .from('categories')
+        .select('*')
+        .order('nom')
+
+      if (error) throw error
+      setCategories(data || [])
+    } catch (error) {
+      console.error('Error fetching categories:', error)
+    }
+  }
+
   async function searchBySerialOrMac(searchValue: string) {
     if (!searchValue.trim()) {
       fetchArticles()
@@ -80,7 +104,7 @@ export default function ArticlesPage() {
 
     setLoading(true)
     try {
-      const {  data: serialData } = await supabase
+      const { data: serialData } = await supabase
         .from('numeros_serie')
         .select('article_id')
         .or(`numero_serie.ilike.%${searchValue}%,adresse_mac.ilike.%${searchValue}%`)
@@ -88,18 +112,19 @@ export default function ArticlesPage() {
       if (serialData && serialData.length > 0) {
         const articleIds = [...new Set(serialData.map(s => s.article_id))]
 
-        const {  data: articlesData, error: articlesError } = await supabase
+        const { data: articlesData, error: articlesError } = await supabase
           .from('articles')
           .select(`
             *,
-            fournisseur:fournisseurs(nom)
+            fournisseur:fournisseurs(nom),
+            categorie_info:categories(nom)
           `)
           .in('id', articleIds)
           .order('nom')
 
         if (articlesError) throw articlesError
 
-        const {  data: stockSerieData } = await supabase
+        const { data: stockSerieData } = await supabase
           .from('v_stock_warehouse_seneffe')
           .select('article_id, quantite_en_stock')
 
@@ -144,7 +169,9 @@ export default function ArticlesPage() {
       (filterStatus === "low" && article.quantite_stock_reelle <= article.stock_minimum)
 
     const matchesCategorie = 
-      filterCategorie === "all" || article.categorie === filterCategorie
+      filterCategorie === "all" || 
+      article.categorie === filterCategorie || 
+      article.categorie_info?.nom === filterCategorie
 
     return matchesSearch && matchesStatus && matchesCategorie
   })
@@ -175,20 +202,21 @@ export default function ArticlesPage() {
 
   return (
     <div className="space-y-6">
-<div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-  <div>
-    <h1 className="text-3xl font-bold tracking-tight">Articles</h1>
-    <p className="text-muted-foreground mt-1">
-      Gérez votre catalogue d'articles et stocks
-    </p>
-  </div>
-  <Button asChild>
-    <Link href="/articles/new">
-      <Plus className="h-4 w-4 mr-2" />
-      Nouvel article
-    </Link>
-  </Button>
-</div>
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Articles</h1>
+          <p className="text-muted-foreground mt-1">
+            Gérez votre catalogue d'articles et stocks
+          </p>
+        </div>
+        <Button asChild>
+          <Link href="/articles/new">
+            <Plus className="h-4 w-4 mr-2" />
+            Nouvel article
+          </Link>
+        </Button>
+      </div>
+
       <div className="grid gap-4 md:grid-cols-3">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -276,16 +304,9 @@ export default function ArticlesPage() {
                 className="flex h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
               >
                 <option value="all">Toutes catégories</option>
-                <option value="Signalisation">Signalisation</option>
-                <option value="Outils">Outils</option>
-                <option value="Matériel">Matériel</option>
-                <option value="EPI">EPI</option>
-                <option value="Consommables">Consommables</option>
-                <option value="Électronique">Électronique</option>
-                <option value="Réseau">Réseau</option>
-                <option value="Câblage">Câblage</option>
-                <option value="Connectique">Connectique</option>
-                <option value="Autre">Autre</option>
+                {categories.map(cat => (
+                  <option key={cat.id} value={cat.nom}>{cat.nom}</option>
+                ))}
               </select>
             </div>
           </div>
@@ -336,7 +357,7 @@ export default function ArticlesPage() {
                           </div>
                         </td>
                         <td className="p-3 text-sm text-muted-foreground">
-                          {article.categorie || 'Non classé'}
+                          {article.categorie_info?.nom || 'Non classé'}
                         </td>
                         <td className="p-3 text-sm text-muted-foreground">
                           {article.fournisseur?.nom || 'Non défini'}
