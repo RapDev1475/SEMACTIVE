@@ -52,36 +52,35 @@ export default function EditArticlePage() {
         setFournisseurs(fournData || [])
 
         // Charger l'article
-const {  artData, error: artError } = await supabase
-  .from('articles')
-  .select(`
-    *,
-    fournisseur:fournisseurs(nom)
-  `)
-  .eq('id', articleId)
-  .single()
+        const { data: artData, error: artError } = await supabase
+          .from('articles')
+          .select(`
+            *,
+            fournisseur:fournisseurs(nom)
+          `)
+          .eq('id', articleId)
+          .single()
+        if (artError) throw artError
 
-if (artError) throw artError
+        // Charger la catégorie correspondante
+        let categorie_info = null
+        if (artData.categorie_id) {
+          const {  catData, error: catError } = await supabase
+            .from('categories')
+            .select('nom')
+            .eq('id', artData.categorie_id)
+            .single()
 
-// Charger la catégorie correspondante
-let categorie_info = null
-if (artData.categorie_id) {
-  const {  catData, error: catError } = await supabase
-    .from('categories')
-    .select('nom')
-    .eq('id', artData.categorie_id)
-    .single()
+          if (!catError) {
+            categorie_info = catData
+          }
+        }
 
-  if (!catError) {
-    categorie_info = catData
-  }
-}
-
-setArticle({
-  ...artData,
-  categorie: categorie_info?.nom || artData.categorie, // Pour maintenir la compatibilité avec ton type
-  gestion_par_serie: Boolean(artData.gestion_par_serie),
-})
+        setArticle({
+          ...artData,
+          categorie: categorie_info?.nom || artData.categorie, // Pour maintenir la compatibilité avec ton type
+          gestion_par_serie: Boolean(artData.gestion_par_serie),
+        })
       } catch (error) {
         console.error('Erreur chargement article:', error)
         toast.error("Impossible de charger l'article")
@@ -93,77 +92,77 @@ setArticle({
     fetchArticle()
   }, [articleId])
 
-const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault()
-  if (!article) return
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!article) return
 
-  setSubmitting(true)
+    setSubmitting(true)
 
-  try {
-    // Trouver l'ID de la catégorie sélectionnée
-    let categorie_id = null
-    if (article.categorie) {
-      const {  catData, error: catError } = await supabase
-        .from('categories')
-        .select('id')
-        .eq('nom', article.categorie)
-        .single()
+    try {
+      // Trouver l'ID de la catégorie sélectionnée
+      let categorie_id = null
+      if (article.categorie) {
+        const { data: catData, error: catError } = await supabase
+          .from('categories')
+          .select('id')
+          .eq('nom', article.categorie)
+          .single()
 
-      if (!catError && catData) {
-        categorie_id = catData.id
+        if (!catError && catData) {
+          categorie_id = catData.id
+        }
       }
+
+      const {
+        nom,
+        numero_article,
+        code_ean,
+        description,
+        fournisseur_id,
+        quantite_stock,
+        stock_minimum,
+        stock_maximum,
+        point_commande,
+        prix_achat,
+        prix_vente,
+        gestion_par_serie
+      } = article
+
+      const updates: Partial<Article> = {
+        nom,
+        numero_article,
+        code_ean: code_ean || null,
+        description: description || null,
+        categorie_id, // Utiliser categorie_id au lieu de categorie
+        fournisseur_id: fournisseur_id || null,
+        stock_minimum,
+        stock_maximum,
+        point_commande,
+        prix_achat,
+        prix_vente,
+        gestion_par_serie,
+      }
+
+      if (!gestion_par_serie) {
+        updates.quantite_stock = quantite_stock
+      }
+
+      const { error } = await supabase
+        .from('articles')
+        .update(updates)
+        .eq('id', articleId)
+
+      if (error) throw error
+
+      toast.success("Article mis à jour avec succès")
+      router.push('/articles')
+    } catch (error: any) {
+      console.error('Erreur mise à jour:', error)
+      toast.error("Erreur lors de la mise à jour : " + (error.message || "inconnue"))
+    } finally {
+      setSubmitting(false)
     }
-
-    const {
-      nom,
-      numero_article,
-      code_ean,
-      description,
-      fournisseur_id,
-      quantite_stock,
-      stock_minimum,
-      stock_maximum,
-      point_commande,
-      prix_achat,
-      prix_vente,
-      gestion_par_serie
-    } = article
-
-    const updates: Partial<Article> = {
-      nom,
-      numero_article,
-      code_ean: code_ean || null,
-      description: description || null,
-      categorie_id, // Utiliser categorie_id au lieu de categorie
-      fournisseur_id: fournisseur_id || null,
-      stock_minimum,
-      stock_maximum,
-      point_commande,
-      prix_achat,
-      prix_vente,
-      gestion_par_serie,
-    }
-
-    if (!gestion_par_serie) {
-      updates.quantite_stock = quantite_stock
-    }
-
-    const { error } = await supabase
-      .from('articles')
-      .update(updates)
-      .eq('id', articleId)
-
-    if (error) throw error
-
-    toast.success("Article mis à jour avec succès")
-    router.push('/articles')
-  } catch (error: any) {
-    console.error('Erreur mise à jour:', error)
-    toast.error("Erreur lors de la mise à jour : " + (error.message || "inconnue"))
-  } finally {
-    setSubmitting(false)
   }
-}
 
   const handleInputChange = (field: keyof Article, value: any) => {
     setArticle(prev => prev ? { ...prev, [field]: value } : null)

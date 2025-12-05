@@ -38,20 +38,28 @@ export default function ArticlesPage() {
   async function fetchArticles() {
     setLoading(true)
     try {
-      // 1. Charger les articles avec catégorie (jointure LEFT)
-      const { data: articlesData, error: articlesError } = await supabase
+      // Charger les catégories
+      const { data: categoriesData, error: categoriesError } = await supabase
+        .from('categories')
+        .select('*')
+        .order('nom')
+
+      if (categoriesError) throw categoriesError
+      const categoriesMap = new Map(categoriesData?.map(cat => [cat.nom, cat]) || [])
+
+      // Charger les articles
+      const {  articlesData, error: articlesError } = await supabase
         .from('articles')
         .select(`
           *,
-          fournisseur:fournisseurs(nom),
-          categorie_info:categories!left(nom)
+          fournisseur:fournisseurs(nom)
         `)
         .order('nom')
 
       if (articlesError) throw articlesError
 
-      // 2. Charger le stock des articles traçables
-      const { data: stockSerieData } = await supabase
+      // Charger le stock des articles traçables
+      const {  stockSerieData } = await supabase
         .from('v_stock_warehouse_seneffe')
         .select('article_id, quantite_en_stock')
 
@@ -59,16 +67,20 @@ export default function ArticlesPage() {
         (stockSerieData || []).map(item => [item.article_id, item.quantite_en_stock])
       )
 
-      // 3. Mapper avec le vrai stock
+      // Mapper avec le vrai stock et la catégorie
       const articlesWithRealStock: ArticleWithRelations[] = (articlesData || []).map(article => {
+        const categorie_info = categoriesMap.get(article.categorie)
+        
         if (article.gestion_par_serie) {
           return {
             ...article,
+            categorie_info,
             quantite_stock_reelle: stockMap.get(article.id) || 0,
           }
         } else {
           return {
             ...article,
+            categorie_info,
             quantite_stock_reelle: article.quantite_stock || 0,
           }
         }
@@ -104,52 +116,78 @@ export default function ArticlesPage() {
 
     setLoading(true)
     try {
-      const { data: serialData } = await supabase
+      const {  serialData } = await supabase
         .from('numeros_serie')
         .select('article_id')
         .or(`numero_serie.ilike.%${searchValue}%,adresse_mac.ilike.%${searchValue}%`)
 
+      // Charger les catégories
+      const { data: categoriesData, error: categoriesError } = await supabase
+        .from('categories')
+        .select('*')
+        .order('nom')
+
+      if (categoriesError) throw categoriesError
+      const categoriesMap = new Map(categoriesData?.map(cat => [cat.nom, cat]) || [])
+
+      let articlesData: any[] = []
+
       if (serialData && serialData.length > 0) {
         const articleIds = [...new Set(serialData.map(s => s.article_id))]
 
-        const { data: articlesData, error: articlesError } = await supabase
+        const {  data, error: articlesError } = await supabase
           .from('articles')
           .select(`
             *,
-            fournisseur:fournisseurs(nom),
-            categorie_info:categories!left(nom)
+            fournisseur:fournisseurs(nom)
           `)
           .in('id', articleIds)
           .order('nom')
 
         if (articlesError) throw articlesError
-
-        const { data: stockSerieData } = await supabase
-          .from('v_stock_warehouse_seneffe')
-          .select('article_id, quantite_en_stock')
-
-        const stockMap = new Map(
-          (stockSerieData || []).map(item => [item.article_id, item.quantite_en_stock])
-        )
-
-        const articlesWithRealStock: ArticleWithRelations[] = (articlesData || []).map(article => {
-          if (article.gestion_par_serie) {
-            return {
-              ...article,
-              quantite_stock_reelle: stockMap.get(article.id) || 0,
-            }
-          } else {
-            return {
-              ...article,
-              quantite_stock_reelle: article.quantite_stock || 0,
-            }
-          }
-        })
-
-        setArticles(articlesWithRealStock)
+        articlesData = data || []
       } else {
-        setArticles([])
+        // Si pas de correspondance par série/MAC, chercher par nom/article
+        const {  data, error: articlesError } = await supabase
+          .from('articles')
+          .select(`
+            *,
+            fournisseur:fournisseurs(nom)
+          `)
+          .or(`nom.ilike.%${searchValue}%,numero_article.ilike.%${searchValue}%`)
+          .order('nom')
+
+        if (articlesError) throw articlesError
+        articlesData = data || []
       }
+
+      const {  stockSerieData } = await supabase
+        .from('v_stock_warehouse_seneffe')
+        .select('article_id, quantite_en_stock')
+
+      const stockMap = new Map(
+        (stockSerieData || []).map(item => [item.article_id, item.quantite_en_stock])
+      )
+
+      const articlesWithRealStock: ArticleWithRelations[] = articlesData.map(article => {
+        const categorie_info = categoriesMap.get(article.categorie)
+        
+        if (article.gestion_par_serie) {
+          return {
+            ...article,
+            categorie_info,
+            quantite_stock_reelle: stockMap.get(article.id) || 0,
+          }
+        } else {
+          return {
+            ...article,
+            categorie_info,
+            quantite_stock_reelle: article.quantite_stock || 0,
+          }
+        }
+      })
+
+      setArticles(articlesWithRealStock)
     } catch (error) {
       console.error('Error searching by serial/MAC:', error)
     } finally {

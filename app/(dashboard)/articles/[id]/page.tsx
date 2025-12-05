@@ -39,82 +39,81 @@ export default function ArticleDetailPage() {
     fetchArticle()
   }, [articleId])
 
-  a// app/(dashboard)/articles/[id]/page.tsx
-async function fetchArticle() {
-  setLoading(true)
-  try {
-    // Charger l'article avec fournisseur
-    const {  artData, error: artError } = await supabase
-      .from('articles')
-      .select(`
-        *,
-        fournisseur:fournisseurs(nom)
-      `)
-      .eq('id', articleId)
-      .single()
-
-    if (artError) throw artError
-
-    // Charger la catégorie correspondante
-    let categorie_info = null
-    if (artData.categorie_id) {
-      const {  catData, error: catError } = await supabase
-        .from('categories')
-        .select('nom')
-        .eq('id', artData.categorie_id)
+  async function fetchArticle() {
+    setLoading(true)
+    try {
+      // Charger l'article avec fournisseur
+      const { data: artData, error: artError } = await supabase
+        .from('articles')
+        .select(`
+          *,
+          fournisseur:fournisseurs(nom)
+        `)
+        .eq('id', articleId)
         .single()
 
-      if (!catError) {
-        categorie_info = catData
+      if (artError) throw artError
+
+      // Charger la catégorie correspondante
+      let categorie_info = null
+      if (artData.categorie_id) {
+        const {  catData, error: catError } = await supabase
+          .from('categories')
+          .select('nom')
+          .eq('id', artData.categorie_id)
+          .single()
+
+        if (!catError) {
+          categorie_info = catData
+        }
       }
-    }
 
-    // 2. Charger le stock réel (via vue)
-    let quantite_stock_reelle = 0
-    if (artData.gestion_par_serie) {
-      const {  stockData, error: stockError } = await supabase
-        .from('v_stock_warehouse_seneffe')
-        .select('quantite_en_stock')
-        .eq('article_id', articleId)
-        .single()
+      // Charger le stock réel (via vue)
+      let quantite_stock_reelle = 0
+      if (artData.gestion_par_serie) {
+        const {  stockData, error: stockError } = await supabase
+          .from('v_stock_warehouse_seneffe')
+          .select('quantite_en_stock')
+          .eq('article_id', articleId)
+          .single()
 
-      if (stockError) {
-        console.warn('Erreur chargement stock série:', stockError)
-      }
-      quantite_stock_reelle = stockData?.quantite_en_stock || 0
-    } else {
-      quantite_stock_reelle = artData.quantite_stock || 0
-    }
-
-    const articleWithStock: ArticleWithRelations = {
-      ...artData,
-      categorie_info,
-      quantite_stock_reelle,
-    }
-
-    setArticle(articleWithStock)
-
-    // 3. Si traçable, charger les numéros de série
-    if (artData.gestion_par_serie) {
-      const {  serieData, error: serieError } = await supabase
-        .from('numeros_serie')
-        .select('*')
-        .eq('article_id', articleId)
-        .order('date_creation', { ascending: false })
-
-      if (serieError) {
-        console.error('Erreur chargement numéros de série:', serieError)
+        if (stockError) {
+          console.warn('Erreur chargement stock série:', stockError)
+        }
+        quantite_stock_reelle = stockData?.quantite_en_stock || 0
       } else {
-        setNumerosSerie(serieData || [])
+        quantite_stock_reelle = artData.quantite_stock || 0
       }
+
+      const articleWithStock: ArticleWithRelations = {
+        ...artData,
+        categorie_info,
+        quantite_stock_reelle,
+      }
+
+      setArticle(articleWithStock)
+
+      // Si traçable, charger les numéros de série
+      if (artData.gestion_par_serie) {
+        const {  serieData, error: serieError } = await supabase
+          .from('numeros_serie')
+          .select('*')
+          .eq('article_id', articleId)
+          .order('date_creation', { ascending: false })
+
+        if (serieError) {
+          console.error('Erreur chargement numéros de série:', serieError)
+        } else {
+          setNumerosSerie(serieData || [])
+        }
+      }
+    } catch (error) {
+      console.error('Erreur chargement article:', error)
+      alert("Impossible de charger l'article")
+    } finally {
+      setLoading(false)
     }
-  } catch (error) {
-    console.error('Erreur chargement article:', error)
-    alert("Impossible de charger l'article")
-  } finally {
-    setLoading(false)
   }
-}
 
   if (loading) {
     return (
