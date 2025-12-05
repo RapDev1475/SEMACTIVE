@@ -78,60 +78,60 @@ export default function NewArticlePage() {
     setSubmitting(true)
 
     try {
-      const {
-        nom,
-        numero_article,
-        code_ean,
-        description,
-        categorie,
-        fournisseur_id,
-        quantite_stock,
-        stock_minimum,
-        stock_maximum,
-        point_commande,
-        prix_achat,
-        prix_vente,
-        gestion_par_serie
-      } = formData
+const {
+  nom,
+  numero_article,
+  code_ean,
+  description,
+  categorie,
+  fournisseur_id,
+  quantite_stock,
+  stock_minimum,
+  stock_maximum,
+  point_commande,
+  prix_achat,
+  prix_vente,
+  gestion_par_serie
+} = formData
 
-      // Vérifier que le numéro d'article est unique
-      const { data: existingArticle, error: checkError } = await supabase
-        .from('articles')
-        .select('id')
-        .eq('numero_article', numero_article)
-        .single()
+// Vérifier que le numéro d'article est unique
+const { data: existingArticle, error: checkError } = await supabase
+  .from('articles')
+  .select('id')
+  .eq('numero_article', numero_article)
+  .single()
 
-      if (existingArticle) {
-        toast.error("Un article avec ce numéro existe déjà")
-        setSubmitting(false)
-        return
-      }
+if (existingArticle) {
+  toast.error("Un article avec ce numéro existe déjà")
+  setSubmitting(false)
+  return
+}
 
-      const newArticle: Omit<Article, 'id'> = {
-        nom,
-        numero_article,
-        code_ean: code_ean || null,
-        description: description || null,
-        categorie,
-        fournisseur_id: fournisseur_id || null,
-        stock_minimum,
-        stock_maximum,
-        point_commande,
-        prix_achat,
-        prix_vente,
-        gestion_par_serie,
-      }
+const newArticle: Omit<Article, 'id'> = {
+  nom,
+  numero_article,
+  code_ean: code_ean || null,
+  description: description || null,
+  categorie,
+  fournisseur_id: fournisseur_id || null,
+  stock_minimum,
+  stock_maximum,
+  point_commande,
+  prix_achat,
+  prix_vente,
+  gestion_par_serie,
+}
 
-      if (!gestion_par_serie) {
-        newArticle.quantite_stock = quantite_stock
-      } else {
-        // Pour les articles traçables, on initialise le stock à 0
-        newArticle.quantite_stock = 0
-      }
+// Toujours inclure quantite_stock, mais avec une valeur adaptée
+if (gestion_par_serie) {
+  newArticle.quantite_stock = 0 // Pour les articles traçables
+} else {
+  newArticle.quantite_stock = quantite_stock // Pour les articles non traçables
+}
 
-      const { error } = await supabase
-        .from('articles')
-        .insert([newArticle])
+const { error } = await supabase
+  .from('articles')
+  .insert([newArticle])
 
       if (error) throw error
 
