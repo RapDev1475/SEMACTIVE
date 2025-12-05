@@ -48,13 +48,14 @@ async function fetchArticles() {
     const categoriesMap = new Map(categoriesData?.map(cat => [cat.nom, cat]) || [])
 
     // Charger les articles
-    const { data: articlesData, error: articlesError } = await supabase
-      .from('articles')
-      .select(`
-        *,
-        fournisseur:fournisseurs(nom)
-      `)
-      .order('nom')
+	const { data: articlesData, error: articlesError } = await supabase
+	.from('articles')
+	.select(`
+		*,
+		fournisseur:fournisseurs(nom),
+		categorie_info:categories(nom)
+	`)
+	.order('created_at', { ascending: false })
 
     if (articlesError) throw articlesError
 
@@ -68,8 +69,13 @@ async function fetchArticles() {
     )
 
     // Mapper avec le vrai stock et la catégorie
-    const articlesWithRealStock: ArticleWithRelations[] = (articlesData || []).map(article => {
-      const categorie_info = categoriesMap.get(article.categorie)
+    const articlesWithStock = articlesData.map(art => ({
+	...art,
+	categorie: art.categorie_info?.nom || 'Non classé',
+	quantite_stock_reelle: art.gestion_par_serie 
+		? (stockMap[art.id] || 0)
+		: (art.quantite_stock || 0)
+	}))
       
       if (article.gestion_par_serie) {
         return {
