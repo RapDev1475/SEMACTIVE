@@ -22,7 +22,7 @@ type NumeroSerie = {
   numero_serie: string | null
   adresse_mac: string | null
   localisation: string
-  date_creation: string
+  created_at: string  // Changé de date_creation
 }
 
 export default function ArticleDetailPage() {
@@ -99,7 +99,7 @@ export default function ArticleDetailPage() {
           .from('numeros_serie')
           .select('*')
           .eq('article_id', articleId)
-          .order('date_creation', { ascending: false })
+          .order('created_at', { ascending: false })
 
         if (serieError) {
           console.error('Erreur chargement numéros de série:', serieError)
@@ -284,7 +284,7 @@ export default function ArticleDetailPage() {
                       </div>
                       <div className="flex items-center gap-1">
                         <Calendar className="h-3.5 w-3.5" />
-                        <span>{new Date(ns.date_creation).toLocaleDateString('fr-BE')}</span>
+                        <span>{new Date(ns.created_at).toLocaleDateString('fr-BE')}</span>
                       </div>
                     </div>
                   </div>
