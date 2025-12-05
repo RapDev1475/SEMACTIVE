@@ -1,4 +1,3 @@
-// app/(dashboard)/articles/[id]/edit/page.tsx
 "use client"
 
 import { useEffect, useState } from "react"
@@ -24,7 +23,7 @@ export default function EditArticlePage() {
   const params = useParams()
   const articleId = params?.id as string
 
-  const [article, setArticle] = useState<Omit<Article, 'id'> | null>(null)
+  const [article, setArticle] = useState<Partial<Article> | null>(null)
   const [categories, setCategories] = useState<Categorie[]>([])
   const [fournisseurs, setFournisseurs] = useState<{ id: string; nom: string }[]>([])
   const [loading, setLoading] = useState(true)
@@ -35,7 +34,6 @@ export default function EditArticlePage() {
 
     const fetchArticle = async () => {
       try {
-        // Charger les catégories
         const { data: catData, error: catError } = await supabase
           .from('categories')
           .select('id, nom')
@@ -43,7 +41,6 @@ export default function EditArticlePage() {
         if (catError) throw catError
         setCategories(catData || [])
 
-        // Charger les fournisseurs
         const { data: fournData, error: fournError } = await supabase
           .from('fournisseurs')
           .select('id, nom')
@@ -51,7 +48,6 @@ export default function EditArticlePage() {
         if (fournError) throw fournError
         setFournisseurs(fournData || [])
 
-        // Charger l'article
         const { data: artData, error: artError } = await supabase
           .from('articles')
           .select(`
@@ -62,7 +58,6 @@ export default function EditArticlePage() {
           .single()
         if (artError) throw artError
 
-        // Charger la catégorie correspondante
         let categorie_info = null
         if (artData.categorie_id) {
           const { data: catData, error: catError } = await supabase
@@ -78,7 +73,7 @@ export default function EditArticlePage() {
 
         setArticle({
           ...artData,
-          categorie: categorie_info?.nom || artData.categorie, // Pour maintenir la compatibilité avec ton type
+          categorie: categorie_info?.nom || artData.categorie,
           gestion_par_serie: Boolean(artData.gestion_par_serie),
         })
       } catch (error) {
@@ -99,7 +94,6 @@ export default function EditArticlePage() {
     setSubmitting(true)
 
     try {
-      // Trouver l'ID de la catégorie sélectionnée
       let categorie_id = null
       if (article.categorie) {
         const { data: catData, error: catError } = await supabase
@@ -113,38 +107,23 @@ export default function EditArticlePage() {
         }
       }
 
-      const {
-        nom,
-        numero_article,
-        code_ean,
-        description,
-        fournisseur_id,
-        quantite_stock,
-        stock_minimum,
-        stock_maximum,
-        point_commande,
-        prix_achat,
-        prix_vente,
-        gestion_par_serie
-      } = article
-
-      const updates: Partial<Article> = {
-        nom,
-        numero_article,
-        code_ean: code_ean || null,
-        description: description || null,
-        categorie_id, // Utiliser categorie_id au lieu de categorie
-        fournisseur_id: fournisseur_id || null,
-        stock_minimum,
-        stock_maximum,
-        point_commande,
-        prix_achat,
-        prix_vente,
-        gestion_par_serie,
+      const updates: any = {
+        nom: article.nom,
+        numero_article: article.numero_article,
+        code_ean: article.code_ean || null,
+        description: article.description || null,
+        categorie_id,
+        fournisseur_id: article.fournisseur_id || null,
+        stock_minimum: article.stock_minimum,
+        stock_maximum: article.stock_maximum,
+        point_commande: article.point_commande,
+        prix_achat: article.prix_achat,
+        prix_vente: article.prix_vente,
+        gestion_par_serie: article.gestion_par_serie,
       }
 
-      if (!gestion_par_serie) {
-        updates.quantite_stock = quantite_stock
+      if (!article.gestion_par_serie) {
+        updates.quantite_stock = article.quantite_stock
       }
 
       const { error } = await supabase
@@ -164,7 +143,7 @@ export default function EditArticlePage() {
     }
   }
 
-  const handleInputChange = (field: keyof Article, value: any) => {
+  const handleInputChange = (field: string, value: any) => {
     setArticle(prev => prev ? { ...prev, [field]: value } : null)
   }
 
@@ -200,7 +179,7 @@ export default function EditArticlePage() {
                 <Label htmlFor="nom">Nom *</Label>
                 <Input
                   id="nom"
-                  value={article.nom}
+                  value={article.nom || ''}
                   onChange={(e) => handleInputChange('nom', e.target.value)}
                   required
                 />
@@ -210,7 +189,7 @@ export default function EditArticlePage() {
                 <Label htmlFor="numero_article">Numéro article *</Label>
                 <Input
                   id="numero_article"
-                  value={article.numero_article}
+                  value={article.numero_article || ''}
                   onChange={(e) => handleInputChange('numero_article', e.target.value)}
                   required
                 />
@@ -228,7 +207,7 @@ export default function EditArticlePage() {
               <div className="space-y-2">
                 <Label htmlFor="categorie">Catégorie *</Label>
                 <Select
-                  value={article.categorie}
+                  value={article.categorie || ''}
                   onValueChange={(value) => handleInputChange('categorie', value)}
                 >
                   <SelectTrigger>
@@ -271,7 +250,6 @@ export default function EditArticlePage() {
               </div>
             </div>
 
-            {/* Gestion par série */}
             <div className="border-t pt-6">
               <div className="flex items-center justify-between">
                 <div>
@@ -281,13 +259,12 @@ export default function EditArticlePage() {
                   </p>
                 </div>
                 <Switch
-                  checked={article.gestion_par_serie}
+                  checked={article.gestion_par_serie || false}
                   onCheckedChange={(checked) => handleInputChange('gestion_par_serie', checked)}
                 />
               </div>
             </div>
 
-            {/* Stock - uniquement si gestion_par_serie = false */}
             {!article.gestion_par_serie && (
               <div className="border-t pt-6">
                 <h3 className="text-lg font-medium mb-4">Gestion du stock (quantité)</h3>
@@ -298,7 +275,7 @@ export default function EditArticlePage() {
                       id="quantite_stock"
                       type="number"
                       min="0"
-                      value={article.quantite_stock}
+                      value={article.quantite_stock || 0}
                       onChange={(e) => handleInputChange('quantite_stock', Number(e.target.value))}
                       required
                     />
@@ -310,7 +287,7 @@ export default function EditArticlePage() {
                       id="stock_minimum"
                       type="number"
                       min="0"
-                      value={article.stock_minimum}
+                      value={article.stock_minimum || 0}
                       onChange={(e) => handleInputChange('stock_minimum', Number(e.target.value))}
                       required
                     />
@@ -322,7 +299,7 @@ export default function EditArticlePage() {
                       id="stock_maximum"
                       type="number"
                       min="0"
-                      value={article.stock_maximum}
+                      value={article.stock_maximum || 0}
                       onChange={(e) => handleInputChange('stock_maximum', Number(e.target.value))}
                       required
                     />
@@ -334,7 +311,7 @@ export default function EditArticlePage() {
                       id="point_commande"
                       type="number"
                       min="0"
-                      value={article.point_commande}
+                      value={article.point_commande || 0}
                       onChange={(e) => handleInputChange('point_commande', Number(e.target.value))}
                       required
                     />
@@ -343,7 +320,6 @@ export default function EditArticlePage() {
               </div>
             )}
 
-            {/* Prix */}
             <div className="border-t pt-6">
               <h3 className="text-lg font-medium mb-4">Prix</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -354,7 +330,7 @@ export default function EditArticlePage() {
                     type="number"
                     step="0.01"
                     min="0"
-                    value={article.prix_achat}
+                    value={article.prix_achat || 0}
                     onChange={(e) => handleInputChange('prix_achat', Number(e.target.value))}
                     required
                   />
@@ -367,7 +343,7 @@ export default function EditArticlePage() {
                     type="number"
                     step="0.01"
                     min="0"
-                    value={article.prix_vente}
+                    value={article.prix_vente || 0}
                     onChange={(e) => handleInputChange('prix_vente', Number(e.target.value))}
                     required
                   />
