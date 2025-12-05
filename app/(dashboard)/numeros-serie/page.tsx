@@ -136,7 +136,7 @@ export default function NumerosSeriesPage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Numéros de série</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Tracabilité N°Série & MAC adress</h1>
           <p className="text-muted-foreground mt-1">
             Gestion et traçabilité des numéros de série et adresses MAC
           </p>
