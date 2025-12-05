@@ -1,3 +1,4 @@
+// app/(dashboard)/mouvements/page.tsx
 "use client"
 
 import { useEffect, useState } from "react"
@@ -30,10 +31,17 @@ type MouvementWithRelations = Mouvement & {
   personne?: { nom: string; prenom?: string }
 }
 
+type TypeMouvement = {
+  id: string
+  nom: string
+  description: string | null
+}
+
 export default function MouvementsPage() {
   const [mouvements, setMouvements] = useState<MouvementWithRelations[]>([])
   const [articles, setArticles] = useState<Article[]>([])
   const [personnes, setPersonnes] = useState<Personne[]>([])
+  const [typesMouvement, setTypesMouvement] = useState<TypeMouvement[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [filterType, setFilterType] = useState<string>("all")
@@ -43,7 +51,7 @@ export default function MouvementsPage() {
   const [formData, setFormData] = useState({
     article_id: "",
     personne_id: "",
-    type_mouvement: "reception" as "reception" | "sortie_technicien" | "installation_client" | "retour",
+    type_mouvement: "", // Initialisé vide, on sélectionnera un type existant
     quantite: 1,
     remarques: "",
   })
@@ -52,6 +60,7 @@ export default function MouvementsPage() {
     fetchMouvements()
     fetchArticles()
     fetchPersonnes()
+    fetchTypesMouvement()
   }, [])
 
   async function fetchMouvements() {
@@ -89,64 +98,83 @@ export default function MouvementsPage() {
     }
   }
 
-	async function fetchPersonnes() {
-	try {
-		const { data } = await supabase
-		.from('personnes')
-		.select('*')  // ← Changez ici
-		.eq('type', 'technicien')
-		.order('nom')
-	
-		setPersonnes(data || [])
-	} catch (error) {
-		console.error('Error fetching personnes:', error)
-	}
-	}
-
-async function searchArticles(searchValue: string) {
-  if (!searchValue.trim()) {
-    fetchArticles()
-    return
+  async function fetchPersonnes() {
+    try {
+      const { data } = await supabase
+        .from('personnes')
+        .select('*')
+        .eq('type', 'technicien')
+        .order('nom')
+    
+      setPersonnes(data || [])
+    } catch (error) {
+      console.error('Error fetching personnes:', error)
+    }
   }
 
-  try {
-    // Rechercher d'abord par numéro de série ou MAC
-    const { data: serialData } = await supabase
-      .from('numeros_serie')
-      .select('article_id')
-      .or(`numero_serie.ilike.%${searchValue}%,adresse_mac.ilike.%${searchValue}%`)
+  async function fetchTypesMouvement() {
+    try {
+      const { data, error } = await supabase
+        .from('types_mouvement')
+        .select('*')
+        .order('nom')
 
-    let articleIds: string[] = []
-    
-    if (serialData && serialData.length > 0) {
-      articleIds = [...new Set(serialData.map(s => s.article_id))]
+      if (error) throw error
+      setTypesMouvement(data || [])
+      
+      // Si des types existent, sélectionner le premier par défaut
+      if (data && data.length > 0) {
+        setFormData(prev => ({ ...prev, type_mouvement: data[0].nom }))
+      }
+    } catch (error) {
+      console.error('Error fetching types de mouvement:', error)
     }
-
-    // Rechercher les articles
-    let query = supabase
-      .from('articles')
-      .select('*')
-      .order('nom')
-
-    // Si on a des IDs depuis les numéros de série, les inclure
-    // Sinon chercher par nom ou numéro article
-    if (articleIds.length > 0) {
-      query = query.in('id', articleIds)
-    } else {
-      query = query.or(`nom.ilike.%${searchValue}%,numero_article.ilike.%${searchValue}%`)
-    }
-
-    const { data } = await query
-    setArticles(data || [])
-    
-    // AUTO-SÉLECTION : Si un seul résultat, le sélectionner automatiquement
-    if (data && data.length === 1) {
-      setFormData({...formData, article_id: data[0].id})
-    }
-  } catch (error) {
-    console.error('Error searching articles:', error)
   }
-}
+
+  async function searchArticles(searchValue: string) {
+    if (!searchValue.trim()) {
+      fetchArticles()
+      return
+    }
+
+    try {
+      // Rechercher d'abord par numéro de série ou MAC
+      const { data: serialData } = await supabase
+        .from('numeros_serie')
+        .select('article_id')
+        .or(`numero_serie.ilike.%${searchValue}%,adresse_mac.ilike.%${searchValue}%`)
+
+      let articleIds: string[] = []
+      
+      if (serialData && serialData.length > 0) {
+        articleIds = [...new Set(serialData.map(s => s.article_id))]
+      }
+
+      // Rechercher les articles
+      let query = supabase
+        .from('articles')
+        .select('*')
+        .order('nom')
+
+      // Si on a des IDs depuis les numéros de série, les inclure
+      // Sinon chercher par nom ou numéro article
+      if (articleIds.length > 0) {
+        query = query.in('id', articleIds)
+      } else {
+        query = query.or(`nom.ilike.%${searchValue}%,numero_article.ilike.%${searchValue}%`)
+      }
+
+      const { data } = await query
+      setArticles(data || [])
+      
+      // AUTO-SÉLECTION : Si un seul résultat, le sélectionner automatiquement
+      if (data && data.length === 1) {
+        setFormData({...formData, article_id: data[0].id})
+      }
+    } catch (error) {
+      console.error('Error searching articles:', error)
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -167,13 +195,18 @@ async function searchArticles(searchValue: string) {
       if (article) {
         let newQuantity = article.quantite_stock
 
-        // Ajuster la quantité selon le type de mouvement
-        if (formData.type_mouvement === 'reception') {
-          newQuantity += formData.quantite
-        } else if (formData.type_mouvement === 'sortie_technicien' || formData.type_mouvement === 'installation_client') {
-          newQuantity -= formData.quantite
-        } else if (formData.type_mouvement === 'retour') {
-          newQuantity += formData.quantite
+        // Trouver le type de mouvement pour déterminer l'action sur le stock
+        const typeMvt = typesMouvement.find(t => t.nom === formData.type_mouvement)
+        
+        // Ici, tu peux ajouter une logique basée sur le type de mouvement
+        // Pour l'instant, on suppose que "reception" augmente, "sortie" diminue, "retour" augmente
+        // Tu peux ajouter une colonne dans ta table types_mouvement pour indiquer le type d'action
+        if (typeMvt) {
+          if (typeMvt.nom.toLowerCase().includes('reception') || typeMvt.nom.toLowerCase().includes('retour')) {
+            newQuantity += formData.quantite
+          } else if (typeMvt.nom.toLowerCase().includes('sortie') || typeMvt.nom.toLowerCase().includes('installation')) {
+            newQuantity -= formData.quantite
+          }
         }
 
         const { error: stockError } = await supabase
@@ -191,7 +224,7 @@ async function searchArticles(searchValue: string) {
       setFormData({
         article_id: "",
         personne_id: "",
-        type_mouvement: "reception",
+        type_mouvement: typesMouvement[0]?.nom || "", // Réinitialiser avec le premier type
         quantite: 1,
         remarques: "",
       })
@@ -213,29 +246,36 @@ async function searchArticles(searchValue: string) {
 
   const stats = {
     total: mouvements.length,
-    receptions: mouvements.filter(m => m.type_mouvement === 'reception').length,
-    sorties: mouvements.filter(m => m.type_mouvement === 'sortie_technicien' || m.type_mouvement === 'installation_client').length,
-    retours: mouvements.filter(m => m.type_mouvement === 'retour').length,
+    // Compter selon les types de mouvements dynamiquement
+    receptions: mouvements.filter(m => m.type_mouvement.toLowerCase().includes('reception')).length,
+    sorties: mouvements.filter(m => m.type_mouvement.toLowerCase().includes('sortie') || m.type_mouvement.toLowerCase().includes('installation')).length,
+    retours: mouvements.filter(m => m.type_mouvement.toLowerCase().includes('retour')).length,
   }
 
   const getTypeBadge = (type: string) => {
-    const variants: Record<string, string> = {
-      reception: 'bg-green-100 text-green-800',
-      sortie_technicien: 'bg-blue-100 text-blue-800',
-      installation_client: 'bg-purple-100 text-purple-800',
-      retour: 'bg-orange-100 text-orange-800',
+    // Utiliser des couleurs génériques basées sur le type
+    if (type.toLowerCase().includes('reception')) {
+      return 'bg-green-100 text-green-800'
+    } else if (type.toLowerCase().includes('sortie') || type.toLowerCase().includes('installation')) {
+      return 'bg-blue-100 text-blue-800'
+    } else if (type.toLowerCase().includes('retour')) {
+      return 'bg-orange-100 text-orange-800'
+    } else {
+      return 'bg-gray-100 text-gray-800'
     }
-    return variants[type] || 'bg-gray-100 text-gray-800'
   }
 
   const getTypeIcon = (type: string) => {
-    const icons: Record<string, any> = {
-      reception: TrendingUp,
-      sortie_technicien: TrendingDown,
-      installation_client: TrendingDown,
-      retour: RefreshCw,
+    // Utiliser des icônes génériques basées sur le type
+    if (type.toLowerCase().includes('reception')) {
+      return TrendingUp
+    } else if (type.toLowerCase().includes('sortie') || type.toLowerCase().includes('installation')) {
+      return TrendingDown
+    } else if (type.toLowerCase().includes('retour')) {
+      return RefreshCw
+    } else {
+      return History
     }
-    return icons[type] || History
   }
 
   if (loading) {
@@ -274,16 +314,23 @@ async function searchArticles(searchValue: string) {
                 <Label htmlFor="type_mouvement">Type de mouvement *</Label>
                 <Select 
                   value={formData.type_mouvement} 
-                  onValueChange={(value: any) => setFormData({...formData, type_mouvement: value})}
+                  onValueChange={(value) => setFormData({...formData, type_mouvement: value})}
                 >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="reception">Réception</SelectItem>
-                    <SelectItem value="sortie_technicien">Sortie technicien</SelectItem>
-                    <SelectItem value="installation_client">Installation client</SelectItem>
-                    <SelectItem value="retour">Retour</SelectItem>
+                    {typesMouvement.length === 0 ? (
+                      <div className="p-2 text-sm text-muted-foreground text-center">
+                        Aucun type de mouvement défini
+                      </div>
+                    ) : (
+                      typesMouvement.map((type) => (
+                        <SelectItem key={type.id} value={type.nom}>
+                          {type.nom} {type.description && `(${type.description})`}
+                        </SelectItem>
+                      ))
+                    )}
                   </SelectContent>
                 </Select>
               </div>
@@ -343,25 +390,25 @@ async function searchArticles(searchValue: string) {
                 </div>
               )}
 
-				<div className="space-y-2">
-				<Label htmlFor="personne_id">Technicien</Label>
-				<Select 
-					value={formData.personne_id || "none"}
-					onValueChange={(value) => setFormData({...formData, personne_id: value === "none" ? "" : value})}
-				>
-					<SelectTrigger>
-					<SelectValue placeholder="Sélectionnez un technicien (optionnel)" />
-					</SelectTrigger>
-					<SelectContent>
-					<SelectItem value="none">Aucun</SelectItem>
-					{personnes.map((personne) => (
-						<SelectItem key={personne.id} value={personne.id}>
-						{personne.nom} {personne.prenom}
-						</SelectItem>
-					))}
-					</SelectContent>
-				</Select>
-				</div>
+              <div className="space-y-2">
+                <Label htmlFor="personne_id">Technicien</Label>
+                <Select 
+                  value={formData.personne_id || "none"}
+                  onValueChange={(value) => setFormData({...formData, personne_id: value === "none" ? "" : value})}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sélectionnez un technicien (optionnel)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Aucun</SelectItem>
+                    {personnes.map((personne) => (
+                      <SelectItem key={personne.id} value={personne.id}>
+                        {personne.nom} {personne.prenom}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
               <div className="space-y-2">
                 <Label htmlFor="quantite">Quantité *</Label>
@@ -463,10 +510,11 @@ async function searchArticles(searchValue: string) {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Tous les types</SelectItem>
-                <SelectItem value="reception">Réceptions</SelectItem>
-                <SelectItem value="sortie_technicien">Sorties technicien</SelectItem>
-                <SelectItem value="installation_client">Installations client</SelectItem>
-                <SelectItem value="retour">Retours</SelectItem>
+                {typesMouvement.map((type) => (
+                  <SelectItem key={type.id} value={type.nom}>
+                    {type.nom}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -498,7 +546,7 @@ async function searchArticles(searchValue: string) {
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
                         <Badge className={getTypeBadge(mouvement.type_mouvement)}>
-                          {mouvement.type_mouvement.replace(/_/g, ' ')}
+                          {mouvement.type_mouvement}
                         </Badge>
                         <span className="font-semibold">Quantité: {mouvement.quantite}</span>
                       </div>
