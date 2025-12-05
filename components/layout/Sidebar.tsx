@@ -1,3 +1,4 @@
+// components/layout/Sidebar.tsx
 "use client"
 
 import { usePathname } from "next/navigation"
@@ -14,6 +15,7 @@ import {
   PackageCheck,
   ChevronRight,
   Hash,
+  Settings,
 } from "lucide-react"
 
 interface SidebarProps {
@@ -59,20 +61,25 @@ const navigation = [
     icon: Users,
   },
   {
-  name: "Techniciens",
-  href: "/techniciens",
-  icon: Users,
-},
+    name: "Techniciens",
+    href: "/techniciens",
+    icon: Users,
+  },
   {
     name: "Réceptions",
     href: "/receptions",
     icon: PackageCheck,
   },
   {
-  name: "Numéros de série",
-  href: "/numeros-serie",
-  icon: Hash,
-},
+    name: "Numéros de série",
+    href: "/numeros-serie",
+    icon: Hash,
+  },
+  {
+    name: "Paramètres",
+    href: "/settings",
+    icon: Settings,
+  },
 ]
 
 export function Sidebar({ open, onClose }: SidebarProps) {
