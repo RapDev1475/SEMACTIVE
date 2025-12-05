@@ -8,7 +8,7 @@ export type Article = {
   numero_article: string
   code_ean: string | null
   description: string | null
-  categorie: string
+  categorie?: string
   categorie_id?: string | null  // ← AJOUTÉ : Pour la relation avec la table categories
   fournisseur_id: string | null
   quantite_stock: number
