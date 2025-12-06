@@ -143,36 +143,55 @@ export default function MouvementsPage() {
 
   // Mapper le nom du type vers les valeurs valides de la contrainte CHECK
   function mapTypeToConstraint(typeNom: string): string {
-    const mapping: Record<string, string> = {
-      'reception': 'reception',
+    // Valeurs valides selon la contrainte CHECK
+    const validValues = [
+      'reception',
+      'sortie_technicien',
+      'sortie_transport',
+      'transfert_depot',
+      'installation_client',
+      'retour'
+    ]
+    
+    // Si déjà une valeur valide, la retourner
+    if (validValues.includes(typeNom)) {
+      return typeNom
+    }
+    
+    // Mapping manuel pour les variations courantes
+    const lowerNom = typeNom.toLowerCase().trim()
+    
+    // Correspondances exactes avec underscores
+    const exactMapping: Record<string, string> = {
       'réception': 'reception',
-      'sortie_technicien': 'sortie_technicien',
       'sortie technicien': 'sortie_technicien',
-      'sortie_transport': 'sortie_transport',
       'sortie transport': 'sortie_transport',
-      'transfert_depot': 'transfert_depot',
       'transfert depot': 'transfert_depot',
       'transfert dépôt': 'transfert_depot',
-      'installation_client': 'installation_client',
       'installation client': 'installation_client',
-      'retour': 'retour',
     }
     
-    // Chercher une correspondance exacte (insensible à la casse)
-    const lowerNom = typeNom.toLowerCase()
-    if (mapping[lowerNom]) {
-      return mapping[lowerNom]
+    if (exactMapping[lowerNom]) {
+      return exactMapping[lowerNom]
     }
     
-    // Chercher par mot-clé
-    if (lowerNom.includes('reception') || lowerNom.includes('réception')) return 'reception'
+    // Recherche par mot-clé (ordre important)
     if (lowerNom.includes('sortie') && lowerNom.includes('technicien')) return 'sortie_technicien'
     if (lowerNom.includes('sortie') && lowerNom.includes('transport')) return 'sortie_transport'
-    if (lowerNom.includes('transfert') && lowerNom.includes('dep')) return 'transfert_depot'
+    if (lowerNom.includes('transfert')) return 'transfert_depot'
     if (lowerNom.includes('installation')) return 'installation_client'
+    if (lowerNom.includes('reception') || lowerNom.includes('réception')) return 'reception'
     if (lowerNom.includes('retour')) return 'retour'
     
-    // Par défaut, retourner tel quel (causera une erreur qui aidera à identifier le problème)
+    // Par défaut, essayer de remplacer les espaces par des underscores
+    const withUnderscore = lowerNom.replace(/\s+/g, '_')
+    if (validValues.includes(withUnderscore)) {
+      return withUnderscore
+    }
+    
+    // Si aucune correspondance, afficher une alerte et retourner tel quel
+    console.error('Type de mouvement non reconnu:', typeNom)
+    alert(`ATTENTION: Le type "${typeNom}" ne correspond à aucune valeur valide. Les valeurs valides sont: ${validValues.join(', ')}`)
     return typeNom
   }
 
@@ -317,6 +336,10 @@ export default function MouvementsPage() {
     try {
       const dateMouvement = new Date().toISOString()
       const typeMapped = mapTypeToConstraint(mouvementData.type_mouvement)
+      
+      // DEBUG
+      console.log('Type original:', mouvementData.type_mouvement)
+      console.log('Type mappé:', typeMapped)
 
       // Préparer toutes les lignes de mouvement à insérer
       const mouvementsToInsert = lignesMouvement.map(ligne => ({
@@ -327,6 +350,8 @@ export default function MouvementsPage() {
         remarques: mouvementData.remarques,
         date_mouvement: dateMouvement,
       }))
+      
+      console.log('Données à insérer:', mouvementsToInsert)
 
       // Insérer tous les mouvements
       const { error: mouvementError } = await supabase
