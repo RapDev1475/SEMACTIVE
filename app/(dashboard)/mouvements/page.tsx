@@ -62,6 +62,7 @@ export default function MouvementsPage() {
   const [typesMouvement, setTypesMouvement] = useState<TypeMouvement[]>([])
   const [emplacements, setEmplacements] = useState<{id: string, nom: string}[]>([])
   const [scenarios, setScenarios] = useState<Scenario[]>([])
+  const [stockTechnicienSource, setStockTechnicienSource] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [filterType, setFilterType] = useState<string>("all")
@@ -108,6 +109,33 @@ export default function MouvementsPage() {
       console.log('Scénarios chargés:', data?.length)
     } catch (error) {
       console.error('Error fetching scenarios:', error)
+    }
+  }
+
+  // Charger le stock du technicien source (pour les transferts entre techniciens)
+  async function fetchStockTechnicienSource(technicienId: string) {
+    if (!technicienId) {
+      setStockTechnicienSource([])
+      return
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('stock_technicien')
+        .select(`
+          *,
+          article:articles(*),
+          numero_serie:numeros_serie(*)
+        `)
+        .eq('technicien_id', technicienId)
+        .gt('quantite', 0) // Seulement les articles avec quantité > 0
+
+      if (error) throw error
+      setStockTechnicienSource(data || [])
+      console.log(`Stock technicien source chargé: ${data?.length} entrées`)
+    } catch (error) {
+      console.error('Error fetching stock technicien source:', error)
+      setStockTechnicienSource([])
     }
   }
 
@@ -304,7 +332,13 @@ export default function MouvementsPage() {
 
   async function searchArticles(searchValue: string) {
     if (!searchValue.trim()) {
-      fetchArticles()
+      // Si transfert entre techniciens, afficher les articles du stock source
+      if (isTransfertEntreTechniciens() && mouvementData.personne_source_id) {
+        const articlesDisponibles = stockTechnicienSource.map(s => s.article).filter(Boolean)
+        setArticles(articlesDisponibles)
+      } else {
+        fetchArticles()
+      }
       return
     }
 
@@ -312,6 +346,50 @@ export default function MouvementsPage() {
       let isSerialOrMacSearch = false
       let foundNumeroSerie: any = null
       
+      // Si transfert entre techniciens, on doit chercher dans le stock du technicien source
+      if (isTransfertEntreTechniciens() && mouvementData.personne_source_id) {
+        // Rechercher par numéro de série ou MAC dans le stock du technicien source
+        const { data: serialData } = await supabase
+          .from('numeros_serie')
+          .select('*, article:articles(*)')
+          .or(`numero_serie.ilike.%${searchValue}%,adresse_mac.ilike.%${searchValue}%`)
+
+        if (serialData && serialData.length > 0) {
+          // Vérifier que ce numéro de série est bien dans le stock du technicien source
+          const stockEntry = stockTechnicienSource.find(s => 
+            s.numero_serie_id === serialData[0].id
+          )
+
+          if (stockEntry) {
+            isSerialOrMacSearch = true
+            foundNumeroSerie = serialData[0]
+            setArticles([serialData[0].article])
+            
+            // Auto-ajout
+            setTimeout(() => {
+              ajouterLigneAuto(serialData[0].article, foundNumeroSerie)
+            }, 100)
+            return
+          } else {
+            alert(`Ce numéro de série n'est pas dans le stock du technicien source`)
+            setArticles([])
+            return
+          }
+        } else {
+          // Recherche par nom d'article dans le stock du technicien source
+          const articlesDisponibles = stockTechnicienSource
+            .filter(s => s.article && s.article.nom.toLowerCase().includes(searchValue.toLowerCase()))
+            .map(s => s.article)
+            .filter(Boolean)
+          
+          // Dédupliquer les articles
+          const uniqueArticles = Array.from(new Map(articlesDisponibles.map(a => [a.id, a])).values())
+          setArticles(uniqueArticles)
+          return
+        }
+      }
+
+      // Recherche normale (pas un transfert entre techniciens)
       // Rechercher d'abord par numéro de série ou MAC
       const { data: serialData } = await supabase
         .from('numeros_serie')
@@ -366,6 +444,28 @@ export default function MouvementsPage() {
       setArticleSearch("")
       setLigneFormData({ article_id: "", quantite: 1 })
       return
+    }
+
+    // Si transfert entre techniciens, vérifier que l'article est dans le stock source
+    if (isTransfertEntreTechniciens() && mouvementData.personne_source_id) {
+      const stockEntry = stockTechnicienSource.find(s => 
+        s.article_id === article.id && 
+        (!numeroSerie || s.numero_serie_id === numeroSerie.id)
+      )
+
+      if (!stockEntry) {
+        alert(`Cet article n'est pas dans le stock du technicien source`)
+        setArticleSearch("")
+        setLigneFormData({ article_id: "", quantite: 1 })
+        return
+      }
+
+      if (stockEntry.quantite < 1) {
+        alert(`Stock insuffisant pour le technicien source (stock actuel: ${stockEntry.quantite})`)
+        setArticleSearch("")
+        setLigneFormData({ article_id: "", quantite: 1 })
+        return
+      }
     }
 
     const nouvelleLigne: LigneMouvement = {
@@ -795,7 +895,11 @@ export default function MouvementsPage() {
                   <CardContent>
                     <Select 
                       value={mouvementData.personne_source_id || "none"}
-                      onValueChange={(value) => setMouvementData({...mouvementData, personne_source_id: value === "none" ? "" : value})}
+                      onValueChange={(value) => {
+                        const newValue = value === "none" ? "" : value
+                        setMouvementData({...mouvementData, personne_source_id: newValue})
+                        fetchStockTechnicienSource(newValue)
+                      }}
                     >
                       <SelectTrigger className="h-14 text-lg">
                         <SelectValue placeholder="Choisir" />
@@ -869,7 +973,11 @@ export default function MouvementsPage() {
                     <CardContent>
                       <Select 
                         value={mouvementData.personne_source_id || "none"}
-                        onValueChange={(value) => setMouvementData({...mouvementData, personne_source_id: value === "none" ? "" : value})}
+                        onValueChange={(value) => {
+                          const newValue = value === "none" ? "" : value
+                          setMouvementData({...mouvementData, personne_source_id: newValue})
+                          fetchStockTechnicienSource(newValue)
+                        }}
                       >
                         <SelectTrigger className="h-14 text-lg">
                           <SelectValue placeholder="Choisir" />
