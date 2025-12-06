@@ -23,19 +23,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Plus, Search, Users, User, Phone, Mail, Edit, MapPin, CreditCard, Briefcase, Projector } from "lucide-react" // Ajout des icônes
-import type { Personne, Projet, Fonction } from "@/lib/types" // Assure-toi que Projet et Fonction sont définis dans ton fichier de types
+import { Plus, Search, Users, User, Phone, Mail, Edit, MapPin, CreditCard, Briefcase, Projector } from "lucide-react"
+import type { Personne, Projet, Fonction } from "@/lib/types"
 
 export default function TechniciensPage() {
   const [personnes, setPersonnes] = useState<Personne[]>([])
-  const [projets, setProjets] = useState<Projet[]>([]) // Nouvel état pour les projets
-  const [fonctions, setFonctions] = useState<Fonction[]>([]) // Nouvel état pour les fonctions
+  const [projets, setProjets] = useState<Projet[]>([])
+  const [fonctions, setFonctions] = useState<Fonction[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [filterType, setFilterType] = useState<string>("all")
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingPerson, setEditingPerson] = useState<Personne | null>(null)
-  
+
   const [formData, setFormData] = useState({
     nom: "",
     prenom: "",
@@ -63,11 +63,11 @@ export default function TechniciensPage() {
 
   useEffect(() => {
     fetchPersonnes()
-    fetchProjets() // Appel à la fonction pour charger les projets
-    fetchFonctions() // Appel à la fonction pour charger les fonctions
+    fetchProjets()
+    fetchFonctions()
   }, [])
 
-  async function fetchProjets() { // Nouvelle fonction - CORRIGÉE
+  async function fetchProjets() {
     try {
       const { data, error } = await supabase
         .from('projets')
@@ -76,15 +76,16 @@ export default function TechniciensPage() {
 
       if (error) throw error
       // --- FILTRE RENFORCÉ ICI ---
-      const projetsFiltres = data?.filter(p => p && p.id && p.id !== '') || [];
+      // On s'assure que chaque projet a un id non vide et non null
+      const projetsFiltres = (data || []).filter(p => p && p.id && typeof p.id === 'string' && p.id.trim() !== '');
       setProjets(projetsFiltres);
-      // ---
+      console.log("Projets chargés et filtrés:", projetsFiltres.length);
     } catch (error) {
       console.error('Error fetching projets:', error)
     }
   }
 
-  async function fetchFonctions() { // Nouvelle fonction - CORRIGÉE
+  async function fetchFonctions() {
     try {
       const { data, error } = await supabase
         .from('fonctions')
@@ -93,26 +94,24 @@ export default function TechniciensPage() {
 
       if (error) throw error
       // --- FILTRE RENFORCÉ ICI ---
-      const fonctionsFiltrees = data?.filter(f => f && f.id && f.id !== '') || [];
+      // On s'assure que chaque fonction a un id non vide et non null
+      const fonctionsFiltrees = (data || []).filter(f => f && f.id && typeof f.id === 'string' && f.id.trim() !== '');
       setFonctions(fonctionsFiltrees);
-      // ---
+      console.log("Fonctions chargées et filtrées:", fonctionsFiltrees.length);
     } catch (error) {
       console.error('Error fetching fonctions:', error)
     }
   }
 
-  // --- CHANGEMENT : fetchPersonnes sans jointure ---
   async function fetchPersonnes() {
     setLoading(true)
     try {
       const { data, error } = await supabase
         .from('personnes')
-        .select('*') // Sélectionne toutes les colonnes de personnes, mais pas les détails de projets/fonctions
+        .select('*')
         .order('nom')
 
       if (error) throw error
-      // ATTENTION : Les objets Personne récupérés n'auront PAS les propriétés `projet` et `fonction` remplies.
-      // Ils auront juste `projet_id` et `fonction_id`.
       setPersonnes(data || [])
     } catch (error) {
       console.error('Error fetching personnes:', error)
@@ -120,11 +119,10 @@ export default function TechniciensPage() {
       setLoading(false)
     }
   }
-  // --- FIN CHANGEMENT ---
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    
+
     try {
       const dataToSave = {
         ...formData,
@@ -132,7 +130,6 @@ export default function TechniciensPage() {
         // --- Conversion des champs projet_id/fonction_id en null si vide ---
         projet_id: formData.projet_id || null,
         fonction_id: formData.fonction_id || null,
-        // ---
       }
 
       if (editingPerson) {
@@ -153,7 +150,7 @@ export default function TechniciensPage() {
       setDialogOpen(false)
       setEditingPerson(null)
       fetchPersonnes()
-      
+
       setFormData({
         nom: "",
         prenom: "",
@@ -173,24 +170,24 @@ export default function TechniciensPage() {
         boite_postale: "",
         code_postal: "",
         commune: "",
-        // --- Réinitialisation des nouveaux champs ---
         projet_id: "",
         fonction_id: "",
-        // ---
       })
     } catch (error: any) {
       alert("Erreur: " + error.message)
     }
   }
 
-  // --- CHANGEMENT : handleEdit avec vérification ---
+  // --- CHANGEMENT : handleEdit avec vérification renforcée ---
   function handleEdit(personne: any) {
-    // Vérifier si les IDs de projet/fonction existent dans les listes chargées *avant* de les assigner
-    // On ne fait la vérification que si les listes sont chargées
-    const projetExiste = projets.length > 0 ? projets.some(p => p.id === personne.projet_id) : true; // Si pas chargé, on suppose vrai pour ne pas réinitialiser
-    const fonctionExiste = fonctions.length > 0 ? fonctions.some(f => f.id === personne.fonction_id) : true; // Si pas chargé, on suppose vrai
-
     setEditingPerson(personne)
+
+    // --- VÉRIFICATION RENFORCÉE ---
+    // On s'assure que les IDs sont des chaînes non vides avant de les assigner
+    // Si l'ID est vide ou null, on assigne ""
+    const projetIdToSet = personne.projet_id && typeof personne.projet_id === 'string' && personne.projet_id.trim() !== '' ? personne.projet_id : "";
+    const fonctionIdToSet = personne.fonction_id && typeof personne.fonction_id === 'string' && personne.fonction_id.trim() !== '' ? personne.fonction_id : "";
+
     setFormData({
       nom: personne.nom,
       prenom: personne.prenom || "",
@@ -210,9 +207,9 @@ export default function TechniciensPage() {
       boite_postale: personne.boite_postale || "",
       code_postal: personne.code_postal || "",
       commune: personne.commune || "",
-      // --- Changement dans le chargement avec vérification ---
-      projet_id: personne.projet_id && projetExiste ? personne.projet_id : "", // Charger l'ID s'il existe, sinon ""
-      fonction_id: personne.fonction_id && fonctionExiste ? personne.fonction_id : "", // Charger l'ID s'il existe, sinon ""
+      // --- Assignation avec vérification ---
+      projet_id: projetIdToSet,
+      fonction_id: fonctionIdToSet,
       // ---
     })
     setDialogOpen(true)
@@ -220,17 +217,15 @@ export default function TechniciensPage() {
   // --- FIN CHANGEMENT ---
 
   const filteredPersonnes = personnes.filter(p => {
-    const matchesSearch = 
+    const matchesSearch =
       p.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (p.prenom && p.prenom.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (p.email && p.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (p.numero_perid && p.numero_perid.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (p.erp_id && p.erp_id.toLowerCase().includes(searchTerm.toLowerCase()))
-      // --- Recherche sur le nom du projet/fonction via les tableaux locaux ---
-      || (p.projet_id && projets.find(pr => pr.id === p.projet_id)?.nom.toLowerCase().includes(searchTerm.toLowerCase())) 
-      || (p.fonction_id && fonctions.find(f => f.id === p.fonction_id)?.nom.toLowerCase().includes(searchTerm.toLowerCase()))
-      // ---
-    
+      (p.erp_id && p.erp_id.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (p.projet_id && projets.find(pr => pr.id === p.projet_id)?.nom.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (p.fonction_id && fonctions.find(f => f.id === p.fonction_id)?.nom.toLowerCase().includes(searchTerm.toLowerCase()))
+
     if (filterType === "all") return matchesSearch
     return matchesSearch && p.type === filterType
   })
@@ -269,8 +264,8 @@ export default function TechniciensPage() {
             Gérez vos techniciens, clients et contacts
           </p>
         </div>
-        <Dialog 
-          open={dialogOpen} 
+        <Dialog
+          open={dialogOpen}
           onOpenChange={(open) => {
             setDialogOpen(open)
             if (!open) {
@@ -294,10 +289,8 @@ export default function TechniciensPage() {
                 boite_postale: "",
                 code_postal: "",
                 commune: "",
-                // --- Réinitialisation des nouveaux champs ---
                 projet_id: "",
                 fonction_id: "",
-                // ---
               })
             }
           }}
@@ -314,7 +307,7 @@ export default function TechniciensPage() {
                 {editingPerson ? "Modifier la personne" : "Ajouter une personne"}
               </DialogTitle>
               <DialogDescription>
-                {editingPerson 
+                {editingPerson
                   ? "Modifiez les informations de cette personne"
                   : "Ajoutez un technicien, client ou autre contact"
                 }
@@ -327,6 +320,7 @@ export default function TechniciensPage() {
               </div>
             ) : (
               <form onSubmit={handleSubmit} className="space-y-6">
+                {/* ... (Informations générales, Identifiants, Coordonnées, Adresse, Informations financières, Remarques) ... */}
                 {/* Informations générales */}
                 <div className="space-y-4">
                   <h3 className="text-sm font-semibold">Informations générales</h3>
@@ -352,8 +346,8 @@ export default function TechniciensPage() {
 
                   <div className="space-y-2">
                     <Label htmlFor="type">Type *</Label>
-                    <Select 
-                      value={formData.type} 
+                    <Select
+                      value={formData.type}
                       onValueChange={(value: any) => setFormData({...formData, type: value})}
                     >
                       <SelectTrigger>
@@ -369,7 +363,7 @@ export default function TechniciensPage() {
                   </div>
                 </div>
 
-                {/* --- NOUVEAU : Informations Projet/Fonction avec Select (CORRIGÉ) --- */}
+                {/* --- NOUVEAU : Informations Projet/Fonction avec Select (Ultra-prudent) --- */}
                 <div className="space-y-4 p-4 bg-gray-50 dark:bg-gray-900/20 rounded-lg border">
                   <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
                     Projet & Fonction
@@ -377,18 +371,17 @@ export default function TechniciensPage() {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="projet_id">Projet</Label>
-                      <Select 
-                        value={formData.projet_id} 
+                      <Select
+                        value={formData.projet_id}
                         onValueChange={(value) => setFormData({...formData, projet_id: value})}
                       >
                         <SelectTrigger>
                           <SelectValue placeholder="Sélectionnez un projet" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">Aucun projet</SelectItem> {/* Option pour NULL */}
-                          {projets
-                            .filter(p => p.id && p.id !== "") // Filtrer les projets avec un ID valide
-                            .map((projet) => (
+                          <SelectItem value="">Aucun projet</SelectItem>
+                          {/* On mappe uniquement sur les projets avec id non vide */}
+                          {projets.map((projet) => (
                             <SelectItem key={projet.id} value={projet.id}>
                               {projet.nom}
                             </SelectItem>
@@ -398,18 +391,17 @@ export default function TechniciensPage() {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="fonction_id">Fonction</Label>
-                      <Select 
-                        value={formData.fonction_id} 
+                      <Select
+                        value={formData.fonction_id}
                         onValueChange={(value) => setFormData({...formData, fonction_id: value})}
                       >
                         <SelectTrigger>
                           <SelectValue placeholder="Sélectionnez une fonction" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">Aucune fonction</SelectItem> {/* Option pour NULL */}
-                          {fonctions
-                            .filter(f => f.id && f.id !== "") // Filtrer les fonctions avec un ID valide
-                            .map((fonction) => (
+                          <SelectItem value="">Aucune fonction</SelectItem>
+                          {/* On mappe uniquement sur les fonctions avec id non vide */}
+                          {fonctions.map((fonction) => (
                             <SelectItem key={fonction.id} value={fonction.id}>
                               {fonction.nom}
                             </SelectItem>
@@ -421,6 +413,7 @@ export default function TechniciensPage() {
                 </div>
                 {/* --- FIN NOUVEAU --- */}
 
+                {/* ... (Le reste du formulaire) ... */}
                 {/* Identifiants technicien */}
                 {formData.type === 'technicien' && (
                   <div className="space-y-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border">
@@ -600,6 +593,7 @@ export default function TechniciensPage() {
         </Dialog>
       </div>
 
+      {/* ... (Stats, Barre de recherche, Affichage des cartes) ... */}
       <div className="grid gap-4 md:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -698,25 +692,25 @@ export default function TechniciensPage() {
                       </p>
                     )}
                     {/* --- Affichage Projet/Fonction via recherche dans les tableaux locaux --- */}
-                    {(personne.projet_id || personne.fonction_id) && ( // Vérifie si un ID est présent
+                    {(personne.projet_id || personne.fonction_id) && (
                       <div className="flex flex-wrap gap-1 mt-1">
                         {personne.projet_id && (() => {
-                          const projet = projets.find(p => p.id === personne.projet_id); // Recherche dans le tableau local
-                          return projet ? ( // Si trouvé
+                          const projet = projets.find(p => p.id === personne.projet_id);
+                          return projet ? (
                             <Badge variant="secondary" className="text-xs">
                               <Projector className="mr-1 h-3 w-3" />
-                              {projet.nom} {/* Affiche le nom */}
+                              {projet.nom}
                             </Badge>
-                          ) : null; // Sinon, affiche rien
+                          ) : null;
                         })()}
                         {personne.fonction_id && (() => {
-                          const fonction = fonctions.find(f => f.id === personne.fonction_id); // Recherche dans le tableau local
-                          return fonction ? ( // Si trouvé
+                          const fonction = fonctions.find(f => f.id === personne.fonction_id);
+                          return fonction ? (
                             <Badge variant="secondary" className="text-xs">
                               <Briefcase className="mr-1 h-3 w-3" />
-                              {fonction.nom} {/* Affiche le nom */}
+                              {fonction.nom}
                             </Badge>
-                          ) : null; // Sinon, affiche rien
+                          ) : null;
                         })()}
                       </div>
                     )}
@@ -793,9 +787,9 @@ export default function TechniciensPage() {
                   </p>
                 )}
                 <div className="pt-3 border-t">
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
+                  <Button
+                    variant="outline"
+                    size="sm"
                     className="w-full"
                     onClick={() => handleEdit(personne)}
                   >
