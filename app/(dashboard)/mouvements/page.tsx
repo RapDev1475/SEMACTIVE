@@ -283,76 +283,76 @@ async function fetchMouvements() {
            mouvementData.localisation_destination === "Stock Technicien"
   }
 
-// Mapper le nom du type vers les valeurs valides de la contrainte CHECK
-function mapTypeToConstraint(typeNom: string): string {
-  // Valeurs valides selon la contrainte CHECK (à adapter selon ta base)
-  const validValues = [
-    'reception',
-    'sortie_technicien',
-    'sortie_transport',
-    'transfert_depot',
-    'installation_client',
-    'retour'
-  ]
+  // Mapper le nom du type vers les valeurs valides de la contrainte CHECK
+  function mapTypeToConstraint(typeNom: string): string {
+    // Valeurs valides selon la contrainte CHECK (à adapter selon ta base)
+    const validValues = [
+      'reception',
+      'sortie_technicien',
+      'sortie_transport',
+      'transfert_depot',
+      'installation_client',
+      'retour'
+    ]
 
-  // Si déjà une valeur valide, la retourner
-  if (validValues.includes(typeNom)) {
-    return typeNom;
+    // Si déjà une valeur valide, la retourner
+    if (validValues.includes(typeNom)) {
+      return typeNom;
+    }
+
+    // Mapping spécifique pour les noms de scénarios vers les valeurs de base
+    // Il est CRUCIAL de placer ces mappings EXPLICITES en PREMIER
+    const scenarioMapping: Record<string, string> = {
+      'Transfert_Stock': 'transfert_depot', // <--- Le cas spécifique : Transfert_Stock -> transfert_depot
+      'Transfert_depot': 'transfert_depot', // <--- Pour les transferts entre dépôts aussi
+      // Ajouter d'autres mappings si nécessaire
+    };
+
+    if (scenarioMapping[typeNom]) {
+      return scenarioMapping[typeNom];
+    }
+
+    // Ensuite, les correspondances exactes avec variations
+    const lowerNom = typeNom.toLowerCase().trim();
+    const exactMapping: Record<string, string> = {
+      'réception': 'reception',
+      'sortie technicien': 'sortie_technicien',
+      'sortie transport': 'sortie_transport',
+      'transfert depot': 'transfert_depot',
+      'transfert dépôt': 'transfert_depot',
+      'installation client': 'installation_client',
+    };
+
+    if (exactMapping[lowerNom]) {
+      return exactMapping[lowerNom];
+    }
+
+    // Enfin, la recherche par mot-clé, MAIS en excluant les cas déjà traités
+    // Comme Transfert_Stock a été traité, on peut maintenant généraliser
+    if (lowerNom.includes('sortie') && lowerNom.includes('technicien')) return 'sortie_technicien';
+    if (lowerNom.includes('sortie') && lowerNom.includes('transport')) return 'sortie_transport';
+    // ATTENTION: Cette ligne 'if (lowerNom.includes('transfert')) return 'transfert_depot';'
+    // EST LE PROBLÈME. Elle est trop générale et attrape 'Transfert_Stock'.
+    // On la garde, mais elle ne doit s'appliquer QUE si les cas spécifiques n'ont pas matché.
+    // Comme 'Transfert_Stock' est déjà traité, 'transfert_stock' (minuscule) ne matchera pas exactement,
+    // mais 'transfert' sera trouvé. Donc, tant que 'Transfert_Stock' est dans scenarioMapping,
+    // ce 'if' ne sera pas atteint pour lui.
+    if (lowerNom.includes('transfert')) return 'transfert_depot'; // <--- OK maintenant que Transfert_Stock est traité avant
+    if (lowerNom.includes('installation')) return 'installation_client';
+    if (lowerNom.includes('reception') || lowerNom.includes('réception')) return 'reception';
+    if (lowerNom.includes('retour')) return 'retour';
+
+    // Par défaut, essayer de remplacer les espaces par des underscores
+    const withUnderscore = lowerNom.replace(/\s+/g, '_');
+    if (validValues.includes(withUnderscore)) {
+      return withUnderscore;
+    }
+
+    // Si aucune correspondance, afficher une alerte et retourner tel quel
+    console.error('Type de mouvement non reconnu:', typeNom);
+    alert(`ATTENTION: Le type "${typeNom}" ne correspond à aucune valeur valide. Les valeurs valides sont: ${validValues.join(', ')}`);
+    return typeNom; // ou throw new Error(...);
   }
-
-  // Mapping spécifique pour les noms de scénarios vers les valeurs de base
-  // Il est CRUCIAL de placer ces mappings EXPLICITES en PREMIER
-  const scenarioMapping: Record<string, string> = {
-    'Transfert_Stock': 'transfert_depot', // <--- Le cas spécifique : Transfert_Stock -> transfert_depot
-    'Transfert_depot': 'transfert_depot', // <--- Pour les transferts entre dépôts aussi
-    // Ajouter d'autres mappings si nécessaire
-  };
-
-  if (scenarioMapping[typeNom]) {
-    return scenarioMapping[typeNom];
-  }
-
-  // Ensuite, les correspondances exactes avec variations
-  const lowerNom = typeNom.toLowerCase().trim();
-  const exactMapping: Record<string, string> = {
-    'réception': 'reception',
-    'sortie technicien': 'sortie_technicien',
-    'sortie transport': 'sortie_transport',
-    'transfert depot': 'transfert_depot',
-    'transfert dépôt': 'transfert_depot',
-    'installation client': 'installation_client',
-  };
-
-  if (exactMapping[lowerNom]) {
-    return exactMapping[lowerNom];
-  }
-
-  // Enfin, la recherche par mot-clé, MAIS en excluant les cas déjà traités
-  // Comme Transfert_Stock a été traité, on peut maintenant généraliser
-  if (lowerNom.includes('sortie') && lowerNom.includes('technicien')) return 'sortie_technicien';
-  if (lowerNom.includes('sortie') && lowerNom.includes('transport')) return 'sortie_transport';
-  // ATTENTION: Cette ligne 'if (lowerNom.includes('transfert')) return 'transfert_depot';'
-  // EST LE PROBLÈME. Elle est trop générale et attrape 'Transfert_Stock'.
-  // On la garde, mais elle ne doit s'appliquer QUE si les cas spécifiques n'ont pas matché.
-  // Comme 'Transfert_Stock' est déjà traité, 'transfert_stock' (minuscule) ne matchera pas exactement,
-  // mais 'transfert' sera trouvé. Donc, tant que 'Transfert_Stock' est dans scenarioMapping,
-  // ce 'if' ne sera pas atteint pour lui.
-  if (lowerNom.includes('transfert')) return 'transfert_depot'; // <--- OK maintenant que Transfert_Stock est traité avant
-  if (lowerNom.includes('installation')) return 'installation_client';
-  if (lowerNom.includes('reception') || lowerNom.includes('réception')) return 'reception';
-  if (lowerNom.includes('retour')) return 'retour';
-
-  // Par défaut, essayer de remplacer les espaces par des underscores
-  const withUnderscore = lowerNom.replace(/\s+/g, '_');
-  if (validValues.includes(withUnderscore)) {
-    return withUnderscore;
-  }
-
-  // Si aucune correspondance, afficher une alerte et retourner tel quel
-  console.error('Type de mouvement non reconnu:', typeNom);
-  alert(`ATTENTION: Le type "${typeNom}" ne correspond à aucune valeur valide. Les valeurs valides sont: ${validValues.join(', ')}`);
-  return typeNom; // ou throw new Error(...);
-}
   async function searchArticles(searchValue: string) {
     if (!searchValue.trim()) {
       // Si transfert entre techniciens, afficher les articles du stock source
@@ -550,13 +550,18 @@ function mapTypeToConstraint(typeNom: string): string {
     }
     try {
       const dateMouvement = new Date().toISOString()
-      // CORRECTIF ICI : Utiliser le type_mouvement actuel de mouvementData
-      // Et l'envoyer dans la base en l'ayant mappé correctement
-      const typeMapped = mapTypeToConstraint(mouvementData.type_mouvement) // <--- CORRECTIF: Utilise le type sélectionné
+
+      // AJOUTER CES LOGS ICI
+      console.log('DEBUG - Valeur de mouvementData.type_mouvement AVANT mapping:', mouvementData.type_mouvement);
+
+      const typeMapped = mapTypeToConstraint(mouvementData.type_mouvement)
+
+      // AJOUTER CES LOGS ICI
+      console.log('DEBUG - Valeur de typeMapped APRES mapping:', typeMapped);
 
       // DEBUG
-      console.log('Type original (UI):', mouvementData.type_mouvement)
-      console.log('Type mappé (base):', typeMapped)
+      console.log('Type original:', mouvementData.type_mouvement) // <--- Peut-être redondant maintenant
+      console.log('Type mappé:', typeMapped) // <--- Peut-être redondant maintenant
 
       // Récupérer les noms des techniciens pour les remarques
       let remarquesFinales = mouvementData.remarques
@@ -573,14 +578,14 @@ function mapTypeToConstraint(typeNom: string): string {
         article_id: ligne.article_id,
         numero_serie_id: ligne.numero_serie_id || null,
         personne_id: mouvementData.personne_id || mouvementData.personne_source_id || null,
-        type_mouvement: typeMapped, // <--- CORRECTIF: Utilise le type mappé
+        type_mouvement: typeMapped, // <--- C'est CETTE valeur qui est insérée
         localisation_origine: mouvementData.localisation_origine || null,
         localisation_destination: mouvementData.localisation_destination || null,
         quantite: ligne.quantite,
         remarques: remarquesFinales,
         date_mouvement: dateMouvement,
       }))
-
+	  console.log('DEBUG - Valeur de type_mouvement dans le premier objet à insérer:', mouvementsToInsert[0]?.type_mouvement);
       console.log('Données à insérer:', mouvementsToInsert)
       // Insérer tous les mouvements
       const { error: mouvementError } = await supabase
@@ -703,11 +708,10 @@ function mapTypeToConstraint(typeNom: string): string {
                   localisation: mouvementData.localisation_destination || 'camionnette',
                 })
             }
-          } catch (error) {
-            console.error('Erreur ajout stock_technicien destination:', error)
-            alert(`Erreur lors de l'ajout au stock technicien pour ${ligne.article_nom}`)
-          }
-        }
+    } catch (error: any) {
+      alert("Erreur: " + error.message)
+    }
+  }
       }
       // Fermer le dialog et réinitialiser
       setShowForm(false)
