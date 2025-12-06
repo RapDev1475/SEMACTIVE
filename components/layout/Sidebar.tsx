@@ -71,7 +71,7 @@ const navigation = [
     icon: Users,
   },
   {
-    name: "Techniciens",
+    name: "Gestion des personnes",
     href: "/techniciens",
     icon: Users,
   },
