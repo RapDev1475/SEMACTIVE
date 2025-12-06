@@ -351,20 +351,25 @@ export default function TechniciensPage() {
               </div>
 
               {/* --- NOUVEAU : Informations Projet/Fonction avec Select --- */}
-              <div className="space-y-4 p-4 bg-gray-50 dark:bg-gray-900/20 rounded-lg border">
+<div className="space-y-4 p-4 bg-gray-50 dark:bg-gray-900/20 rounded-lg border">
                 <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
                   Projet & Fonction
                 </h3>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="projet_id">Projet</Label>
-                    <Select value={formData.projet_id} onValueChange={(value) => setFormData({...formData, projet_id: value})}>
+                    <Select 
+                      value={formData.projet_id} 
+                      onValueChange={(value) => setFormData({...formData, projet_id: value})}
+                    >
                       <SelectTrigger>
                         <SelectValue placeholder="Sélectionnez un projet" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="">Aucun projet</SelectItem> {/* Option pour NULL */}
-                        {projets.map((projet) => (
+                        {projets
+                          .filter(p => p.id && p.id !== "") // Filtrer les projets avec un ID valide
+                          .map((projet) => (
                           <SelectItem key={projet.id} value={projet.id}>
                             {projet.nom}
                           </SelectItem>
@@ -374,13 +379,18 @@ export default function TechniciensPage() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="fonction_id">Fonction</Label>
-                    <Select value={formData.fonction_id} onValueChange={(value) => setFormData({...formData, fonction_id: value})}>
+                    <Select 
+                      value={formData.fonction_id} 
+                      onValueChange={(value) => setFormData({...formData, fonction_id: value})}
+                    >
                       <SelectTrigger>
                         <SelectValue placeholder="Sélectionnez une fonction" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="">Aucune fonction</SelectItem> {/* Option pour NULL */}
-                        {fonctions.map((fonction) => (
+                        {fonctions
+                          .filter(f => f.id && f.id !== "") // Filtrer les fonctions avec un ID valide
+                          .map((fonction) => (
                           <SelectItem key={fonction.id} value={fonction.id}>
                             {fonction.nom}
                           </SelectItem>
