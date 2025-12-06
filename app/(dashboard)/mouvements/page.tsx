@@ -429,193 +429,191 @@ export default function MouvementsPage() {
               </DialogDescription>
             </DialogHeader>
 
-            <div className="space-y-6">
+            <div className="space-y-4">
               {/* Informations communes */}
-              <div className="p-4 bg-muted rounded-lg space-y-4">
-                <h3 className="font-semibold">Informations du mouvement</h3>
-                
-                <div className="grid gap-4 md:grid-cols-3">
-                  <div className="space-y-2">
-                    <Label htmlFor="type_mouvement">Type de mouvement *</Label>
-                    <Select 
-                      value={mouvementData.type_mouvement} 
-                      onValueChange={(value) => setMouvementData({...mouvementData, type_mouvement: value})}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {typesMouvement.length === 0 ? (
-                          <div className="p-2 text-sm text-muted-foreground text-center">
-                            Aucun type de mouvement défini
-                          </div>
-                        ) : (
-                          typesMouvement.map((type) => (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Informations du mouvement</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <Label>Type de mouvement *</Label>
+                      <Select 
+                        value={mouvementData.type_mouvement} 
+                        onValueChange={(value) => setMouvementData({...mouvementData, type_mouvement: value})}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {typesMouvement.map((type) => (
                             <SelectItem key={type.id} value={type.nom}>
-                              {type.nom} {type.description && `(${type.description})`}
+                              {type.nom}
                             </SelectItem>
-                          ))
-                        )}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="personne_id">Technicien</Label>
-                    <Select 
-                      value={mouvementData.personne_id || "none"}
-                      onValueChange={(value) => setMouvementData({...mouvementData, personne_id: value === "none" ? "" : value})}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Sélectionnez un technicien (optionnel)" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">Aucun</SelectItem>
-                        {personnes.map((personne) => (
-                          <SelectItem key={personne.id} value={personne.id}>
-                            {personne.nom} {personne.prenom}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="remarques">Remarques globales</Label>
-                    <Input
-                      id="remarques"
-                      value={mouvementData.remarques}
-                      onChange={(e) => setMouvementData({...mouvementData, remarques: e.target.value})}
-                      placeholder="Notes supplémentaires..."
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Formulaire pour ajouter une ligne */}
-              <div className="p-4 border rounded-lg space-y-4">
-                <h3 className="font-semibold">Ajouter un article</h3>
-                
-                <form onSubmit={ajouterLigne} className="space-y-4">
-                  <div className="grid gap-4 md:grid-cols-3">
-                    <div className="md:col-span-2 space-y-2">
-                      <Label htmlFor="article_search">Rechercher article *</Label>
-                      <Input
-                        id="article_search"
-                        placeholder="Scanner EAN / MAC / Série ou rechercher..."
-                        value={articleSearch}
-                        onChange={(e) => {
-                          setArticleSearch(e.target.value)
-                          searchArticles(e.target.value)
-                        }}
-                      />
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="quantite">Quantité</Label>
+                      <Label>Technicien</Label>
+                      <Select 
+                        value={mouvementData.personne_id || "none"}
+                        onValueChange={(value) => setMouvementData({...mouvementData, personne_id: value === "none" ? "" : value})}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Aucun" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Aucun</SelectItem>
+                          {personnes.map((p) => (
+                            <SelectItem key={p.id} value={p.id}>
+                              {p.nom} {p.prenom}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Remarques globales</Label>
                       <Input
-                        id="quantite"
-                        type="number"
-                        min="1"
-                        value={ligneFormData.quantite}
-                        onChange={(e) => setLigneFormData({...ligneFormData, quantite: parseInt(e.target.value) || 1})}
+                        value={mouvementData.remarques}
+                        onChange={(e) => setMouvementData({...mouvementData, remarques: e.target.value})}
+                        placeholder="Notes..."
                       />
                     </div>
                   </div>
+                </CardContent>
+              </Card>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="article_select">Article sélectionné</Label>
-                    <Select 
-                      value={ligneFormData.article_id} 
-                      onValueChange={(value) => setLigneFormData({...ligneFormData, article_id: value})}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Sélectionnez un article" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {articles.length === 0 ? (
-                          <div className="p-2 text-sm text-muted-foreground text-center">
-                            {articleSearch ? 'Aucun article trouvé' : 'Commencez à taper pour rechercher'}
-                          </div>
-                        ) : (
-                          articles.map((article) => (
-                            <SelectItem key={article.id} value={article.id}>
-                              {article.nom} ({article.numero_article}) - Stock: {article.quantite_stock}
-                            </SelectItem>
-                          ))
-                        )}
-                      </SelectContent>
-                    </Select>
-                  </div>
+              {/* Formulaire pour ajouter une ligne */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Ajouter un article</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <form onSubmit={ajouterLigne} className="space-y-4">
+                    <div className="grid grid-cols-4 gap-4">
+                      <div className="col-span-3 space-y-2">
+                        <Label>Rechercher article *</Label>
+                        <Input
+                          placeholder="Scanner EAN / MAC / Série ou rechercher..."
+                          value={articleSearch}
+                          onChange={(e) => {
+                            setArticleSearch(e.target.value)
+                            searchArticles(e.target.value)
+                          }}
+                        />
+                      </div>
 
-                  {ligneFormData.article_id && (
-                    <div className="p-3 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
-                      {(() => {
-                        const selectedArticle = articles.find(a => a.id === ligneFormData.article_id)
-                        if (!selectedArticle) return null
-                        
-                        return (
-                          <div className="space-y-1">
-                            <p className="text-sm font-semibold">{selectedArticle.nom}</p>
-                            <p className="text-xs text-muted-foreground">
-                              N° article: {selectedArticle.numero_article} • 
-                              Stock actuel: {selectedArticle.quantite_stock}
-                            </p>
-                          </div>
-                        )
-                      })()}
+                      <div className="space-y-2">
+                        <Label>Quantité</Label>
+                        <Input
+                          type="number"
+                          min="1"
+                          value={ligneFormData.quantite}
+                          onChange={(e) => setLigneFormData({...ligneFormData, quantite: parseInt(e.target.value) || 1})}
+                        />
+                      </div>
                     </div>
-                  )}
 
-                  <Button type="submit" className="w-full" variant="outline">
-                    <Plus className="mr-2 h-4 w-4" />
-                    Ajouter cette ligne
-                  </Button>
-                </form>
-              </div>
+                    <div className="space-y-2">
+                      <Label>Article sélectionné</Label>
+                      <Select 
+                        value={ligneFormData.article_id} 
+                        onValueChange={(value) => setLigneFormData({...ligneFormData, article_id: value})}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Sélectionnez un article" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {articles.length === 0 ? (
+                            <div className="p-2 text-sm text-muted-foreground text-center">
+                              {articleSearch ? 'Aucun résultat' : 'Recherchez un article'}
+                            </div>
+                          ) : (
+                            articles.map((article) => (
+                              <SelectItem key={article.id} value={article.id}>
+                                {article.nom} ({article.numero_article}) - Stock: {article.quantite_stock}
+                              </SelectItem>
+                            ))
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {ligneFormData.article_id && (
+                      <div className="p-3 bg-blue-50 dark:bg-blue-950 rounded-lg border">
+                        {(() => {
+                          const art = articles.find(a => a.id === ligneFormData.article_id)
+                          if (!art) return null
+                          return (
+                            <div>
+                              <p className="font-medium text-sm">{art.nom}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {art.numero_article} • Stock: {art.quantite_stock}
+                              </p>
+                            </div>
+                          )
+                        })()}
+                      </div>
+                    )}
+
+                    <Button type="submit" className="w-full">
+                      <Plus className="mr-2 h-4 w-4" />
+                      Ajouter cette ligne
+                    </Button>
+                  </form>
+                </CardContent>
+              </Card>
 
               {/* Liste des lignes ajoutées */}
               {lignesMouvement.length > 0 && (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-semibold">Lignes du mouvement ({lignesMouvement.length})</h3>
-                    <Button 
-                      variant="ghost" 
-                      size="sm"
-                      onClick={() => setLignesMouvement([])}
-                    >
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      Tout effacer
-                    </Button>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    {lignesMouvement.map((ligne) => (
-                      <div
-                        key={ligne.id}
-                        className="flex items-center gap-3 p-3 rounded-lg border bg-card"
+                <Card>
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-base">Lignes du mouvement ({lignesMouvement.length})</CardTitle>
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        onClick={() => setLignesMouvement([])}
                       >
-                        <div className="flex-1">
-                          <p className="font-medium">{ligne.article_nom}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {ligne.article_numero} • Stock actuel: {ligne.stock_actuel} • Quantité: {ligne.quantite}
-                          </p>
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => supprimerLigne(ligne.id)}
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Tout effacer
+                      </Button>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      {lignesMouvement.map((ligne) => (
+                        <div
+                          key={ligne.id}
+                          className="flex items-center gap-3 p-3 rounded-lg border bg-card"
                         >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                          <div className="flex-1">
+                            <p className="font-medium">{ligne.article_nom}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {ligne.article_numero} • Stock: {ligne.stock_actuel} • Qté: {ligne.quantite}
+                            </p>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => supprimerLigne(ligne.id)}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
               )}
 
               {/* Boutons de validation */}
-              <div className="flex gap-2 justify-end pt-4 border-t">
+              <div className="flex gap-2 justify-end pt-2">
                 <Button 
                   type="button" 
                   variant="outline" 
@@ -631,7 +629,7 @@ export default function MouvementsPage() {
                   onClick={validerMouvement}
                   disabled={lignesMouvement.length === 0}
                 >
-                  Valider le mouvement ({lignesMouvement.length} ligne{lignesMouvement.length > 1 ? 's' : ''})
+                  Valider ({lignesMouvement.length} ligne{lignesMouvement.length > 1 ? 's' : ''})
                 </Button>
               </div>
             </div>
