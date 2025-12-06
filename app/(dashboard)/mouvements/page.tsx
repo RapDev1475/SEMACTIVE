@@ -148,33 +148,34 @@ export default function MouvementsPage() {
     }
   }
 
-  async function fetchMouvements() {
-    setLoading(true)
-    try {
-      console.log('🔄 Chargement des mouvements...')
-      const { data, error } = await supabase
-        .from('mouvements')
-        .select(`
-          *,
-          article:articles(nom, numero_article),
-          personne:personnes(nom, prenom),
-          numero_serie:numeros_serie(numero_serie, adresse_mac)
-        `)
-        .order('date_mouvement', { ascending: false })
-        .limit(100)
-      if (error) {
-        console.error('❌ Erreur lors du chargement:', error)
-        throw error
-      }
-      console.log(`✅ ${data?.length || 0} mouvements chargés`)
-      console.log('Premier mouvement:', data?.[0])
-      setMouvements(data || [])
-    } catch (error) {
-      console.error('Error fetching mouvements:', error)
-    } finally {
-      setLoading(false)
+async function fetchMouvements() {
+  setLoading(true)
+  try {
+    console.log('🔄 Chargement des mouvements...')
+    const { data, error } = await supabase
+      .from('mouvements')
+      .select(`
+        *,
+        article:articles(nom, numero_article),
+        personne:personnes!mouvements_personne_id_fkey(nom, prenom),              // <--- Spécifie la FK
+        personne_source:personnes!mouvements_personne_source_id_fkey(nom, prenom), // <--- Spécifie l'autre FK
+        numero_serie:numeros_serie(numero_serie, adresse_mac)
+      `)
+      .order('date_mouvement', { ascending: false })
+      .limit(100)
+    if (error) {
+      console.error('❌ Erreur lors du chargement:', error)
+      throw error
     }
+    console.log(`✅ ${data?.length || 0} mouvements chargés`)
+    console.log('Premier mouvement:', data?.[0])
+    setMouvements(data || [])
+  } catch (error) {
+    console.error('Error fetching mouvements:', error)
+  } finally {
+    setLoading(false)
   }
+}
 
   async function fetchArticles() {
     try {
