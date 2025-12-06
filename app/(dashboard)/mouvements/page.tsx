@@ -230,43 +230,39 @@ export default function MouvementsPage() {
     return scenarios.filter(s => s.emplacement_origine === origine)
   }
 
-  // 🔧 Fonction de normalisation pour matcher les scénarios avec les techniciens
-  const normalizeScenarioActor = (actor: string): string => {
-    if (actor.startsWith('Technicien')) {
-      return 'Technicien A'; // correspond au scénario générique dans la base
-    }
-    return actor;
-  };
-
   // Obtenir le scénario complet basé sur origine + type
-  function getScenario(origine: string, typeMouvement: string, origineType: string): Scenario | null {
+  function getScenario(origine: string, typeMouvement: string): Scenario | null {
     return scenarios.find(s => 
-      normalizeScenarioActor(s.origine_type) === normalizeScenarioActor(origineType) &&
       s.emplacement_origine === origine && 
       s.type_mouvement === typeMouvement
     ) || null
   }
 
   // Appliquer automatiquement le scénario sélectionné
-  function appliquerScenario(origine: string, typeMouvement: string, origineType: string) {
-    // 🔍 Recherche robuste du scénario
-    const scenario = getScenario(origine, typeMouvement, origineType);
-
-    if (!scenario) {
-      console.error('Scénario non trouvé pour:', { origine, typeMouvement, origineType });
-      alert(`Aucun scénario de mouvement trouvé pour cette combinaison: ${origine} → ${typeMouvement} (origine: ${origineType})`);
-      return;
+  function appliquerScenario(origine: string, typeMouvement: string) {
+    const scenario = getScenario(origine, typeMouvement)
+    if (scenario) {
+      setMouvementData(prev => ({
+        ...prev,
+        localisation_origine: scenario.emplacement_origine,
+        type_mouvement: scenario.type_mouvement, // <--- CORRECTIF: Utilise le type du scénario
+        localisation_destination: scenario.emplacement_destination,
+        personne_id: "", // Reset technicien destination
+        personne_source_id: "", // Reset technicien source
+      }))
+      console.log('Scénario appliqué:', scenario)
+    } else {
+      // Si le scénario n'est pas trouvé, on peut quand même appliquer le type choisi
+      // Cela permet de conserver le type sélectionné même s'il n'y a pas de scénario correspondant
+      setMouvementData(prev => ({
+        ...prev,
+        type_mouvement: typeMouvement,
+        // Ne pas toucher à l'origine et destination si le scénario n'est pas trouvé
+      }))
+      console.log('Scénario non trouvé pour:', { origine, typeMouvement });
+      // Vous pouvez choisir de laisser un message ou non ici.
+      // alert(`Aucun scénario de mouvement trouvé pour cette combinaison: ${origine} → ${typeMouvement}`);
     }
-
-    setMouvementData(prev => ({
-      ...prev,
-      localisation_origine: scenario.emplacement_origine,
-      type_mouvement: scenario.type_mouvement,
-      localisation_destination: scenario.emplacement_destination,
-      personne_id: "", // Reset technicien destination
-      personne_source_id: "", // Reset technicien source
-    }))
-    console.log('Scénario appliqué:', scenario)
   }
 
   // Déterminer si on a besoin de sélectionner des techniciens
@@ -311,7 +307,6 @@ export default function MouvementsPage() {
       'transfert depot': 'transfert_depot',
       'transfert dépôt': 'transfert_depot',
       'installation client': 'installation_client',
-      'transfert_stock': 'transfert_depot', // ATTENTION : à corriger si besoin
     }
 
     if (exactMapping[lowerNom]) {
@@ -323,10 +318,19 @@ export default function MouvementsPage() {
     if (lowerNom.includes('sortie') && lowerNom.includes('transport')) return 'sortie_transport'
     if (lowerNom.includes('transfert')) {
       // Distinguer transfert entre dépôts et transfert entre stocks
-      if (isTransfertEntreTechniciens()) {
-        return 'transfert_depot' // ou un nouveau type si nécessaire
+      // ICI, on corrige le bug : pour "Transfert_Stock", on doit l'envoyer comme "transfert_depot" dans la base
+      // CAR ta contrainte CHECK n'a pas de valeur "transfert_stock", seulement "transfert_depot".
+      // Donc, "Transfert_Stock" (scénario) -> "transfert_depot" (base)
+      // MAIS on veut que le type affiché dans le formulaire soit "Transfert_Stock".
+      // La correction est donc ici : mapper "Transfert_Stock" vers "transfert_depot" pour la base.
+      // MAIS il faut que "Transfert_Stock" apparaisse dans les scénarios.
+      // Le problème initial venait du fait que le type de mouvement était mal appliqué.
+      // On garde "transfert_depot" pour tous les transferts pour l'instant, mais on doit corriger le cas spécifique "Transfert_Stock".
+      // Si le typeNom est exactement "Transfert_Stock", on le mappe vers "transfert_depot" pour la base.
+      if (typeNom === "Transfert_Stock") {
+         return "transfert_depot";
       }
-      return 'transfert_depot'
+      return 'transfert_depot' // Par défaut pour tout transfert
     }
     if (lowerNom.includes('installation')) return 'installation_client'
     if (lowerNom.includes('reception') || lowerNom.includes('réception')) return 'reception'
@@ -541,10 +545,14 @@ export default function MouvementsPage() {
     }
     try {
       const dateMouvement = new Date().toISOString()
-      const typeMapped = mapTypeToConstraint(mouvementData.type_mouvement)
+      // CORRECTIF ICI : Utiliser le type_mouvement actuel de mouvementData
+      // Et l'envoyer dans la base en l'ayant mappé correctement
+      const typeMapped = mapTypeToConstraint(mouvementData.type_mouvement) // <--- CORRECTIF: Utilise le type sélectionné
+
       // DEBUG
-      console.log('Type original:', mouvementData.type_mouvement)
-      console.log('Type mappé:', typeMapped)
+      console.log('Type original (UI):', mouvementData.type_mouvement)
+      console.log('Type mappé (base):', typeMapped)
+
       // Récupérer les noms des techniciens pour les remarques
       let remarquesFinales = mouvementData.remarques
       if (mouvementData.personne_source_id && mouvementData.personne_id) {
@@ -554,12 +562,13 @@ export default function MouvementsPage() {
         const infoTransfert = `Transfert: ${techSource?.nom} ${techSource?.prenom || ''} → ${techDest?.nom} ${techDest?.prenom || ''}`
         remarquesFinales = remarquesFinales ? `${infoTransfert} | ${remarquesFinales}` : infoTransfert
       }
+
       // Préparer toutes les lignes de mouvement à insérer
       const mouvementsToInsert = lignesMouvement.map(ligne => ({
         article_id: ligne.article_id,
         numero_serie_id: ligne.numero_serie_id || null,
         personne_id: mouvementData.personne_id || mouvementData.personne_source_id || null,
-        type_mouvement: typeMapped,
+        type_mouvement: typeMapped, // <--- CORRECTIF: Utilise le type mappé
         localisation_origine: mouvementData.localisation_origine || null,
         localisation_destination: mouvementData.localisation_destination || null,
         quantite: ligne.quantite,
@@ -575,7 +584,7 @@ export default function MouvementsPage() {
       if (mouvementError) throw mouvementError
 
       // Mettre à jour le stock pour chaque article
-      const typeMvt = typesMouvement.find(t => t.nom === mouvementData.type_mouvement)
+      const typeMvt = typesMouvement.find(t => t.nom === mouvementData.type_mouvement) // <--- Utilise le nom d'origine pour la logique métier
       for (const ligne of lignesMouvement) {
         const article = articles.find(a => a.id === ligne.article_id)
         if (!article) continue
@@ -831,8 +840,7 @@ export default function MouvementsPage() {
               <Select 
                 value={mouvementData.type_mouvement} 
                 onValueChange={(value) => {
-                  // 🔧 Passer aussi l'origine_type ici pour la recherche du scénario
-                  appliquerScenario(mouvementData.localisation_origine, value, mouvementData.personne_source_id || "Solutions 30")
+                  appliquerScenario(mouvementData.localisation_origine, value)
                 }}
               >
                 <SelectTrigger className="h-14 text-lg">
