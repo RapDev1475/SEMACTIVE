@@ -67,6 +67,10 @@ export type Personne = {
   numero_perid?: string    // ← Ajoutez cette ligne
   erp_id?: string          // ← Ajoutez cette ligne
   created_at: string
+  // --- Nouvelles propriétés ---
+  projet?: string | null;   // Correspond à la colonne 'projet' dans la base
+  fonction?: string | null; // Correspond à la colonne 'fonction' dans la base
+  // ---
 }
 
 export interface Client {
