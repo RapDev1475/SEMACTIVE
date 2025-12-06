@@ -156,6 +156,8 @@ export default function MouvementsPage() {
     }
 
     try {
+      let isSerialOrMacSearch = false
+      
       // Rechercher d'abord par numéro de série ou MAC
       const { data: serialData } = await supabase
         .from('numeros_serie')
@@ -166,6 +168,7 @@ export default function MouvementsPage() {
       
       if (serialData && serialData.length > 0) {
         articleIds = [...new Set(serialData.map(s => s.article_id))]
+        isSerialOrMacSearch = true
       }
 
       // Rechercher les articles
@@ -185,13 +188,48 @@ export default function MouvementsPage() {
       const { data } = await query
       setArticles(data || [])
       
-      // AUTO-SÉLECTION : Si un seul résultat, le sélectionner automatiquement
+      // AUTO-SÉLECTION ET AUTO-AJOUT : Si un seul résultat
       if (data && data.length === 1) {
-        setLigneFormData({...ligneFormData, article_id: data[0].id})
+        const article = data[0]
+        setLigneFormData({...ligneFormData, article_id: article.id})
+        
+        // Si recherche par série/MAC, ajouter automatiquement la ligne
+        if (isSerialOrMacSearch) {
+          setTimeout(() => {
+            ajouterLigneAuto(article)
+          }, 100)
+        }
       }
     } catch (error) {
       console.error('Error searching articles:', error)
     }
+  }
+
+  // Ajouter une ligne automatiquement (lors du scan)
+  function ajouterLigneAuto(article: Article) {
+    // Vérifier si l'article n'est pas déjà dans les lignes
+    const dejaPresent = lignesMouvement.find(l => l.article_id === article.id)
+    if (dejaPresent) {
+      alert("Cet article est déjà dans la liste.")
+      setArticleSearch("")
+      setLigneFormData({ article_id: "", quantite: 1 })
+      return
+    }
+
+    const nouvelleLigne: LigneMouvement = {
+      id: crypto.randomUUID(),
+      article_id: article.id,
+      article_nom: article.nom,
+      article_numero: article.numero_article,
+      quantite: 1,
+      stock_actuel: article.quantite_stock,
+    }
+
+    setLignesMouvement([...lignesMouvement, nouvelleLigne])
+    
+    // Réinitialiser
+    setArticleSearch("")
+    setLigneFormData({ article_id: "", quantite: 1 })
   }
 
   // Ajouter une ligne au mouvement
@@ -383,7 +421,7 @@ export default function MouvementsPage() {
               Nouveau mouvement
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Enregistrer un mouvement</DialogTitle>
               <DialogDescription>
@@ -396,7 +434,7 @@ export default function MouvementsPage() {
               <div className="p-4 bg-muted rounded-lg space-y-4">
                 <h3 className="font-semibold">Informations du mouvement</h3>
                 
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-4 md:grid-cols-3">
                   <div className="space-y-2">
                     <Label htmlFor="type_mouvement">Type de mouvement *</Label>
                     <Select 
@@ -441,16 +479,16 @@ export default function MouvementsPage() {
                       </SelectContent>
                     </Select>
                   </div>
-                </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="remarques">Remarques globales</Label>
-                  <Input
-                    id="remarques"
-                    value={mouvementData.remarques}
-                    onChange={(e) => setMouvementData({...mouvementData, remarques: e.target.value})}
-                    placeholder="Notes supplémentaires pour tout le mouvement..."
-                  />
+                  <div className="space-y-2">
+                    <Label htmlFor="remarques">Remarques globales</Label>
+                    <Input
+                      id="remarques"
+                      value={mouvementData.remarques}
+                      onChange={(e) => setMouvementData({...mouvementData, remarques: e.target.value})}
+                      placeholder="Notes supplémentaires..."
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -459,40 +497,55 @@ export default function MouvementsPage() {
                 <h3 className="font-semibold">Ajouter un article</h3>
                 
                 <form onSubmit={ajouterLigne} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="article_search">Article *</Label>
-                    <div className="space-y-2">
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <div className="md:col-span-2 space-y-2">
+                      <Label htmlFor="article_search">Rechercher article *</Label>
                       <Input
                         id="article_search"
-                        placeholder="Rechercher par nom, numéro, n° série ou MAC..."
+                        placeholder="Scanner EAN / MAC / Série ou rechercher..."
                         value={articleSearch}
                         onChange={(e) => {
                           setArticleSearch(e.target.value)
                           searchArticles(e.target.value)
                         }}
                       />
-                      <Select 
-                        value={ligneFormData.article_id} 
-                        onValueChange={(value) => setLigneFormData({...ligneFormData, article_id: value})}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Sélectionnez un article" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {articles.length === 0 ? (
-                            <div className="p-2 text-sm text-muted-foreground text-center">
-                              {articleSearch ? 'Aucun article trouvé' : 'Commencez à taper pour rechercher'}
-                            </div>
-                          ) : (
-                            articles.map((article) => (
-                              <SelectItem key={article.id} value={article.id}>
-                                {article.nom} ({article.numero_article}) - Stock: {article.quantite_stock}
-                              </SelectItem>
-                            ))
-                          )}
-                        </SelectContent>
-                      </Select>
                     </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="quantite">Quantité</Label>
+                      <Input
+                        id="quantite"
+                        type="number"
+                        min="1"
+                        value={ligneFormData.quantite}
+                        onChange={(e) => setLigneFormData({...ligneFormData, quantite: parseInt(e.target.value) || 1})}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="article_select">Article sélectionné</Label>
+                    <Select 
+                      value={ligneFormData.article_id} 
+                      onValueChange={(value) => setLigneFormData({...ligneFormData, article_id: value})}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Sélectionnez un article" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {articles.length === 0 ? (
+                          <div className="p-2 text-sm text-muted-foreground text-center">
+                            {articleSearch ? 'Aucun article trouvé' : 'Commencez à taper pour rechercher'}
+                          </div>
+                        ) : (
+                          articles.map((article) => (
+                            <SelectItem key={article.id} value={article.id}>
+                              {article.nom} ({article.numero_article}) - Stock: {article.quantite_stock}
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
                   </div>
 
                   {ligneFormData.article_id && (
@@ -513,18 +566,6 @@ export default function MouvementsPage() {
                       })()}
                     </div>
                   )}
-
-                  <div className="space-y-2">
-                    <Label htmlFor="quantite">Quantité *</Label>
-                    <Input
-                      id="quantite"
-                      type="number"
-                      min="1"
-                      value={ligneFormData.quantite}
-                      onChange={(e) => setLigneFormData({...ligneFormData, quantite: parseInt(e.target.value) || 1})}
-                      required
-                    />
-                  </div>
 
                   <Button type="submit" className="w-full" variant="outline">
                     <Plus className="mr-2 h-4 w-4" />
