@@ -21,6 +21,7 @@ import type { Mouvement, Article, Personne } from "@/lib/types"
 type MouvementWithRelations = Mouvement & {
   article?: { nom: string; numero_article: string }
   personne?: { nom: string; prenom?: string }
+  numero_serie?: { numero_serie: string; adresse_mac: string | null }
 }
 
 type TypeMouvement = {
@@ -35,6 +36,9 @@ type LigneMouvement = {
   article_id: string
   article_nom: string
   article_numero: string
+  numero_serie_id?: string
+  numero_serie?: string
+  adresse_mac?: string
   quantite: number
   stock_actuel: number
 }
@@ -44,6 +48,7 @@ export default function MouvementsPage() {
   const [articles, setArticles] = useState<Article[]>([])
   const [personnes, setPersonnes] = useState<Personne[]>([])
   const [typesMouvement, setTypesMouvement] = useState<TypeMouvement[]>([])
+  const [emplacements, setEmplacements] = useState<{id: string, nom: string}[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [filterType, setFilterType] = useState<string>("all")
@@ -57,6 +62,8 @@ export default function MouvementsPage() {
   const [mouvementData, setMouvementData] = useState({
     personne_id: "",
     type_mouvement: "",
+    localisation_origine: "",
+    localisation_destination: "",
     remarques: "",
   })
   
@@ -71,7 +78,22 @@ export default function MouvementsPage() {
     fetchArticles()
     fetchPersonnes()
     fetchTypesMouvement()
+    fetchEmplacements()
   }, [])
+
+  async function fetchEmplacements() {
+    try {
+      const { data, error } = await supabase
+        .from('emplacements')
+        .select('id, nom')
+        .order('nom')
+
+      if (error) throw error
+      setEmplacements(data || [])
+    } catch (error) {
+      console.error('Error fetching emplacements:', error)
+    }
+  }
 
   async function fetchMouvements() {
     setLoading(true)
@@ -81,7 +103,8 @@ export default function MouvementsPage() {
         .select(`
           *,
           article:articles(nom, numero_article),
-          personne:personnes(nom, prenom)
+          personne:personnes(nom, prenom),
+          numero_serie:numeros_serie(numero_serie, adresse_mac)
         `)
         .order('date_mouvement', { ascending: false })
         .limit(100)
@@ -203,11 +226,12 @@ export default function MouvementsPage() {
 
     try {
       let isSerialOrMacSearch = false
+      let foundNumeroSerie: any = null
       
       // Rechercher d'abord par numéro de série ou MAC
       const { data: serialData } = await supabase
         .from('numeros_serie')
-        .select('article_id')
+        .select('*, article:articles(*)')
         .or(`numero_serie.ilike.%${searchValue}%,adresse_mac.ilike.%${searchValue}%`)
 
       let articleIds: string[] = []
@@ -215,6 +239,7 @@ export default function MouvementsPage() {
       if (serialData && serialData.length > 0) {
         articleIds = [...new Set(serialData.map(s => s.article_id))]
         isSerialOrMacSearch = true
+        foundNumeroSerie = serialData[0] // Prendre le premier trouvé
       }
 
       // Rechercher les articles
@@ -223,8 +248,6 @@ export default function MouvementsPage() {
         .select('*')
         .order('nom')
 
-      // Si on a des IDs depuis les numéros de série, les inclure
-      // Sinon chercher par nom ou numéro article
       if (articleIds.length > 0) {
         query = query.in('id', articleIds)
       } else {
@@ -240,9 +263,9 @@ export default function MouvementsPage() {
         setLigneFormData({...ligneFormData, article_id: article.id})
         
         // Si recherche par série/MAC, ajouter automatiquement la ligne
-        if (isSerialOrMacSearch) {
+        if (isSerialOrMacSearch && foundNumeroSerie) {
           setTimeout(() => {
-            ajouterLigneAuto(article)
+            ajouterLigneAuto(article, foundNumeroSerie)
           }, 100)
         }
       }
@@ -252,11 +275,10 @@ export default function MouvementsPage() {
   }
 
   // Ajouter une ligne automatiquement (lors du scan)
-  function ajouterLigneAuto(article: Article) {
-    // Vérifier si l'article n'est pas déjà dans les lignes
-    const dejaPresent = lignesMouvement.find(l => l.article_id === article.id)
-    if (dejaPresent) {
-      alert("Cet article est déjà dans la liste.")
+  function ajouterLigneAuto(article: Article, numeroSerie?: any) {
+    // Vérifier si ce numéro de série n'est pas déjà dans les lignes
+    if (numeroSerie && lignesMouvement.find(l => l.numero_serie_id === numeroSerie.id)) {
+      alert("Ce numéro de série est déjà dans la liste.")
       setArticleSearch("")
       setLigneFormData({ article_id: "", quantite: 1 })
       return
@@ -267,6 +289,9 @@ export default function MouvementsPage() {
       article_id: article.id,
       article_nom: article.nom,
       article_numero: article.numero_article,
+      numero_serie_id: numeroSerie?.id,
+      numero_serie: numeroSerie?.numero_serie,
+      adresse_mac: numeroSerie?.adresse_mac,
       quantite: 1,
       stock_actuel: article.quantite_stock,
     }
@@ -290,12 +315,8 @@ export default function MouvementsPage() {
     const article = articles.find(a => a.id === ligneFormData.article_id)
     if (!article) return
 
-    // Vérifier si l'article n'est pas déjà dans les lignes
-    const dejaPresent = lignesMouvement.find(l => l.article_id === ligneFormData.article_id)
-    if (dejaPresent) {
-      alert("Cet article est déjà dans la liste. Supprimez-le d'abord si vous voulez le modifier.")
-      return
-    }
+    // Pas de vérification de doublon sur l'article seul - on peut ajouter le même article plusieurs fois
+    // mais pas avec le même numéro de série
 
     const nouvelleLigne: LigneMouvement = {
       id: crypto.randomUUID(),
@@ -344,8 +365,11 @@ export default function MouvementsPage() {
       // Préparer toutes les lignes de mouvement à insérer
       const mouvementsToInsert = lignesMouvement.map(ligne => ({
         article_id: ligne.article_id,
+        numero_serie_id: ligne.numero_serie_id || null,
         personne_id: mouvementData.personne_id || null,
         type_mouvement: typeMapped,
+        localisation_origine: mouvementData.localisation_origine || null,
+        localisation_destination: mouvementData.localisation_destination || null,
         quantite: ligne.quantite,
         remarques: mouvementData.remarques,
         date_mouvement: dateMouvement,
@@ -383,6 +407,50 @@ export default function MouvementsPage() {
           .eq('id', ligne.article_id)
 
         if (stockError) throw stockError
+
+        // Si c'est un transfert vers un technicien, gérer stock_technicien
+        if (mouvementData.personne_id && (typeMapped === 'transfert_depot' || typeMapped === 'sortie_technicien')) {
+          // Vérifier si l'entrée existe déjà
+          let queryStock = supabase
+            .from('stock_technicien')
+            .select('*')
+            .eq('technicien_id', mouvementData.personne_id)
+            .eq('article_id', ligne.article_id)
+
+          if (ligne.numero_serie_id) {
+            queryStock = queryStock.eq('numero_serie_id', ligne.numero_serie_id)
+          } else {
+            queryStock = queryStock.is('numero_serie_id', null)
+          }
+
+          const { data: existingStock } = await queryStock.maybeSingle()
+
+          if (existingStock) {
+            // Mettre à jour la quantité
+            const { error: updateError } = await supabase
+              .from('stock_technicien')
+              .update({ 
+                quantite: existingStock.quantite + ligne.quantite,
+                derniere_mise_a_jour: new Date().toISOString()
+              })
+              .eq('id', existingStock.id)
+
+            if (updateError) throw updateError
+          } else {
+            // Créer une nouvelle entrée
+            const { error: insertError } = await supabase
+              .from('stock_technicien')
+              .insert({
+                technicien_id: mouvementData.personne_id,
+                article_id: ligne.article_id,
+                numero_serie_id: ligne.numero_serie_id || null,
+                quantite: ligne.quantite,
+                localisation: mouvementData.localisation_destination || 'camionnette',
+              })
+
+            if (insertError) throw insertError
+          }
+        }
       }
 
       // Fermer le dialog et réinitialiser
@@ -395,6 +463,8 @@ export default function MouvementsPage() {
       setMouvementData({
         personne_id: "",
         type_mouvement: typesMouvement[0]?.nom || "",
+        localisation_origine: "",
+        localisation_destination: "",
         remarques: "",
       })
       setLigneFormData({
@@ -541,6 +611,56 @@ export default function MouvementsPage() {
           </Card>
         </div>
 
+        <div className="grid grid-cols-2 gap-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Emplacement d&apos;origine</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Select 
+                value={mouvementData.localisation_origine || "none"}
+                onValueChange={(value) => setMouvementData({...mouvementData, localisation_origine: value === "none" ? "" : value})}
+              >
+                <SelectTrigger className="h-14 text-lg">
+                  <SelectValue placeholder="Aucun" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Aucun</SelectItem>
+                  {emplacements.map((emp) => (
+                    <SelectItem key={emp.id} value={emp.nom}>
+                      {emp.nom}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Emplacement de destination</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Select 
+                value={mouvementData.localisation_destination || "none"}
+                onValueChange={(value) => setMouvementData({...mouvementData, localisation_destination: value === "none" ? "" : value})}
+              >
+                <SelectTrigger className="h-14 text-lg">
+                  <SelectValue placeholder="Aucun" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Aucun</SelectItem>
+                  {emplacements.map((emp) => (
+                    <SelectItem key={emp.id} value={emp.nom}>
+                      {emp.nom}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </CardContent>
+          </Card>
+        </div>
+
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">Ajouter un article</CardTitle>
@@ -650,8 +770,10 @@ export default function MouvementsPage() {
                     <tr>
                       <th className="text-left p-4 font-semibold text-base">Article</th>
                       <th className="text-left p-4 font-semibold text-base">N° Article</th>
-                      <th className="text-center p-4 font-semibold text-base">Stock actuel</th>
-                      <th className="text-center p-4 font-semibold text-base">Quantité</th>
+                      <th className="text-left p-4 font-semibold text-base">N° Série</th>
+                      <th className="text-left p-4 font-semibold text-base">Adresse MAC</th>
+                      <th className="text-center p-4 font-semibold text-base">Stock</th>
+                      <th className="text-center p-4 font-semibold text-base">Qté</th>
                       <th className="text-center p-4 font-semibold text-base w-24">Action</th>
                     </tr>
                   </thead>
@@ -660,6 +782,8 @@ export default function MouvementsPage() {
                       <tr key={ligne.id} className={idx % 2 === 0 ? 'bg-card' : 'bg-muted/30'}>
                         <td className="p-4 font-medium text-base">{ligne.article_nom}</td>
                         <td className="p-4 text-muted-foreground">{ligne.article_numero}</td>
+                        <td className="p-4 text-sm">{ligne.numero_serie || '-'}</td>
+                        <td className="p-4 text-sm">{ligne.adresse_mac || '-'}</td>
                         <td className="p-4 text-center text-base">{ligne.stock_actuel}</td>
                         <td className="p-4 text-center font-semibold text-lg">{ligne.quantite}</td>
                         <td className="p-4 text-center">
@@ -828,6 +952,12 @@ export default function MouvementsPage() {
                       </div>
                       <p className="text-sm font-medium">
                         {mouvement.article?.nom || 'Article inconnu'} ({mouvement.article?.numero_article})
+                        {mouvement.numero_serie && (
+                          <span className="ml-2 text-xs">
+                            • Série: {mouvement.numero_serie.numero_serie}
+                            {mouvement.numero_serie.adresse_mac && ` • MAC: ${mouvement.numero_serie.adresse_mac}`}
+                          </span>
+                        )}
                       </p>
                       <p className="text-xs text-muted-foreground">
                         {mouvement.personne?.nom || 'Système'} • {new Date(mouvement.date_mouvement).toLocaleString('fr-BE')}
