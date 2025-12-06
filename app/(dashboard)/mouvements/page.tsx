@@ -141,6 +141,41 @@ export default function MouvementsPage() {
     }
   }
 
+  // Mapper le nom du type vers les valeurs valides de la contrainte CHECK
+  function mapTypeToConstraint(typeNom: string): string {
+    const mapping: Record<string, string> = {
+      'reception': 'reception',
+      'réception': 'reception',
+      'sortie_technicien': 'sortie_technicien',
+      'sortie technicien': 'sortie_technicien',
+      'sortie_transport': 'sortie_transport',
+      'sortie transport': 'sortie_transport',
+      'transfert_depot': 'transfert_depot',
+      'transfert depot': 'transfert_depot',
+      'transfert dépôt': 'transfert_depot',
+      'installation_client': 'installation_client',
+      'installation client': 'installation_client',
+      'retour': 'retour',
+    }
+    
+    // Chercher une correspondance exacte (insensible à la casse)
+    const lowerNom = typeNom.toLowerCase()
+    if (mapping[lowerNom]) {
+      return mapping[lowerNom]
+    }
+    
+    // Chercher par mot-clé
+    if (lowerNom.includes('reception') || lowerNom.includes('réception')) return 'reception'
+    if (lowerNom.includes('sortie') && lowerNom.includes('technicien')) return 'sortie_technicien'
+    if (lowerNom.includes('sortie') && lowerNom.includes('transport')) return 'sortie_transport'
+    if (lowerNom.includes('transfert') && lowerNom.includes('dep')) return 'transfert_depot'
+    if (lowerNom.includes('installation')) return 'installation_client'
+    if (lowerNom.includes('retour')) return 'retour'
+    
+    // Par défaut, retourner tel quel (causera une erreur qui aidera à identifier le problème)
+    return typeNom
+  }
+
   async function searchArticles(searchValue: string) {
     if (!searchValue.trim()) {
       fetchArticles()
@@ -281,12 +316,13 @@ export default function MouvementsPage() {
 
     try {
       const dateMouvement = new Date().toISOString()
+      const typeMapped = mapTypeToConstraint(mouvementData.type_mouvement)
 
       // Préparer toutes les lignes de mouvement à insérer
       const mouvementsToInsert = lignesMouvement.map(ligne => ({
         article_id: ligne.article_id,
         personne_id: mouvementData.personne_id || null,
-        type_mouvement: mouvementData.type_mouvement,
+        type_mouvement: typeMapped,
         quantite: ligne.quantite,
         remarques: mouvementData.remarques,
         date_mouvement: dateMouvement,
@@ -352,7 +388,7 @@ export default function MouvementsPage() {
     const matchesSearch = 
       (m.article?.nom && m.article.nom.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (m.personne?.nom && m.personne.nom.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      m.type_mouvement.toLowerCase().includes(searchTerm.toLowerCase())
+      (m.type_mouvement && m.type_mouvement.toLowerCase().includes(searchTerm.toLowerCase()))
 
     if (filterType === "all") return matchesSearch
     return matchesSearch && m.type_mouvement === filterType
@@ -360,9 +396,9 @@ export default function MouvementsPage() {
 
   const stats = {
     total: mouvements.length,
-    receptions: mouvements.filter(m => m.type_mouvement.toLowerCase().includes('reception')).length,
-    sorties: mouvements.filter(m => m.type_mouvement.toLowerCase().includes('sortie') || m.type_mouvement.toLowerCase().includes('installation')).length,
-    retours: mouvements.filter(m => m.type_mouvement.toLowerCase().includes('retour')).length,
+    receptions: mouvements.filter(m => m.type_mouvement?.toLowerCase().includes('reception')).length,
+    sorties: mouvements.filter(m => m.type_mouvement?.toLowerCase().includes('sortie') || m.type_mouvement?.toLowerCase().includes('installation')).length,
+    retours: mouvements.filter(m => m.type_mouvement?.toLowerCase().includes('retour')).length,
   }
 
   const getTypeBadge = (type: string) => {
@@ -749,18 +785,18 @@ export default function MouvementsPage() {
           ) : (
             <div className="space-y-2">
               {filteredMouvements.map((mouvement) => {
-                const Icon = getTypeIcon(mouvement.type_mouvement)
+                const Icon = getTypeIcon(mouvement.type_mouvement || '')
                 return (
                   <div
                     key={mouvement.id}
                     className="flex items-center gap-4 p-4 rounded-lg border hover:bg-accent transition-colors"
                   >
-                    <div className={`h-10 w-10 rounded-lg flex items-center justify-center ${getTypeBadge(mouvement.type_mouvement)}`}>
+                    <div className={`h-10 w-10 rounded-lg flex items-center justify-center ${getTypeBadge(mouvement.type_mouvement || '')}`}>
                       <Icon className="h-5 w-5" />
                     </div>
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
-                        <Badge className={getTypeBadge(mouvement.type_mouvement)}>
+                        <Badge className={getTypeBadge(mouvement.type_mouvement || '')}>
                           {mouvement.type_mouvement}
                         </Badge>
                         <span className="font-semibold">Quantité: {mouvement.quantite}</span>
