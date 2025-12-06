@@ -84,7 +84,6 @@ export default function TechniciensPage() {
     }
   }
 
-
   async function fetchFonctions() { // Nouvelle fonction - CORRIGÉE
     try {
       const { data, error } = await supabase
@@ -184,7 +183,13 @@ export default function TechniciensPage() {
     }
   }
 
+  // --- CHANGEMENT : handleEdit avec vérification ---
   function handleEdit(personne: any) {
+    // Vérifier si les IDs de projet/fonction existent dans les listes chargées *avant* de les assigner
+    // On ne fait la vérification que si les listes sont chargées
+    const projetExiste = projets.length > 0 ? projets.some(p => p.id === personne.projet_id) : true; // Si pas chargé, on suppose vrai pour ne pas réinitialiser
+    const fonctionExiste = fonctions.length > 0 ? fonctions.some(f => f.id === personne.fonction_id) : true; // Si pas chargé, on suppose vrai
+
     setEditingPerson(personne)
     setFormData({
       nom: personne.nom,
@@ -205,13 +210,14 @@ export default function TechniciensPage() {
       boite_postale: personne.boite_postale || "",
       code_postal: personne.code_postal || "",
       commune: personne.commune || "",
-      // --- Changement dans le chargement ---
-      projet_id: personne.projet_id || "", // Charger l'ID
-      fonction_id: personne.fonction_id || "", // Charger l'ID
+      // --- Changement dans le chargement avec vérification ---
+      projet_id: personne.projet_id && projetExiste ? personne.projet_id : "", // Charger l'ID s'il existe, sinon ""
+      fonction_id: personne.fonction_id && fonctionExiste ? personne.fonction_id : "", // Charger l'ID s'il existe, sinon ""
       // ---
     })
     setDialogOpen(true)
   }
+  // --- FIN CHANGEMENT ---
 
   const filteredPersonnes = personnes.filter(p => {
     const matchesSearch = 
@@ -314,275 +320,282 @@ export default function TechniciensPage() {
                 }
               </DialogDescription>
             </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Informations générales */}
-              <div className="space-y-4">
-                <h3 className="text-sm font-semibold">Informations générales</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="nom">Nom *</Label>
-                    <Input
-                      id="nom"
-                      value={formData.nom}
-                      onChange={(e) => setFormData({...formData, nom: e.target.value})}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="prenom">Prénom</Label>
-                    <Input
-                      id="prenom"
-                      value={formData.prenom}
-                      onChange={(e) => setFormData({...formData, prenom: e.target.value})}
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="type">Type *</Label>
-                  <Select 
-                    value={formData.type} 
-                    onValueChange={(value: any) => setFormData({...formData, type: value})}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="technicien">Technicien</SelectItem>
-                      <SelectItem value="client">Client</SelectItem>
-                      <SelectItem value="fournisseur">Fournisseur</SelectItem>
-                      <SelectItem value="autre">Autre</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+            {/* Vérifie que projets et fonctions sont chargés avant de rendre le formulaire */}
+            {projets.length === 0 || fonctions.length === 0 ? (
+              <div className="flex items-center justify-center h-20">
+                <div className="h-8 w-8 border-4 border-primary/30 border-t-primary rounded-full animate-spin" />
               </div>
-
-              {/* --- NOUVEAU : Informations Projet/Fonction avec Select --- */}
-<div className="space-y-4 p-4 bg-gray-50 dark:bg-gray-900/20 rounded-lg border">
-                <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                  Projet & Fonction
-                </h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="projet_id">Projet</Label>
-                    <Select 
-                      value={formData.projet_id} 
-                      onValueChange={(value) => setFormData({...formData, projet_id: value})}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Sélectionnez un projet" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="">Aucun projet</SelectItem> {/* Option pour NULL */}
-                        {projets
-                          .filter(p => p.id && p.id !== "") // Filtrer les projets avec un ID valide
-                          .map((projet) => (
-                          <SelectItem key={projet.id} value={projet.id}>
-                            {projet.nom}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+            ) : (
+              <form onSubmit={handleSubmit} className="space-y-6">
+                {/* Informations générales */}
+                <div className="space-y-4">
+                  <h3 className="text-sm font-semibold">Informations générales</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="nom">Nom *</Label>
+                      <Input
+                        id="nom"
+                        value={formData.nom}
+                        onChange={(e) => setFormData({...formData, nom: e.target.value})}
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="prenom">Prénom</Label>
+                      <Input
+                        id="prenom"
+                        value={formData.prenom}
+                        onChange={(e) => setFormData({...formData, prenom: e.target.value})}
+                      />
+                    </div>
                   </div>
+
                   <div className="space-y-2">
-                    <Label htmlFor="fonction_id">Fonction</Label>
+                    <Label htmlFor="type">Type *</Label>
                     <Select 
-                      value={formData.fonction_id} 
-                      onValueChange={(value) => setFormData({...formData, fonction_id: value})}
+                      value={formData.type} 
+                      onValueChange={(value: any) => setFormData({...formData, type: value})}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Sélectionnez une fonction" />
+                        <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">Aucune fonction</SelectItem> {/* Option pour NULL */}
-                        {fonctions
-                          .filter(f => f.id && f.id !== "") // Filtrer les fonctions avec un ID valide
-                          .map((fonction) => (
-                          <SelectItem key={fonction.id} value={fonction.id}>
-                            {fonction.nom}
-                          </SelectItem>
-                        ))}
+                        <SelectItem value="technicien">Technicien</SelectItem>
+                        <SelectItem value="client">Client</SelectItem>
+                        <SelectItem value="fournisseur">Fournisseur</SelectItem>
+                        <SelectItem value="autre">Autre</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                 </div>
-              </div>
-              {/* --- FIN NOUVEAU --- */}
 
-              {/* Identifiants technicien */}
-              {formData.type === 'technicien' && (
-                <div className="space-y-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border">
-                  <h3 className="text-sm font-semibold text-blue-900 dark:text-blue-100">
-                    Identifiants technicien
+                {/* --- NOUVEAU : Informations Projet/Fonction avec Select (CORRIGÉ) --- */}
+                <div className="space-y-4 p-4 bg-gray-50 dark:bg-gray-900/20 rounded-lg border">
+                  <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                    Projet & Fonction
                   </h3>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="numero_perid">Numéro PERID</Label>
+                      <Label htmlFor="projet_id">Projet</Label>
+                      <Select 
+                        value={formData.projet_id} 
+                        onValueChange={(value) => setFormData({...formData, projet_id: value})}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Sélectionnez un projet" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="">Aucun projet</SelectItem> {/* Option pour NULL */}
+                          {projets
+                            .filter(p => p.id && p.id !== "") // Filtrer les projets avec un ID valide
+                            .map((projet) => (
+                            <SelectItem key={projet.id} value={projet.id}>
+                              {projet.nom}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="fonction_id">Fonction</Label>
+                      <Select 
+                        value={formData.fonction_id} 
+                        onValueChange={(value) => setFormData({...formData, fonction_id: value})}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Sélectionnez une fonction" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="">Aucune fonction</SelectItem> {/* Option pour NULL */}
+                          {fonctions
+                            .filter(f => f.id && f.id !== "") // Filtrer les fonctions avec un ID valide
+                            .map((fonction) => (
+                            <SelectItem key={fonction.id} value={fonction.id}>
+                              {fonction.nom}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </div>
+                {/* --- FIN NOUVEAU --- */}
+
+                {/* Identifiants technicien */}
+                {formData.type === 'technicien' && (
+                  <div className="space-y-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border">
+                    <h3 className="text-sm font-semibold text-blue-900 dark:text-blue-100">
+                      Identifiants technicien
+                    </h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="numero_perid">Numéro PERID</Label>
+                        <Input
+                          id="numero_perid"
+                          value={formData.numero_perid}
+                          onChange={(e) => setFormData({...formData, numero_perid: e.target.value})}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="erp_id">ERP ID</Label>
+                        <Input
+                          id="erp_id"
+                          value={formData.erp_id}
+                          onChange={(e) => setFormData({...formData, erp_id: e.target.value})}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Coordonnées */}
+                <div className="space-y-4">
+                  <h3 className="text-sm font-semibold">Coordonnées</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="email">Email</Label>
                       <Input
-                        id="numero_perid"
-                        value={formData.numero_perid}
-                        onChange={(e) => setFormData({...formData, numero_perid: e.target.value})}
+                        id="email"
+                        type="email"
+                        value={formData.email}
+                        onChange={(e) => setFormData({...formData, email: e.target.value})}
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="erp_id">ERP ID</Label>
+                      <Label htmlFor="telephone">Téléphone</Label>
                       <Input
-                        id="erp_id"
-                        value={formData.erp_id}
-                        onChange={(e) => setFormData({...formData, erp_id: e.target.value})}
+                        id="telephone"
+                        type="tel"
+                        value={formData.telephone}
+                        onChange={(e) => setFormData({...formData, telephone: e.target.value})}
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="entreprise">Entreprise</Label>
+                    <Input
+                      id="entreprise"
+                      value={formData.entreprise}
+                      onChange={(e) => setFormData({...formData, entreprise: e.target.value})}
+                    />
+                  </div>
+                </div>
+
+                {/* Adresse */}
+                <div className="space-y-4">
+                  <h3 className="text-sm font-semibold">Adresse</h3>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="col-span-2 space-y-2">
+                      <Label htmlFor="adresse">Rue</Label>
+                      <Input
+                        id="adresse"
+                        value={formData.adresse}
+                        onChange={(e) => setFormData({...formData, adresse: e.target.value})}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="numero">Numéro</Label>
+                      <Input
+                        id="numero"
+                        value={formData.numero}
+                        onChange={(e) => setFormData({...formData, numero: e.target.value})}
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="boite_postale">Boîte</Label>
+                      <Input
+                        id="boite_postale"
+                        value={formData.boite_postale}
+                        onChange={(e) => setFormData({...formData, boite_postale: e.target.value})}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="code_postal">Code postal</Label>
+                      <Input
+                        id="code_postal"
+                        value={formData.code_postal}
+                        onChange={(e) => setFormData({...formData, code_postal: e.target.value})}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="commune">Commune</Label>
+                      <Input
+                        id="commune"
+                        value={formData.commune}
+                        onChange={(e) => setFormData({...formData, commune: e.target.value})}
                       />
                     </div>
                   </div>
                 </div>
-              )}
 
-              {/* Coordonnées */}
-              <div className="space-y-4">
-                <h3 className="text-sm font-semibold">Coordonnées</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      value={formData.email}
-                      onChange={(e) => setFormData({...formData, email: e.target.value})}
-                    />
+                {/* Informations financières */}
+                <div className="space-y-4">
+                  <h3 className="text-sm font-semibold">Informations financières</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="numero_tva">Numéro TVA</Label>
+                      <Input
+                        id="numero_tva"
+                        value={formData.numero_tva}
+                        onChange={(e) => setFormData({...formData, numero_tva: e.target.value})}
+                        placeholder="BE0123456789"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="delai_paiement_jours">Délai paiement (jours)</Label>
+                      <Input
+                        id="delai_paiement_jours"
+                        type="number"
+                        value={formData.delai_paiement_jours}
+                        onChange={(e) => setFormData({...formData, delai_paiement_jours: e.target.value})}
+                        placeholder="30"
+                      />
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="telephone">Téléphone</Label>
-                    <Input
-                      id="telephone"
-                      type="tel"
-                      value={formData.telephone}
-                      onChange={(e) => setFormData({...formData, telephone: e.target.value})}
-                    />
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="iban">IBAN</Label>
+                      <Input
+                        id="iban"
+                        value={formData.iban}
+                        onChange={(e) => setFormData({...formData, iban: e.target.value})}
+                        placeholder="BE00 0000 0000 0000"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="bic">BIC</Label>
+                      <Input
+                        id="bic"
+                        value={formData.bic}
+                        onChange={(e) => setFormData({...formData, bic: e.target.value})}
+                        placeholder="GEBABEBB"
+                      />
+                    </div>
                   </div>
                 </div>
+
+                {/* Remarques */}
                 <div className="space-y-2">
-                  <Label htmlFor="entreprise">Entreprise</Label>
+                  <Label htmlFor="remarques">Remarques</Label>
                   <Input
-                    id="entreprise"
-                    value={formData.entreprise}
-                    onChange={(e) => setFormData({...formData, entreprise: e.target.value})}
+                    id="remarques"
+                    value={formData.remarques}
+                    onChange={(e) => setFormData({...formData, remarques: e.target.value})}
                   />
                 </div>
-              </div>
 
-              {/* Adresse */}
-              <div className="space-y-4">
-                <h3 className="text-sm font-semibold">Adresse</h3>
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="col-span-2 space-y-2">
-                    <Label htmlFor="adresse">Rue</Label>
-                    <Input
-                      id="adresse"
-                      value={formData.adresse}
-                      onChange={(e) => setFormData({...formData, adresse: e.target.value})}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="numero">Numéro</Label>
-                    <Input
-                      id="numero"
-                      value={formData.numero}
-                      onChange={(e) => setFormData({...formData, numero: e.target.value})}
-                    />
-                  </div>
+                <div className="flex gap-2 justify-end pt-4">
+                  <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
+                    Annuler
+                  </Button>
+                  <Button type="submit">
+                    {editingPerson ? "Mettre à jour" : "Ajouter"}
+                  </Button>
                 </div>
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="boite_postale">Boîte</Label>
-                    <Input
-                      id="boite_postale"
-                      value={formData.boite_postale}
-                      onChange={(e) => setFormData({...formData, boite_postale: e.target.value})}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="code_postal">Code postal</Label>
-                    <Input
-                      id="code_postal"
-                      value={formData.code_postal}
-                      onChange={(e) => setFormData({...formData, code_postal: e.target.value})}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="commune">Commune</Label>
-                    <Input
-                      id="commune"
-                      value={formData.commune}
-                      onChange={(e) => setFormData({...formData, commune: e.target.value})}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Informations financières */}
-              <div className="space-y-4">
-                <h3 className="text-sm font-semibold">Informations financières</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="numero_tva">Numéro TVA</Label>
-                    <Input
-                      id="numero_tva"
-                      value={formData.numero_tva}
-                      onChange={(e) => setFormData({...formData, numero_tva: e.target.value})}
-                      placeholder="BE0123456789"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="delai_paiement_jours">Délai paiement (jours)</Label>
-                    <Input
-                      id="delai_paiement_jours"
-                      type="number"
-                      value={formData.delai_paiement_jours}
-                      onChange={(e) => setFormData({...formData, delai_paiement_jours: e.target.value})}
-                      placeholder="30"
-                    />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="iban">IBAN</Label>
-                    <Input
-                      id="iban"
-                      value={formData.iban}
-                      onChange={(e) => setFormData({...formData, iban: e.target.value})}
-                      placeholder="BE00 0000 0000 0000"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="bic">BIC</Label>
-                    <Input
-                      id="bic"
-                      value={formData.bic}
-                      onChange={(e) => setFormData({...formData, bic: e.target.value})}
-                      placeholder="GEBABEBB"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Remarques */}
-              <div className="space-y-2">
-                <Label htmlFor="remarques">Remarques</Label>
-                <Input
-                  id="remarques"
-                  value={formData.remarques}
-                  onChange={(e) => setFormData({...formData, remarques: e.target.value})}
-                />
-              </div>
-
-              <div className="flex gap-2 justify-end pt-4">
-                <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
-                  Annuler
-                </Button>
-                <Button type="submit">
-                  {editingPerson ? "Mettre à jour" : "Ajouter"}
-                </Button>
-              </div>
-            </form>
+              </form>
+            )}
           </DialogContent>
         </Dialog>
       </div>
