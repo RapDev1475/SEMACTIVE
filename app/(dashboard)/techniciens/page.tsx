@@ -1,3 +1,4 @@
+// app/(dashboard)/techniciens/page.tsx
 "use client"
 
 import { useEffect, useState } from "react"
@@ -22,7 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Plus, Search, Users, User, Phone, Mail, Edit, MapPin, CreditCard } from "lucide-react"
+import { Plus, Search, Users, User, Phone, Mail, Edit, MapPin, CreditCard, Briefcase, Projector } from "lucide-react" // Ajout des icônes
 import type { Personne } from "@/lib/types"
 
 export default function TechniciensPage() {
@@ -52,6 +53,10 @@ export default function TechniciensPage() {
     boite_postale: "",
     code_postal: "",
     commune: "",
+    // --- Nouveaux champs ---
+    projet: "",
+    fonction: "",
+    // ---
   })
 
   useEffect(() => {
@@ -81,7 +86,11 @@ export default function TechniciensPage() {
     try {
       const dataToSave = {
         ...formData,
-        delai_paiement_jours: formData.delai_paiement_jours ? parseInt(formData.delai_paiement_jours) : null
+        delai_paiement_jours: formData.delai_paiement_jours ? parseInt(formData.delai_paiement_jours) : null,
+        // --- Conversion des champs projet/fonction en null si vide ---
+        projet: formData.projet || null,
+        fonction: formData.fonction || null,
+        // ---
       }
 
       if (editingPerson) {
@@ -122,6 +131,10 @@ export default function TechniciensPage() {
         boite_postale: "",
         code_postal: "",
         commune: "",
+        // --- Réinitialisation des nouveaux champs ---
+        projet: "",
+        fonction: "",
+        // ---
       })
     } catch (error: any) {
       alert("Erreur: " + error.message)
@@ -149,6 +162,10 @@ export default function TechniciensPage() {
       boite_postale: personne.boite_postale || "",
       code_postal: personne.code_postal || "",
       commune: personne.commune || "",
+      // --- Chargement des nouveaux champs ---
+      projet: personne.projet || "",
+      fonction: personne.fonction || "",
+      // ---
     })
     setDialogOpen(true)
   }
@@ -159,7 +176,11 @@ export default function TechniciensPage() {
       (p.prenom && p.prenom.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (p.email && p.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (p.numero_perid && p.numero_perid.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (p.erp_id && p.erp_id.toLowerCase().includes(searchTerm.toLowerCase()))
+      (p.erp_id && p.erp_id.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      // --- Ajout de la recherche sur les nouveaux champs ---
+      (p.projet && p.projet.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (p.fonction && p.fonction.toLowerCase().includes(searchTerm.toLowerCase()))
+      // ---
     
     if (filterType === "all") return matchesSearch
     return matchesSearch && p.type === filterType
@@ -224,6 +245,10 @@ export default function TechniciensPage() {
                 boite_postale: "",
                 code_postal: "",
                 commune: "",
+                // --- Réinitialisation des nouveaux champs ---
+                projet: "",
+                fonction: "",
+                // ---
               })
             }
           }}
@@ -288,6 +313,40 @@ export default function TechniciensPage() {
                   </Select>
                 </div>
               </div>
+
+              {/* --- NOUVEAU : Informations Projet/Fonction --- */}
+              <div className="space-y-4 p-4 bg-gray-50 dark:bg-gray-900/20 rounded-lg border">
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                  Projet & Fonction
+                </h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="projet">Projet</Label>
+                    <div className="relative">
+                      <Projector className="absolute left-2 top-3 h-4 w-4 text-muted-foreground" /> {/* Icône projet */}
+                      <Input
+                        id="projet"
+                        className="pl-8"
+                        value={formData.projet}
+                        onChange={(e) => setFormData({...formData, projet: e.target.value})}
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="fonction">Fonction</Label>
+                    <div className="relative">
+                      <Briefcase className="absolute left-2 top-3 h-4 w-4 text-muted-foreground" /> {/* Icône fonction */}
+                      <Input
+                        id="fonction"
+                        className="pl-8"
+                        value={formData.fonction}
+                        onChange={(e) => setFormData({...formData, fonction: e.target.value})}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+              {/* --- FIN NOUVEAU --- */}
 
               {/* Identifiants technicien */}
               {formData.type === 'technicien' && (
@@ -520,7 +579,7 @@ export default function TechniciensPage() {
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Rechercher par nom, prénom ou email..."
+                placeholder="Rechercher par nom, prénom, email, projet, fonction..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10"
@@ -564,6 +623,24 @@ export default function TechniciensPage() {
                         {personne.entreprise}
                       </p>
                     )}
+                    {/* --- Affichage Projet/Fonction --- */}
+                    {(personne.projet || personne.fonction) && (
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {personne.projet && (
+                          <Badge variant="secondary" className="text-xs">
+                            <Projector className="mr-1 h-3 w-3" /> {/* Icône projet */}
+                            {personne.projet}
+                          </Badge>
+                        )}
+                        {personne.fonction && (
+                          <Badge variant="secondary" className="text-xs">
+                            <Briefcase className="mr-1 h-3 w-3" /> {/* Icône fonction */}
+                            {personne.fonction}
+                          </Badge>
+                        )}
+                      </div>
+                    )}
+                    {/* --- Fin Affichage --- */}
                   </div>
                   <Badge className={getTypeBadge(personne.type)}>
                     {personne.type.charAt(0).toUpperCase() + personne.type.slice(1)}
