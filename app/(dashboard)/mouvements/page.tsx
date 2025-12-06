@@ -30,6 +30,18 @@ type TypeMouvement = {
   description: string | null
 }
 
+type Scenario = {
+  id: string
+  origine_type: string
+  emplacement_origine: string
+  action_origine: string
+  type_mouvement: string
+  action_destination: string
+  emplacement_destination: string
+  personne_type: string
+  resume_action: string
+}
+
 // Type pour une ligne de mouvement temporaire
 type LigneMouvement = {
   id: string // ID temporaire unique
@@ -49,6 +61,7 @@ export default function MouvementsPage() {
   const [personnes, setPersonnes] = useState<Personne[]>([])
   const [typesMouvement, setTypesMouvement] = useState<TypeMouvement[]>([])
   const [emplacements, setEmplacements] = useState<{id: string, nom: string}[]>([])
+  const [scenarios, setScenarios] = useState<Scenario[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [filterType, setFilterType] = useState<string>("all")
@@ -79,7 +92,23 @@ export default function MouvementsPage() {
     fetchPersonnes()
     fetchTypesMouvement()
     fetchEmplacements()
+    fetchScenarios()
   }, [])
+
+  async function fetchScenarios() {
+    try {
+      const { data, error } = await supabase
+        .from('scenarios_mouvement')
+        .select('*')
+        .order('emplacement_origine, type_mouvement')
+
+      if (error) throw error
+      setScenarios(data || [])
+      console.log('Scénarios chargés:', data?.length)
+    } catch (error) {
+      console.error('Error fetching scenarios:', error)
+    }
+  }
 
   async function fetchEmplacements() {
     try {
@@ -161,6 +190,41 @@ export default function MouvementsPage() {
       }
     } catch (error) {
       console.error('Error fetching types de mouvement:', error)
+    }
+  }
+
+  // Fonctions de filtrage basées sur les scénarios
+  
+  // Obtenir les emplacements d'origine possibles
+  function getOriginesDisponibles(): string[] {
+    const origines = new Set(scenarios.map(s => s.emplacement_origine))
+    return Array.from(origines).sort()
+  }
+
+  // Obtenir les types de mouvements possibles selon l'origine sélectionnée
+  function getTypesMouvementDisponibles(origine: string): Scenario[] {
+    return scenarios.filter(s => s.emplacement_origine === origine)
+  }
+
+  // Obtenir le scénario complet basé sur origine + type
+  function getScenario(origine: string, typeMouvement: string): Scenario | null {
+    return scenarios.find(s => 
+      s.emplacement_origine === origine && 
+      s.type_mouvement === typeMouvement
+    ) || null
+  }
+
+  // Appliquer automatiquement le scénario sélectionné
+  function appliquerScenario(origine: string, typeMouvement: string) {
+    const scenario = getScenario(origine, typeMouvement)
+    if (scenario) {
+      setMouvementData(prev => ({
+        ...prev,
+        localisation_origine: scenario.emplacement_origine,
+        type_mouvement: scenario.type_mouvement,
+        localisation_destination: scenario.emplacement_destination,
+      }))
+      console.log('Scénario appliqué:', scenario)
     }
   }
 
@@ -570,54 +634,120 @@ export default function MouvementsPage() {
           </Button>
         </div>
 
-        <div className="grid grid-cols-3 gap-6">
+        {/* Formulaire guidé par scénarios */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Étape 1 : Sélectionnez l&apos;emplacement d&apos;origine</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Select 
+              value={mouvementData.localisation_origine} 
+              onValueChange={(value) => {
+                setMouvementData({
+                  ...mouvementData,
+                  localisation_origine: value,
+                  type_mouvement: "", // Reset type et destination
+                  localisation_destination: "",
+                })
+              }}
+            >
+              <SelectTrigger className="h-14 text-lg">
+                <SelectValue placeholder="Choisissez un emplacement" />
+              </SelectTrigger>
+              <SelectContent>
+                {getOriginesDisponibles().map((origine) => (
+                  <SelectItem key={origine} value={origine}>
+                    {origine}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </CardContent>
+        </Card>
+
+        {mouvementData.localisation_origine && (
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">Type de mouvement</CardTitle>
+              <CardTitle className="text-lg">Étape 2 : Sélectionnez le type de mouvement</CardTitle>
             </CardHeader>
             <CardContent>
               <Select 
                 value={mouvementData.type_mouvement} 
-                onValueChange={(value) => setMouvementData({...mouvementData, type_mouvement: value})}
+                onValueChange={(value) => {
+                  appliquerScenario(mouvementData.localisation_origine, value)
+                }}
               >
                 <SelectTrigger className="h-14 text-lg">
-                  <SelectValue />
+                  <SelectValue placeholder="Choisissez un type de mouvement" />
                 </SelectTrigger>
                 <SelectContent>
-                  {typesMouvement.map((type) => (
-                    <SelectItem key={type.id} value={type.nom}>
-                      {type.nom}
+                  {getTypesMouvementDisponibles(mouvementData.localisation_origine).map((scenario) => (
+                    <SelectItem key={scenario.id} value={scenario.type_mouvement}>
+                      {scenario.type_mouvement}
+                      {scenario.resume_action && (
+                        <span className="text-xs text-muted-foreground ml-2">
+                          → {scenario.emplacement_destination}
+                        </span>
+                      )}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </CardContent>
           </Card>
+        )}
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Pour quel technicien ?</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Select 
-                value={mouvementData.personne_id || "none"}
-                onValueChange={(value) => setMouvementData({...mouvementData, personne_id: value === "none" ? "" : value})}
-              >
-                <SelectTrigger className="h-14 text-lg">
-                  <SelectValue placeholder="Aucun" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Aucun</SelectItem>
-                  {personnes.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.nom} {p.prenom}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </CardContent>
-          </Card>
+        {mouvementData.type_mouvement && (
+          <div className="grid grid-cols-3 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg text-green-600">Origine</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="h-14 flex items-center px-4 bg-green-50 rounded-lg border-2 border-green-200">
+                  <p className="font-semibold">{mouvementData.localisation_origine}</p>
+                </div>
+              </CardContent>
+            </Card>
 
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg text-blue-600">Destination</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="h-14 flex items-center px-4 bg-blue-50 rounded-lg border-2 border-blue-200">
+                  <p className="font-semibold">{mouvementData.localisation_destination}</p>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Technicien (optionnel)</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Select 
+                  value={mouvementData.personne_id || "none"}
+                  onValueChange={(value) => setMouvementData({...mouvementData, personne_id: value === "none" ? "" : value})}
+                >
+                  <SelectTrigger className="h-14 text-lg">
+                    <SelectValue placeholder="Aucun" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Aucun</SelectItem>
+                    {personnes.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.nom} {p.prenom}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {mouvementData.type_mouvement && (
           <Card>
             <CardHeader>
               <CardTitle className="text-lg">Remarques</CardTitle>
@@ -627,66 +757,17 @@ export default function MouvementsPage() {
                 className="h-14 text-lg"
                 value={mouvementData.remarques}
                 onChange={(e) => setMouvementData({...mouvementData, remarques: e.target.value})}
-                placeholder="Notes..."
+                placeholder="Notes supplémentaires..."
               />
             </CardContent>
           </Card>
-        </div>
+        )}
 
-        <div className="grid grid-cols-2 gap-6">
+        {mouvementData.type_mouvement && (
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">Emplacement d&apos;origine</CardTitle>
+              <CardTitle className="text-lg">Étape 3 : Ajouter des articles</CardTitle>
             </CardHeader>
-            <CardContent>
-              <Select 
-                value={mouvementData.localisation_origine || "none"}
-                onValueChange={(value) => setMouvementData({...mouvementData, localisation_origine: value === "none" ? "" : value})}
-              >
-                <SelectTrigger className="h-14 text-lg">
-                  <SelectValue placeholder="Aucun" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Aucun</SelectItem>
-                  {emplacements.map((emp) => (
-                    <SelectItem key={emp.id} value={emp.nom}>
-                      {emp.nom}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Emplacement de destination</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Select 
-                value={mouvementData.localisation_destination || "none"}
-                onValueChange={(value) => setMouvementData({...mouvementData, localisation_destination: value === "none" ? "" : value})}
-              >
-                <SelectTrigger className="h-14 text-lg">
-                  <SelectValue placeholder="Aucun" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Aucun</SelectItem>
-                  {emplacements.map((emp) => (
-                    <SelectItem key={emp.id} value={emp.nom}>
-                      {emp.nom}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </CardContent>
-          </Card>
-        </div>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Ajouter un article</CardTitle>
-          </CardHeader>
           <CardContent>
             <form onSubmit={ajouterLigne} className="space-y-6">
               <div className="grid grid-cols-12 gap-6">
@@ -770,8 +851,9 @@ export default function MouvementsPage() {
             </form>
           </CardContent>
         </Card>
+        )}
 
-        {lignesMouvement.length > 0 && (
+        {mouvementData.type_mouvement && lignesMouvement.length > 0 && (
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
