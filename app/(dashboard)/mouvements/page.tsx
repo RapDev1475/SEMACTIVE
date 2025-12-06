@@ -283,101 +283,50 @@ async function fetchMouvements() {
            mouvementData.localisation_destination === "Stock Technicien"
   }
 
-  // Mapper le nom du type vers les valeurs valides de la contrainte CHECK
-  function mapTypeToConstraint(typeNom: string): string {
-    console.log('DEBUG - mapTypeToConstraint appelée avec:', typeNom); // <--- LOG AJOUTÉ
+// Mapper le nom du type : conserve les noms de scénarios connus, standardise les anciens formats
+function mapTypeToConstraint(typeNom: string): string {
+  // Liste des types connus qui doivent être standardisés
+  const standardMappings: Record<string, string> = {
+    'réception': 'reception',
+    'sortie technicien': 'sortie_technicien',
+    'sortie transport': 'sortie_transport',
+    'transfert depot': 'transfert_depot',
+    'transfert dépôt': 'transfert_depot',
+    'installation client': 'installation_client',
+    'Transfert_depot': 'transfert_depot', // Variante avec majuscule
+    // 'Transfert_Stock': 'transfert_stock', // <-- SI on veut le mapper vers une valeur standardisée en base
+    // MAIS, on veut le laisser tel quel
+  };
 
-    // Valeurs valides selon la contrainte CHECK (à adapter selon ta base)
-    const validValues = [
-      'reception',
-      'sortie_technicien',
-      'sortie_transport',
-      'transfert_depot',
-      'installation_client',
-      'retour'
-    ]
-
-    // Si déjà une valeur valide, la retourner
-    if (validValues.includes(typeNom)) {
-      console.log('DEBUG - typeNom est déjà une valeur valide:', typeNom);
-      return typeNom;
-    }
-
-    // Mapping spécifique pour les noms de scénarios vers les valeurs de base
-    // Il est CRUCIAL de placer ces mappings EXPLICITES en PREMIER
-    const scenarioMapping: Record<string, string> = {
-      'Transfert_Stock': 'transfert_depot', // <--- Le cas spécifique : Transfert_Stock -> transfert_depot
-      'Transfert_depot': 'transfert_depot', // <--- Pour les transferts entre dépôts aussi
-      // Ajouter d'autres mappings si nécessaire
-    };
-
-    if (scenarioMapping[typeNom]) {
-      const mappedValue = scenarioMapping[typeNom];
-      console.log('DEBUG - Mapping spécifique trouvé:', typeNom, '->', mappedValue);
-      return mappedValue;
-    }
-
-    // Ensuite, les correspondances exactes avec variations
-    const lowerNom = typeNom.toLowerCase().trim();
-    const exactMapping: Record<string, string> = {
-      'réception': 'reception',
-      'sortie technicien': 'sortie_technicien',
-      'sortie transport': 'sortie_transport',
-      'transfert depot': 'transfert_depot',
-      'transfert dépôt': 'transfert_depot',
-      'installation client': 'installation_client',
-    };
-
-    if (exactMapping[lowerNom]) {
-      const mappedValue = exactMapping[lowerNom];
-      console.log('DEBUG - Mapping exact trouvé:', typeNom, '->', mappedValue);
-      return mappedValue;
-    }
-
-    // Enfin, la recherche par mot-clé, MAIS en excluant les cas déjà traités
-    if (lowerNom.includes('sortie') && lowerNom.includes('technicien')) {
-      const mappedValue = 'sortie_technicien';
-      console.log('DEBUG - Mapping mot-clé trouvé:', typeNom, '->', mappedValue);
-      return mappedValue;
-    }
-    if (lowerNom.includes('sortie') && lowerNom.includes('transport')) {
-      const mappedValue = 'sortie_transport';
-      console.log('DEBUG - Mapping mot-clé trouvé:', typeNom, '->', mappedValue);
-      return mappedValue;
-    }
-    if (lowerNom.includes('transfert')) { // <--- C'EST CETTE LIGNE QUI ÉTAIT LE PROBLÈME AVANT
-      const mappedValue = 'transfert_depot';
-      console.log('DEBUG - Mapping mot-clé trouvé:', typeNom, '->', mappedValue); // <--- Ce log NE DEVRAIT PAS s'afficher pour 'Transfert_Stock' avec la correction
-      return mappedValue;
-    }
-    if (lowerNom.includes('installation')) {
-      const mappedValue = 'installation_client';
-      console.log('DEBUG - Mapping mot-clé trouvé:', typeNom, '->', mappedValue);
-      return mappedValue;
-    }
-    if (lowerNom.includes('reception') || lowerNom.includes('réception')) {
-      const mappedValue = 'reception';
-      console.log('DEBUG - Mapping mot-clé trouvé:', typeNom, '->', mappedValue);
-      return mappedValue;
-    }
-    if (lowerNom.includes('retour')) {
-      const mappedValue = 'retour';
-      console.log('DEBUG - Mapping mot-clé trouvé:', typeNom, '->', mappedValue);
-      return mappedValue;
-    }
-
-    // Par défaut, essayer de remplacer les espaces par des underscores
-    const withUnderscore = lowerNom.replace(/\s+/g, '_');
-    if (validValues.includes(withUnderscore)) {
-      console.log('DEBUG - Mapping underscore trouvé:', typeNom, '->', withUnderscore);
-      return withUnderscore;
-    }
-
-    // Si aucune correspondance, afficher une alerte et retourner tel quel
-    console.error('Type de mouvement non reconnu:', typeNom);
-    alert(`ATTENTION: Le type "${typeNom}" ne correspond à aucune valeur valide. Les valeurs valides sont: ${validValues.join(', ')}`);
-    return typeNom; // ou throw new Error(...);
+  // Vérifier les mappings standardisés
+  if (standardMappings[typeNom]) {
+    return standardMappings[typeNom];
   }
+
+  const lowerNom = typeNom.toLowerCase().trim();
+  // Vérifier les mappings standardisés en minuscule
+  const lowerStandardMappings: Record<string, string> = {
+    'réception': 'reception',
+    'sortie technicien': 'sortie_technicien',
+    'sortie transport': 'sortie_transport',
+    'transfert depot': 'transfert_depot',
+    'transfert dépôt': 'transfert_depot',
+    'installation client': 'installation_client',
+  };
+
+  if (lowerStandardMappings[lowerNom]) {
+    return lowerStandardMappings[lowerNom];
+  }
+
+  // Cas spécifique pour 'Transfert_Stock' : on le laisse tel quel
+  if (typeNom === 'Transfert_Stock') {
+    return typeNom; // Cela enverra 'Transfert_Stock' à la base
+  }
+
+  // Si aucun mapping spécifique, laisser la valeur telle quelle
+  // Puisque la base accepte n'importe quelle chaîne.
+  return typeNom;
+}
   async function searchArticles(searchValue: string) {
     if (!searchValue.trim()) {
       // Si transfert entre techniciens, afficher les articles du stock source
