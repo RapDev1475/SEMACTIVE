@@ -95,20 +95,18 @@ export default function TechniciensPage() {
     }
   }
 
+  // --- CHANGEMENT : fetchPersonnes sans jointure ---
   async function fetchPersonnes() {
     setLoading(true)
     try {
-      // --- CHANGEMENT : Ajout des jointures pour récupérer le nom du projet et de la fonction ---
       const { data, error } = await supabase
         .from('personnes')
-        .select(`
-          *,
-          projet:projets(nom),  -- Jointure avec la table projets
-          fonction:fonctions(nom) -- Jointure avec la table fonctions
-        `)
+        .select('*') // Sélectionne toutes les colonnes de personnes, mais pas les détails de projets/fonctions
         .order('nom')
 
       if (error) throw error
+      // ATTENTION : Les objets Personne récupérés n'auront PAS les propriétés `projet` et `fonction` remplies.
+      // Ils auront juste `projet_id` et `fonction_id`.
       setPersonnes(data || [])
     } catch (error) {
       console.error('Error fetching personnes:', error)
@@ -116,6 +114,7 @@ export default function TechniciensPage() {
       setLoading(false)
     }
   }
+  // --- FIN CHANGEMENT ---
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -214,9 +213,9 @@ export default function TechniciensPage() {
       (p.email && p.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (p.numero_perid && p.numero_perid.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (p.erp_id && p.erp_id.toLowerCase().includes(searchTerm.toLowerCase()))
-      // --- Recherche sur le nom du projet/fonction via la jointure ---
-      || (p.projet?.nom && p.projet.nom.toLowerCase().includes(searchTerm.toLowerCase())) 
-      || (p.fonction?.nom && p.fonction.nom.toLowerCase().includes(searchTerm.toLowerCase()))
+      // --- Recherche sur le nom du projet/fonction via les tableaux locaux ---
+      || (p.projet_id && projets.find(pr => pr.id === p.projet_id)?.nom.toLowerCase().includes(searchTerm.toLowerCase())) 
+      || (p.fonction_id && fonctions.find(f => f.id === p.fonction_id)?.nom.toLowerCase().includes(searchTerm.toLowerCase()))
       // ---
     
     if (filterType === "all") return matchesSearch
@@ -668,21 +667,27 @@ export default function TechniciensPage() {
                         {personne.entreprise}
                       </p>
                     )}
-                    {/* --- Affichage Projet/Fonction via la jointure --- */}
-                    {(personne.projet?.nom || personne.fonction?.nom) && (
+                    {/* --- Affichage Projet/Fonction via recherche dans les tableaux locaux --- */}
+                    {(personne.projet_id || personne.fonction_id) && ( // Vérifie si un ID est présent
                       <div className="flex flex-wrap gap-1 mt-1">
-                        {personne.projet?.nom && (
-                          <Badge variant="secondary" className="text-xs">
-                            <Projector className="mr-1 h-3 w-3" /> {/* Icône projet */}
-                            {personne.projet.nom} {/* Affichage du nom via la jointure */}
-                          </Badge>
-                        )}
-                        {personne.fonction?.nom && (
-                          <Badge variant="secondary" className="text-xs">
-                            <Briefcase className="mr-1 h-3 w-3" /> {/* Icône fonction */}
-                            {personne.fonction.nom} {/* Affichage du nom via la jointure */}
-                          </Badge>
-                        )}
+                        {personne.projet_id && (() => {
+                          const projet = projets.find(p => p.id === personne.projet_id); // Recherche dans le tableau local
+                          return projet ? ( // Si trouvé
+                            <Badge variant="secondary" className="text-xs">
+                              <Projector className="mr-1 h-3 w-3" />
+                              {projet.nom} {/* Affiche le nom */}
+                            </Badge>
+                          ) : null; // Sinon, affiche rien
+                        })()}
+                        {personne.fonction_id && (() => {
+                          const fonction = fonctions.find(f => f.id === personne.fonction_id); // Recherche dans le tableau local
+                          return fonction ? ( // Si trouvé
+                            <Badge variant="secondary" className="text-xs">
+                              <Briefcase className="mr-1 h-3 w-3" />
+                              {fonction.nom} {/* Affiche le nom */}
+                            </Badge>
+                          ) : null; // Sinon, affiche rien
+                        })()}
                       </div>
                     )}
                     {/* --- Fin Affichage --- */}
