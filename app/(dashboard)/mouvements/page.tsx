@@ -282,71 +282,69 @@ export default function MouvementsPage() {
            mouvementData.localisation_destination === "Stock Technicien"
   }
 
-  // Mapper le nom du type vers les valeurs valides de la contrainte CHECK
-  function mapTypeToConstraint(typeNom: string): string {
-    // Valeurs valides selon la contrainte CHECK
-    const validValues = [
-      'reception',
-      'sortie_technicien',
-      'sortie_transport',
-      'transfert_depot',
-      'installation_client',
-      'retour'
-    ]
-    // Si déjà une valeur valide, la retourner
-    if (validValues.includes(typeNom)) {
-      return typeNom
-    }
-    // Mapping manuel pour les variations courantes
-    const lowerNom = typeNom.toLowerCase().trim()
-    // Correspondances exactes avec underscores
-    const exactMapping: Record<string, string> = {
-      'réception': 'reception',
-      'sortie technicien': 'sortie_technicien',
-      'sortie transport': 'sortie_transport',
-      'transfert depot': 'transfert_depot',
-      'transfert dépôt': 'transfert_depot',
-      'installation client': 'installation_client',
-    }
+// Mapper le nom du type vers les valeurs valides de la contrainte CHECK
+function mapTypeToConstraint(typeNom: string): string {
+  // Valeurs valides selon la contrainte CHECK (à adapter selon ta base)
+  const validValues = [
+    'reception',
+    'sortie_technicien',
+    'sortie_transport',
+    'transfert_depot',
+    'installation_client',
+    'retour'
+  ]
 
-    if (exactMapping[lowerNom]) {
-      return exactMapping[lowerNom]
-    }
+  // Mapping spécifique pour les noms de scénarios vers les valeurs de base
+  const scenarioMapping: Record<string, string> = {
+    'Transfert_Stock': 'transfert_depot', // <--- Transfert entre techniciens -> transfert_depot
+    'Transfert_depot': 'transfert_depot', // <--- Transfert entre dépôts -> transfert_depot
+    // Ajouter d'autres mappings si nécessaire, ex: 'Sortie_Démonstration': 'sortie_transport' ?
+  };
 
-    // Recherche par mot-clé (ordre important)
-    if (lowerNom.includes('sortie') && lowerNom.includes('technicien')) return 'sortie_technicien'
-    if (lowerNom.includes('sortie') && lowerNom.includes('transport')) return 'sortie_transport'
-    if (lowerNom.includes('transfert')) {
-      // Distinguer transfert entre dépôts et transfert entre stocks
-      // ICI, on corrige le bug : pour "Transfert_Stock", on doit l'envoyer comme "transfert_depot" dans la base
-      // CAR ta contrainte CHECK n'a pas de valeur "transfert_stock", seulement "transfert_depot".
-      // Donc, "Transfert_Stock" (scénario) -> "transfert_depot" (base)
-      // MAIS on veut que le type affiché dans le formulaire soit "Transfert_Stock".
-      // La correction est donc ici : mapper "Transfert_Stock" vers "transfert_depot" pour la base.
-      // MAIS il faut que "Transfert_Stock" apparaisse dans les scénarios.
-      // Le problème initial venait du fait que le type de mouvement était mal appliqué.
-      // On garde "transfert_depot" pour tous les transferts pour l'instant, mais on doit corriger le cas spécifique "Transfert_Stock".
-      // Si le typeNom est exactement "Transfert_Stock", on le mappe vers "transfert_depot" pour la base.
-      if (typeNom === "Transfert_Stock") {
-         return "transfert_depot";
-      }
-      return 'transfert_depot' // Par défaut pour tout transfert
-    }
-    if (lowerNom.includes('installation')) return 'installation_client'
-    if (lowerNom.includes('reception') || lowerNom.includes('réception')) return 'reception'
-    if (lowerNom.includes('retour')) return 'retour'
-
-    // Par défaut, essayer de remplacer les espaces par des underscores
-    const withUnderscore = lowerNom.replace(/\s+/g, '_')
-    if (validValues.includes(withUnderscore)) {
-      return withUnderscore
-    }
-
-    // Si aucune correspondance, afficher une alerte et retourner tel quel
-    console.error('Type de mouvement non reconnu:', typeNom)
-    alert(`ATTENTION: Le type "${typeNom}" ne correspond à aucune valeur valide. Les valeurs valides sont: ${validValues.join(', ')}`)
-    return typeNom
+  // Vérifier d'abord le mapping spécifique
+  if (scenarioMapping[typeNom]) {
+    return scenarioMapping[typeNom];
   }
+
+  // Si le type est déjà une valeur valide, le retourner
+  if (validValues.includes(typeNom)) {
+    return typeNom;
+  }
+
+  // Essayer les correspondances exactes avec variations
+  const lowerNom = typeNom.toLowerCase().trim();
+  const exactMapping: Record<string, string> = {
+    'réception': 'reception',
+    'sortie technicien': 'sortie_technicien',
+    'sortie transport': 'sortie_transport',
+    'transfert depot': 'transfert_depot',
+    'transfert dépôt': 'transfert_depot',
+    'installation client': 'installation_client',
+  };
+
+  if (exactMapping[lowerNom]) {
+    return exactMapping[lowerNom];
+  }
+
+  // Recherche par mot-clé pour les cas non spécifiés
+  if (lowerNom.includes('sortie') && lowerNom.includes('technicien')) return 'sortie_technicien';
+  if (lowerNom.includes('sortie') && lowerNom.includes('transport')) return 'sortie_transport';
+  if (lowerNom.includes('transfert')) return 'transfert_depot'; // <--- Pour les transferts non spécifiés
+  if (lowerNom.includes('installation')) return 'installation_client';
+  if (lowerNom.includes('reception') || lowerNom.includes('réception')) return 'reception';
+  if (lowerNom.includes('retour')) return 'retour';
+
+  // Par défaut, essayer de remplacer les espaces par des underscores
+  const withUnderscore = lowerNom.replace(/\s+/g, '_');
+  if (validValues.includes(withUnderscore)) {
+    return withUnderscore;
+  }
+
+  // Si aucune correspondance, erreur
+  console.error('Type de mouvement non reconnu:', typeNom);
+  alert(`ATTENTION: Le type "${typeNom}" ne correspond à aucune valeur valide. Les valeurs valides sont: ${validValues.join(', ')}`);
+  return typeNom; // ou throw new Error(...);
+}
 
   async function searchArticles(searchValue: string) {
     if (!searchValue.trim()) {
