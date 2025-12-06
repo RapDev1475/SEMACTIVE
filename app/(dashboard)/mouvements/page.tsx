@@ -157,8 +157,8 @@ async function fetchMouvements() {
       .select(`
         *,
         article:articles(nom, numero_article),
-        personne:personnes!mouvements_personne_id_fkey(nom, prenom),              // <--- Spécifie la FK
-        personne_source:personnes!mouvements_personne_source_id_fkey(nom, prenom), // <--- Spécifie l'autre FK
+        personne:personnes!mouvements_personne_id_fkey(nom, prenom),
+        personne_source:personnes!mouvements_personne_source_id_fkey(nom, prenom),
         numero_serie:numeros_serie(numero_serie, adresse_mac)
       `)
       .order('date_mouvement', { ascending: false })
