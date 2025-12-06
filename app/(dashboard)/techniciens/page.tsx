@@ -178,43 +178,60 @@ export default function TechniciensPage() {
     }
   }
 
-  // --- CHANGEMENT : handleEdit avec vérification renforcée ---
-  function handleEdit(personne: any) {
-    setEditingPerson(personne)
+// --- CHANGEMENT : handleEdit avec vérification RENFORCÉE et existence ---
+function handleEdit(personne: any) {
+  setEditingPerson(personne)
 
-    // --- VÉRIFICATION RENFORCÉE ---
-    // On s'assure que les IDs sont des chaînes non vides avant de les assigner
-    // Si l'ID est vide ou null, on assigne ""
-    const projetIdToSet = personne.projet_id && typeof personne.projet_id === 'string' && personne.projet_id.trim() !== '' ? personne.projet_id : "";
-    const fonctionIdToSet = personne.fonction_id && typeof personne.fonction_id === 'string' && personne.fonction_id.trim() !== '' ? personne.fonction_id : "";
+  // --- VÉRIFICATION RENFORCÉE ET EXISTENCE ---
+  // On s'assure que les IDs sont des chaînes non vides
+  const projetIdRaw = personne.projet_id;
+  const fonctionIdRaw = personne.fonction_id;
 
-    setFormData({
-      nom: personne.nom,
-      prenom: personne.prenom || "",
-      type: personne.type,
-      email: personne.email || "",
-      telephone: personne.telephone || "",
-      entreprise: personne.entreprise || "",
-      numero_perid: personne.numero_perid || "",
-      erp_id: personne.erp_id || "",
-      remarques: personne.remarques || "",
-      numero_tva: personne.numero_tva || "",
-      iban: personne.iban || "",
-      bic: personne.bic || "",
-      delai_paiement_jours: personne.delai_paiement_jours?.toString() || "",
-      adresse: personne.adresse || "",
-      numero: personne.numero || "",
-      boite_postale: personne.boite_postale || "",
-      code_postal: personne.code_postal || "",
-      commune: personne.commune || "",
-      // --- Assignation avec vérification ---
-      projet_id: projetIdToSet,
-      fonction_id: fonctionIdToSet,
-      // ---
-    })
-    setDialogOpen(true)
-  }
-  // --- FIN CHANGEMENT ---
+  // Vérifier si les IDs sont des chaînes non vides et si elles existent dans les listes chargées
+  // On ne fait la vérification d'existence que si les listes sont chargées (longueur > 0)
+  const projetIdToSet = (
+    projetIdRaw && 
+    typeof projetIdRaw === 'string' && 
+    projetIdRaw.trim() !== '' && 
+    projets.length > 0 && // Vérifier que la liste est chargée
+    projets.some(p => p.id === projetIdRaw) // Vérifier l'existence
+  ) ? projetIdRaw : "";
+
+  const fonctionIdToSet = (
+    fonctionIdRaw && 
+    typeof fonctionIdRaw === 'string' && 
+    fonctionIdRaw.trim() !== '' && 
+    fonctions.length > 0 && // Vérifier que la liste est chargée
+    fonctions.some(f => f.id === fonctionIdRaw) // Vérifier l'existence
+  ) ? fonctionIdRaw : "";
+
+  setFormData({
+    nom: personne.nom,
+    prenom: personne.prenom || "",
+    type: personne.type,
+    email: personne.email || "",
+    telephone: personne.telephone || "",
+    entreprise: personne.entreprise || "",
+    numero_perid: personne.numero_perid || "",
+    erp_id: personne.erp_id || "",
+    remarques: personne.remarques || "",
+    numero_tva: personne.numero_tva || "",
+    iban: personne.iban || "",
+    bic: personne.bic || "",
+    delai_paiement_jours: personne.delai_paiement_jours?.toString() || "",
+    adresse: personne.adresse || "",
+    numero: personne.numero || "",
+    boite_postale: personne.boite_postale || "",
+    code_postal: personne.code_postal || "",
+    commune: personne.commune || "",
+    // --- Assignation avec vérification ---
+    projet_id: projetIdToSet,
+    fonction_id: fonctionIdToSet,
+    // ---
+  })
+  setDialogOpen(true)
+}
+// --- FIN CHANGEMENT ---
 
   const filteredPersonnes = personnes.filter(p => {
     const matchesSearch =
