@@ -410,45 +410,67 @@ export default function MouvementsPage() {
 
         // Si c'est un transfert vers un technicien, gérer stock_technicien
         if (mouvementData.personne_id && (typeMapped === 'transfert_depot' || typeMapped === 'sortie_technicien')) {
-          // Vérifier si l'entrée existe déjà
-          let queryStock = supabase
-            .from('stock_technicien')
-            .select('*')
-            .eq('technicien_id', mouvementData.personne_id)
-            .eq('article_id', ligne.article_id)
-
-          if (ligne.numero_serie_id) {
-            queryStock = queryStock.eq('numero_serie_id', ligne.numero_serie_id)
-          } else {
-            queryStock = queryStock.is('numero_serie_id', null)
-          }
-
-          const { data: existingStock } = await queryStock.maybeSingle()
-
-          if (existingStock) {
-            // Mettre à jour la quantité
-            const { error: updateError } = await supabase
+          try {
+            // Construire la requête pour vérifier si l'entrée existe
+            let queryStock = supabase
               .from('stock_technicien')
-              .update({ 
-                quantite: existingStock.quantite + ligne.quantite,
-                derniere_mise_a_jour: new Date().toISOString()
-              })
-              .eq('id', existingStock.id)
+              .select('*')
+              .eq('technicien_id', mouvementData.personne_id)
+              .eq('article_id', ligne.article_id)
 
-            if (updateError) throw updateError
-          } else {
-            // Créer une nouvelle entrée
-            const { error: insertError } = await supabase
-              .from('stock_technicien')
-              .insert({
-                technicien_id: mouvementData.personne_id,
-                article_id: ligne.article_id,
-                numero_serie_id: ligne.numero_serie_id || null,
-                quantite: ligne.quantite,
-                localisation: mouvementData.localisation_destination || 'camionnette',
-              })
+            if (ligne.numero_serie_id) {
+              queryStock = queryStock.eq('numero_serie_id', ligne.numero_serie_id)
+            } else {
+              queryStock = queryStock.is('numero_serie_id', null)
+            }
 
-            if (insertError) throw insertError
+            const { data: existingStock, error: fetchError } = await queryStock.maybeSingle()
+
+            // Ne pas traiter fetchError car il est normal de ne rien trouver
+            console.log('Recherche stock existant pour:', {
+              technicien: mouvementData.personne_id,
+              article: ligne.article_id,
+              serie: ligne.numero_serie_id,
+              trouve: existingStock
+            })
+
+            if (existingStock) {
+              // Mettre à jour la quantité
+              console.log('Mise à jour stock existant, quantité:', existingStock.quantite, '+', ligne.quantite)
+              const { error: updateError } = await supabase
+                .from('stock_technicien')
+                .update({ 
+                  quantite: existingStock.quantite + ligne.quantite,
+                  derniere_mise_a_jour: new Date().toISOString()
+                })
+                .eq('id', existingStock.id)
+
+              if (updateError) {
+                console.error('Erreur mise à jour stock_technicien:', updateError)
+                throw updateError
+              }
+            } else {
+              // Créer une nouvelle entrée
+              console.log('Création nouvelle entrée stock_technicien pour:', ligne.article_nom)
+              const { error: insertError } = await supabase
+                .from('stock_technicien')
+                .insert({
+                  technicien_id: mouvementData.personne_id,
+                  article_id: ligne.article_id,
+                  numero_serie_id: ligne.numero_serie_id || null,
+                  quantite: ligne.quantite,
+                  localisation: mouvementData.localisation_destination || 'camionnette',
+                })
+
+              if (insertError) {
+                console.error('Erreur insertion stock_technicien:', insertError)
+                throw insertError
+              }
+            }
+          } catch (stockTechError) {
+            console.error('Erreur gestion stock_technicien:', stockTechError)
+            // Ne pas faire throw pour ne pas bloquer le reste, mais logger
+            alert(`Attention: erreur lors de la mise à jour du stock technicien pour ${ligne.article_nom}`)
           }
         }
       }
