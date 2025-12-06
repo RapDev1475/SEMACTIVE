@@ -1,6 +1,5 @@
 // app/(dashboard)/mouvements/page.tsx
 "use client"
-
 import { useEffect, useState } from "react"
 import { supabase } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
@@ -68,10 +67,10 @@ export default function MouvementsPage() {
   const [filterType, setFilterType] = useState<string>("all")
   const [showForm, setShowForm] = useState(false)
   const [articleSearch, setArticleSearch] = useState("")
-  
+
   // État pour les lignes de mouvement temporaires
   const [lignesMouvement, setLignesMouvement] = useState<LigneMouvement[]>([])
-  
+
   // Données communes à toutes les lignes du mouvement
   const [mouvementData, setMouvementData] = useState({
     personne_id: "", // Technicien destination (ou unique)
@@ -81,7 +80,7 @@ export default function MouvementsPage() {
     localisation_destination: "",
     remarques: "",
   })
-  
+
   // Formulaire pour ajouter une ligne
   const [ligneFormData, setLigneFormData] = useState({
     article_id: "",
@@ -103,7 +102,6 @@ export default function MouvementsPage() {
         .from('scenarios_mouvement')
         .select('*')
         .order('emplacement_origine, type_mouvement')
-
       if (error) throw error
       setScenarios(data || [])
       console.log('Scénarios chargés:', data?.length)
@@ -118,7 +116,6 @@ export default function MouvementsPage() {
       setStockTechnicienSource([])
       return
     }
-
     try {
       const { data, error } = await supabase
         .from('stock_technicien')
@@ -129,7 +126,6 @@ export default function MouvementsPage() {
         `)
         .eq('technicien_id', technicienId)
         .gt('quantite', 0) // Seulement les articles avec quantité > 0
-
       if (error) throw error
       setStockTechnicienSource(data || [])
       console.log(`Stock technicien source chargé: ${data?.length} entrées`)
@@ -145,7 +141,6 @@ export default function MouvementsPage() {
         .from('emplacements')
         .select('id, nom')
         .order('nom')
-
       if (error) throw error
       setEmplacements(data || [])
     } catch (error) {
@@ -167,12 +162,10 @@ export default function MouvementsPage() {
         `)
         .order('date_mouvement', { ascending: false })
         .limit(100)
-
       if (error) {
         console.error('❌ Erreur lors du chargement:', error)
         throw error
       }
-      
       console.log(`✅ ${data?.length || 0} mouvements chargés`)
       console.log('Premier mouvement:', data?.[0])
       setMouvements(data || [])
@@ -189,7 +182,6 @@ export default function MouvementsPage() {
         .from('articles')
         .select('*')
         .order('nom')
-
       setArticles(data || [])
     } catch (error) {
       console.error('Error fetching articles:', error)
@@ -203,7 +195,6 @@ export default function MouvementsPage() {
         .select('*')
         .eq('type', 'technicien')
         .order('nom')
-    
       setPersonnes(data || [])
     } catch (error) {
       console.error('Error fetching personnes:', error)
@@ -216,10 +207,8 @@ export default function MouvementsPage() {
         .from('types_mouvement')
         .select('*')
         .order('nom')
-
       if (error) throw error
       setTypesMouvement(data || [])
-      
       // Si des types existent, sélectionner le premier par défaut
       if (data && data.length > 0) {
         setMouvementData(prev => ({ ...prev, type_mouvement: data[0].nom }))
@@ -230,7 +219,6 @@ export default function MouvementsPage() {
   }
 
   // Fonctions de filtrage basées sur les scénarios
-  
   // Obtenir les emplacements d'origine possibles
   function getOriginesDisponibles(): string[] {
     const origines = new Set(scenarios.map(s => s.emplacement_origine))
@@ -242,28 +230,43 @@ export default function MouvementsPage() {
     return scenarios.filter(s => s.emplacement_origine === origine)
   }
 
+  // 🔧 Fonction de normalisation pour matcher les scénarios avec les techniciens
+  const normalizeScenarioActor = (actor: string): string => {
+    if (actor.startsWith('Technicien')) {
+      return 'Technicien A'; // correspond au scénario générique dans la base
+    }
+    return actor;
+  };
+
   // Obtenir le scénario complet basé sur origine + type
-  function getScenario(origine: string, typeMouvement: string): Scenario | null {
+  function getScenario(origine: string, typeMouvement: string, origineType: string): Scenario | null {
     return scenarios.find(s => 
+      normalizeScenarioActor(s.origine_type) === normalizeScenarioActor(origineType) &&
       s.emplacement_origine === origine && 
       s.type_mouvement === typeMouvement
     ) || null
   }
 
   // Appliquer automatiquement le scénario sélectionné
-  function appliquerScenario(origine: string, typeMouvement: string) {
-    const scenario = getScenario(origine, typeMouvement)
-    if (scenario) {
-      setMouvementData(prev => ({
-        ...prev,
-        localisation_origine: scenario.emplacement_origine,
-        type_mouvement: scenario.type_mouvement,
-        localisation_destination: scenario.emplacement_destination,
-        personne_id: "", // Reset technicien destination
-        personne_source_id: "", // Reset technicien source
-      }))
-      console.log('Scénario appliqué:', scenario)
+  function appliquerScenario(origine: string, typeMouvement: string, origineType: string) {
+    // 🔍 Recherche robuste du scénario
+    const scenario = getScenario(origine, typeMouvement, origineType);
+
+    if (!scenario) {
+      console.error('Scénario non trouvé pour:', { origine, typeMouvement, origineType });
+      alert(`Aucun scénario de mouvement trouvé pour cette combinaison: ${origine} → ${typeMouvement} (origine: ${origineType})`);
+      return;
     }
+
+    setMouvementData(prev => ({
+      ...prev,
+      localisation_origine: scenario.emplacement_origine,
+      type_mouvement: scenario.type_mouvement,
+      localisation_destination: scenario.emplacement_destination,
+      personne_id: "", // Reset technicien destination
+      personne_source_id: "", // Reset technicien source
+    }))
+    console.log('Scénario appliqué:', scenario)
   }
 
   // Déterminer si on a besoin de sélectionner des techniciens
@@ -294,15 +297,12 @@ export default function MouvementsPage() {
       'installation_client',
       'retour'
     ]
-    
     // Si déjà une valeur valide, la retourner
     if (validValues.includes(typeNom)) {
       return typeNom
     }
-    
     // Mapping manuel pour les variations courantes
     const lowerNom = typeNom.toLowerCase().trim()
-    
     // Correspondances exactes avec underscores
     const exactMapping: Record<string, string> = {
       'réception': 'reception',
@@ -311,26 +311,33 @@ export default function MouvementsPage() {
       'transfert depot': 'transfert_depot',
       'transfert dépôt': 'transfert_depot',
       'installation client': 'installation_client',
+      'transfert_stock': 'transfert_depot', // ATTENTION : à corriger si besoin
     }
-    
+
     if (exactMapping[lowerNom]) {
       return exactMapping[lowerNom]
     }
-    
+
     // Recherche par mot-clé (ordre important)
     if (lowerNom.includes('sortie') && lowerNom.includes('technicien')) return 'sortie_technicien'
     if (lowerNom.includes('sortie') && lowerNom.includes('transport')) return 'sortie_transport'
-    if (lowerNom.includes('transfert')) return 'transfert_depot'
+    if (lowerNom.includes('transfert')) {
+      // Distinguer transfert entre dépôts et transfert entre stocks
+      if (isTransfertEntreTechniciens()) {
+        return 'transfert_depot' // ou un nouveau type si nécessaire
+      }
+      return 'transfert_depot'
+    }
     if (lowerNom.includes('installation')) return 'installation_client'
     if (lowerNom.includes('reception') || lowerNom.includes('réception')) return 'reception'
     if (lowerNom.includes('retour')) return 'retour'
-    
+
     // Par défaut, essayer de remplacer les espaces par des underscores
     const withUnderscore = lowerNom.replace(/\s+/g, '_')
     if (validValues.includes(withUnderscore)) {
       return withUnderscore
     }
-    
+
     // Si aucune correspondance, afficher une alerte et retourner tel quel
     console.error('Type de mouvement non reconnu:', typeNom)
     alert(`ATTENTION: Le type "${typeNom}" ne correspond à aucune valeur valide. Les valeurs valides sont: ${validValues.join(', ')}`)
@@ -348,11 +355,9 @@ export default function MouvementsPage() {
       }
       return
     }
-
     try {
       let isSerialOrMacSearch = false
       let foundNumeroSerie: any = null
-      
       // Si transfert entre techniciens, on doit chercher dans le stock du technicien source
       if (isTransfertEntreTechniciens() && mouvementData.personne_source_id) {
         // Rechercher par numéro de série ou MAC dans le stock du technicien source
@@ -360,18 +365,15 @@ export default function MouvementsPage() {
           .from('numeros_serie')
           .select('*, article:articles(*)')
           .or(`numero_serie.ilike.%${searchValue}%,adresse_mac.ilike.%${searchValue}%`)
-
         if (serialData && serialData.length > 0) {
           // Vérifier que ce numéro de série est bien dans le stock du technicien source
           const stockEntry = stockTechnicienSource.find(s => 
             s.numero_serie_id === serialData[0].id
           )
-
           if (stockEntry) {
             isSerialOrMacSearch = true
             foundNumeroSerie = serialData[0]
             setArticles([serialData[0].article])
-            
             // Auto-ajout
             setTimeout(() => {
               ajouterLigneAuto(serialData[0].article, foundNumeroSerie)
@@ -388,49 +390,40 @@ export default function MouvementsPage() {
             .filter(s => s.article && s.article.nom.toLowerCase().includes(searchValue.toLowerCase()))
             .map(s => s.article)
             .filter(Boolean)
-          
           // Dédupliquer les articles
           const uniqueArticles = Array.from(new Map(articlesDisponibles.map(a => [a.id, a])).values())
           setArticles(uniqueArticles)
           return
         }
       }
-
       // Recherche normale (pas un transfert entre techniciens)
       // Rechercher d'abord par numéro de série ou MAC
       const { data: serialData } = await supabase
         .from('numeros_serie')
         .select('*, article:articles(*)')
         .or(`numero_serie.ilike.%${searchValue}%,adresse_mac.ilike.%${searchValue}%`)
-
       let articleIds: string[] = []
-      
       if (serialData && serialData.length > 0) {
         articleIds = [...new Set(serialData.map(s => s.article_id))]
         isSerialOrMacSearch = true
         foundNumeroSerie = serialData[0] // Prendre le premier trouvé
       }
-
       // Rechercher les articles
       let query = supabase
         .from('articles')
         .select('*')
         .order('nom')
-
       if (articleIds.length > 0) {
         query = query.in('id', articleIds)
       } else {
         query = query.or(`nom.ilike.%${searchValue}%,numero_article.ilike.%${searchValue}%`)
       }
-
       const { data } = await query
       setArticles(data || [])
-      
       // AUTO-SÉLECTION ET AUTO-AJOUT : Si un seul résultat
       if (data && data.length === 1) {
         const article = data[0]
         setLigneFormData({...ligneFormData, article_id: article.id})
-        
         // Si recherche par série/MAC, ajouter automatiquement la ligne
         if (isSerialOrMacSearch && foundNumeroSerie) {
           setTimeout(() => {
@@ -452,21 +445,18 @@ export default function MouvementsPage() {
       setLigneFormData({ article_id: "", quantite: 1 })
       return
     }
-
     // Si transfert entre techniciens, vérifier que l'article est dans le stock source
     if (isTransfertEntreTechniciens() && mouvementData.personne_source_id) {
       const stockEntry = stockTechnicienSource.find(s => 
         s.article_id === article.id && 
         (!numeroSerie || s.numero_serie_id === numeroSerie.id)
       )
-
       if (!stockEntry) {
         alert(`Cet article n'est pas dans le stock du technicien source`)
         setArticleSearch("")
         setLigneFormData({ article_id: "", quantite: 1 })
         return
       }
-
       if (stockEntry.quantite < 1) {
         alert(`Stock insuffisant pour le technicien source (stock actuel: ${stockEntry.quantite})`)
         setArticleSearch("")
@@ -474,7 +464,6 @@ export default function MouvementsPage() {
         return
       }
     }
-
     const nouvelleLigne: LigneMouvement = {
       id: crypto.randomUUID(),
       article_id: article.id,
@@ -486,9 +475,7 @@ export default function MouvementsPage() {
       quantite: 1,
       stock_actuel: article.quantite_stock,
     }
-
     setLignesMouvement([...lignesMouvement, nouvelleLigne])
-    
     // Réinitialiser
     setArticleSearch("")
     setLigneFormData({ article_id: "", quantite: 1 })
@@ -497,18 +484,15 @@ export default function MouvementsPage() {
   // Ajouter une ligne au mouvement
   function ajouterLigne(e: React.FormEvent) {
     e.preventDefault()
-    
     if (!ligneFormData.article_id || ligneFormData.quantite < 1) {
       alert("Veuillez sélectionner un article et une quantité valide")
       return
     }
-
     const article = articles.find(a => a.id === ligneFormData.article_id)
     if (!article) return
 
     // Pas de vérification de doublon sur l'article seul - on peut ajouter le même article plusieurs fois
     // mais pas avec le même numéro de série
-
     const nouvelleLigne: LigneMouvement = {
       id: crypto.randomUUID(),
       article_id: ligneFormData.article_id,
@@ -517,9 +501,7 @@ export default function MouvementsPage() {
       quantite: ligneFormData.quantite,
       stock_actuel: article.quantite_stock,
     }
-
     setLignesMouvement([...lignesMouvement, nouvelleLigne])
-    
     // Réinitialiser le formulaire de ligne
     setLigneFormData({
       article_id: "",
@@ -539,37 +521,30 @@ export default function MouvementsPage() {
       alert("Veuillez ajouter au moins une ligne avant de valider")
       return
     }
-
     if (!mouvementData.type_mouvement) {
       alert("Veuillez sélectionner un type de mouvement")
       return
     }
-
     // Validation des techniciens
     if (mouvementData.localisation_origine === "Stock Technicien" && !mouvementData.personne_source_id) {
       alert("Veuillez sélectionner le technicien source")
       return
     }
-
     if (mouvementData.localisation_destination === "Stock Technicien" && !mouvementData.personne_id) {
       alert("Veuillez sélectionner le technicien destination")
       return
     }
-
     // Empêcher transfert vers le même technicien
     if (isTransfertEntreTechniciens() && mouvementData.personne_source_id === mouvementData.personne_id) {
       alert("Le technicien source et destination doivent être différents")
       return
     }
-
     try {
       const dateMouvement = new Date().toISOString()
       const typeMapped = mapTypeToConstraint(mouvementData.type_mouvement)
-      
       // DEBUG
       console.log('Type original:', mouvementData.type_mouvement)
       console.log('Type mappé:', typeMapped)
-
       // Récupérer les noms des techniciens pour les remarques
       let remarquesFinales = mouvementData.remarques
       if (mouvementData.personne_source_id && mouvementData.personne_id) {
@@ -579,7 +554,6 @@ export default function MouvementsPage() {
         const infoTransfert = `Transfert: ${techSource?.nom} ${techSource?.prenom || ''} → ${techDest?.nom} ${techDest?.prenom || ''}`
         remarquesFinales = remarquesFinales ? `${infoTransfert} | ${remarquesFinales}` : infoTransfert
       }
-
       // Préparer toutes les lignes de mouvement à insérer
       const mouvementsToInsert = lignesMouvement.map(ligne => ({
         article_id: ligne.article_id,
@@ -592,25 +566,20 @@ export default function MouvementsPage() {
         remarques: remarquesFinales,
         date_mouvement: dateMouvement,
       }))
-      
-      console.log('Données à insérer:', mouvementsToInsert)
 
+      console.log('Données à insérer:', mouvementsToInsert)
       // Insérer tous les mouvements
       const { error: mouvementError } = await supabase
         .from('mouvements')
         .insert(mouvementsToInsert)
-
       if (mouvementError) throw mouvementError
 
       // Mettre à jour le stock pour chaque article
       const typeMvt = typesMouvement.find(t => t.nom === mouvementData.type_mouvement)
-      
       for (const ligne of lignesMouvement) {
         const article = articles.find(a => a.id === ligne.article_id)
         if (!article) continue
-
         let newQuantity = article.quantite_stock
-
         if (typeMvt) {
           if (typeMvt.nom.toLowerCase().includes('reception') || typeMvt.nom.toLowerCase().includes('retour')) {
             newQuantity += ligne.quantite
@@ -618,14 +587,11 @@ export default function MouvementsPage() {
             newQuantity -= ligne.quantite
           }
         }
-
         const { error: stockError } = await supabase
           .from('articles')
           .update({ quantite_stock: newQuantity })
           .eq('id', ligne.article_id)
-
         if (stockError) throw stockError
-
         // METTRE À JOUR L'EMPLACEMENT DU NUMÉRO DE SÉRIE
         if (ligne.numero_serie_id && mouvementData.localisation_destination) {
           try {
@@ -636,7 +602,6 @@ export default function MouvementsPage() {
                 updated_at: new Date().toISOString()
               })
               .eq('id', ligne.numero_serie_id)
-
             if (updateSerieError) {
               console.error('Erreur mise à jour emplacement série:', updateSerieError)
             } else {
@@ -646,9 +611,7 @@ export default function MouvementsPage() {
             console.error('Erreur lors de la mise à jour de l\'emplacement:', error)
           }
         }
-
         // GESTION DU STOCK TECHNICIEN
-        
         // Cas 1 : Retrait depuis Stock Technicien (décrémenter stock du technicien source)
         if (mouvementData.personne_source_id && mouvementData.localisation_origine === "Stock Technicien") {
           try {
@@ -657,20 +620,16 @@ export default function MouvementsPage() {
               .select('*')
               .eq('technicien_id', mouvementData.personne_source_id)
               .eq('article_id', ligne.article_id)
-
             if (ligne.numero_serie_id) {
               queryStock = queryStock.eq('numero_serie_id', ligne.numero_serie_id)
             } else {
               queryStock = queryStock.is('numero_serie_id', null)
             }
-
             const { data: existingStock } = await queryStock.maybeSingle()
-
             if (existingStock) {
               // Décrémenter la quantité
               const newQty = existingStock.quantite - ligne.quantite
               console.log(`Retrait stock technicien source: ${existingStock.quantite} - ${ligne.quantite} = ${newQty}`)
-              
               if (newQty <= 0) {
                 // Supprimer l'entrée si quantité = 0
                 await supabase
@@ -693,7 +652,6 @@ export default function MouvementsPage() {
             alert(`Erreur lors du retrait du stock technicien pour ${ligne.article_nom}`)
           }
         }
-
         // Cas 2 : Ajout vers Stock Technicien (incrémenter stock du technicien destination)
         if (mouvementData.personne_id && mouvementData.localisation_destination === "Stock Technicien") {
           try {
@@ -702,15 +660,12 @@ export default function MouvementsPage() {
               .select('*')
               .eq('technicien_id', mouvementData.personne_id)
               .eq('article_id', ligne.article_id)
-
             if (ligne.numero_serie_id) {
               queryStock = queryStock.eq('numero_serie_id', ligne.numero_serie_id)
             } else {
               queryStock = queryStock.is('numero_serie_id', null)
             }
-
             const { data: existingStock } = await queryStock.maybeSingle()
-
             if (existingStock) {
               // Incrémenter la quantité
               console.log(`Ajout stock technicien destination: ${existingStock.quantite} + ${ligne.quantite}`)
@@ -740,12 +695,10 @@ export default function MouvementsPage() {
           }
         }
       }
-
       // Fermer le dialog et réinitialiser
       setShowForm(false)
       fetchMouvements()
       fetchArticles()
-      
       // Réinitialiser tous les états
       setLignesMouvement([])
       setMouvementData({
@@ -761,7 +714,6 @@ export default function MouvementsPage() {
         quantite: 1,
       })
       setArticleSearch("")
-
       alert(`${lignesMouvement.length} ligne(s) de mouvement enregistrée(s) avec succès !`)
     } catch (error: any) {
       alert("Erreur: " + error.message)
@@ -773,7 +725,6 @@ export default function MouvementsPage() {
       (m.article?.nom && m.article.nom.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (m.personne?.nom && m.personne.nom.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (m.type_mouvement && m.type_mouvement.toLowerCase().includes(searchTerm.toLowerCase()))
-
     if (filterType === "all") return matchesSearch
     return matchesSearch && m.type_mouvement === filterType
   })
@@ -880,7 +831,8 @@ export default function MouvementsPage() {
               <Select 
                 value={mouvementData.type_mouvement} 
                 onValueChange={(value) => {
-                  appliquerScenario(mouvementData.localisation_origine, value)
+                  // 🔧 Passer aussi l'origine_type ici pour la recherche du scénario
+                  appliquerScenario(mouvementData.localisation_origine, value, mouvementData.personne_source_id || "Solutions 30")
                 }}
               >
                 <SelectTrigger className="h-14 text-lg">
@@ -918,7 +870,6 @@ export default function MouvementsPage() {
                     </div>
                   </CardContent>
                 </Card>
-
                 <Card>
                   <CardHeader>
                     <CardTitle className="text-lg text-green-600">Technicien source</CardTitle>
@@ -946,7 +897,6 @@ export default function MouvementsPage() {
                     </Select>
                   </CardContent>
                 </Card>
-
                 <Card>
                   <CardHeader>
                     <CardTitle className="text-lg text-blue-600">Destination</CardTitle>
@@ -957,7 +907,6 @@ export default function MouvementsPage() {
                     </div>
                   </CardContent>
                 </Card>
-
                 <Card>
                   <CardHeader>
                     <CardTitle className="text-lg text-blue-600">Technicien destination</CardTitle>
@@ -995,7 +944,6 @@ export default function MouvementsPage() {
                     </div>
                   </CardContent>
                 </Card>
-
                 {needsTechnicienSource() && !needsTechnicienDestination() && (
                   <Card>
                     <CardHeader>
@@ -1025,7 +973,6 @@ export default function MouvementsPage() {
                     </CardContent>
                   </Card>
                 )}
-
                 <Card>
                   <CardHeader>
                     <CardTitle className="text-lg text-blue-600">Destination</CardTitle>
@@ -1036,7 +983,6 @@ export default function MouvementsPage() {
                     </div>
                   </CardContent>
                 </Card>
-
                 {needsTechnicienDestination() && !needsTechnicienSource() && (
                   <Card>
                     <CardHeader>
@@ -1088,89 +1034,85 @@ export default function MouvementsPage() {
             <CardHeader>
               <CardTitle className="text-lg">Étape 3 : Ajouter des articles</CardTitle>
             </CardHeader>
-          <CardContent>
-            <form onSubmit={ajouterLigne} className="space-y-6">
-              <div className="grid grid-cols-12 gap-6">
-                <div className="col-span-8">
-                  <Label className="text-base mb-2 block">Rechercher article (Scanner EAN / MAC / Série)</Label>
-                  <Input
-                    className="h-16 text-xl"
-                    placeholder="Scanner ou rechercher..."
-                    value={articleSearch}
-                    onChange={(e) => {
-                      setArticleSearch(e.target.value)
-                      searchArticles(e.target.value)
-                    }}
-                    autoFocus
-                  />
-                </div>
-
-                <div className="col-span-2">
-                  <Label className="text-base mb-2 block">Quantité</Label>
-                  <Input
-                    className="h-16 text-xl text-center"
-                    type="number"
-                    min="1"
-                    value={ligneFormData.quantite}
-                    onChange={(e) => setLigneFormData({...ligneFormData, quantite: parseInt(e.target.value) || 1})}
-                  />
-                </div>
-
-                <div className="col-span-2">
-                  <Label className="text-base mb-2 block opacity-0">Action</Label>
-                  <Button type="submit" className="w-full h-16 text-lg" size="lg">
-                    <Plus className="mr-2 h-5 w-5" />
-                    Ajouter
-                  </Button>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-6">
-                <div>
-                  <Label className="text-base mb-2 block">Article sélectionné</Label>
-                  <Select 
-                    value={ligneFormData.article_id} 
-                    onValueChange={(value) => setLigneFormData({...ligneFormData, article_id: value})}
-                  >
-                    <SelectTrigger className="h-14 text-lg">
-                      <SelectValue placeholder="Sélectionnez un article" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {articles.length === 0 ? (
-                        <div className="p-4 text-muted-foreground text-center">
-                          {articleSearch ? 'Aucun résultat' : 'Recherchez un article'}
-                        </div>
-                      ) : (
-                        articles.map((article) => (
-                          <SelectItem key={article.id} value={article.id}>
-                            {article.nom} ({article.numero_article}) - Stock: {article.quantite_stock}
-                          </SelectItem>
-                        ))
-                      )}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {ligneFormData.article_id && (
-                  <div className="p-6 bg-blue-50 dark:bg-blue-950 rounded-lg border flex items-center">
-                    {(() => {
-                      const art = articles.find(a => a.id === ligneFormData.article_id)
-                      if (!art) return null
-                      return (
-                        <div>
-                          <p className="font-semibold text-lg">{art.nom}</p>
-                          <p className="text-muted-foreground">
-                            {art.numero_article} • Stock: {art.quantite_stock}
-                          </p>
-                        </div>
-                      )
-                    })()}
+            <CardContent>
+              <form onSubmit={ajouterLigne} className="space-y-6">
+                <div className="grid grid-cols-12 gap-6">
+                  <div className="col-span-8">
+                    <Label className="text-base mb-2 block">Rechercher article (Scanner EAN / MAC / Série)</Label>
+                    <Input
+                      className="h-16 text-xl"
+                      placeholder="Scanner ou rechercher..."
+                      value={articleSearch}
+                      onChange={(e) => {
+                        setArticleSearch(e.target.value)
+                        searchArticles(e.target.value)
+                      }}
+                      autoFocus
+                    />
                   </div>
-                )}
-              </div>
-            </form>
-          </CardContent>
-        </Card>
+                  <div className="col-span-2">
+                    <Label className="text-base mb-2 block">Quantité</Label>
+                    <Input
+                      className="h-16 text-xl text-center"
+                      type="number"
+                      min="1"
+                      value={ligneFormData.quantite}
+                      onChange={(e) => setLigneFormData({...ligneFormData, quantite: parseInt(e.target.value) || 1})}
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <Label className="text-base mb-2 block opacity-0">Action</Label>
+                    <Button type="submit" className="w-full h-16 text-lg" size="lg">
+                      <Plus className="mr-2 h-5 w-5" />
+                      Ajouter
+                    </Button>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-6">
+                  <div>
+                    <Label className="text-base mb-2 block">Article sélectionné</Label>
+                    <Select 
+                      value={ligneFormData.article_id} 
+                      onValueChange={(value) => setLigneFormData({...ligneFormData, article_id: value})}
+                    >
+                      <SelectTrigger className="h-14 text-lg">
+                        <SelectValue placeholder="Sélectionnez un article" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {articles.length === 0 ? (
+                          <div className="p-4 text-muted-foreground text-center">
+                            {articleSearch ? 'Aucun résultat' : 'Recherchez un article'}
+                          </div>
+                        ) : (
+                          articles.map((article) => (
+                            <SelectItem key={article.id} value={article.id}>
+                              {article.nom} ({article.numero_article}) - Stock: {article.quantite_stock}
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {ligneFormData.article_id && (
+                    <div className="p-6 bg-blue-50 dark:bg-blue-950 rounded-lg border flex items-center">
+                      {(() => {
+                        const art = articles.find(a => a.id === ligneFormData.article_id)
+                        if (!art) return null
+                        return (
+                          <div>
+                            <p className="font-semibold text-lg">{art.nom}</p>
+                            <p className="text-muted-foreground">
+                              {art.numero_article} • Stock: {art.quantite_stock}
+                            </p>
+                          </div>
+                        )
+                      })()}
+                    </div>
+                  )}
+                </div>
+              </form>
+            </CardContent>
+          </Card>
         )}
 
         {mouvementData.type_mouvement && lignesMouvement.length > 0 && (
