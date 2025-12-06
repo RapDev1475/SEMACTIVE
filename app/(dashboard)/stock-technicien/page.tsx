@@ -1,31 +1,29 @@
-"use client"
+// Template pour app/(dashboard)/stock-technicien/page.tsx
+// Ce template montre comment afficher les numéros de série et adresses MAC
 
-import { useEffect, useState } from "react"
-import { supabase } from "@/lib/supabase/client"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import { Users, Package, MapPin } from "lucide-react"
-import type { StockTechnicien, Personne } from "@/lib/types"
+'use client'
+
+import { useState, useEffect } from 'react'
+import { createClient } from '@/lib/supabase/client'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Badge } from '@/components/ui/badge'
 
 export default function StockTechnicienPage() {
-  const [stocks, setStocks] = useState<StockTechnicien[]>([])
-  const [techniciens, setTechniciens] = useState<Personne[]>([])
-  const [selectedTechnicien, setSelectedTechnicien] = useState<string>("all")
+  const supabase = createClient()
+  const [stockData, setStockData] = useState<any[]>([])
+  const [personnes, setPersonnes] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [selectedTechnicien, setSelectedTechnicien] = useState<string>('all')
 
   useEffect(() => {
-    fetchTechniciens()
-    fetchStocks()
+    fetchPersonnes()
+    fetchStockTechnicien()
   }, [])
 
-  async function fetchTechniciens() {
+  async function fetchPersonnes() {
     try {
       const { data, error } = await supabase
         .from('personnes')
@@ -34,48 +32,58 @@ export default function StockTechnicienPage() {
         .order('nom')
 
       if (error) throw error
-      setTechniciens(data || [])
+      setPersonnes(data || [])
     } catch (error) {
-      console.error('Error fetching techniciens:', error)
+      console.error('Error fetching personnes:', error)
     }
   }
 
-  async function fetchStocks() {
+  async function fetchStockTechnicien() {
     setLoading(true)
     try {
+      // ✅ IMPORTANT : Inclure numero_serie dans le select
       const { data, error } = await supabase
         .from('stock_technicien')
         .select(`
           *,
-          technicien:personnes!technicien_id(nom, prenom),
-          article:articles(nom, numero_article)
+          article:articles(nom, numero_article),
+          personne:personnes(nom, prenom),
+          numero_serie:numeros_serie(numero_serie, adresse_mac)
         `)
-        .order('derniere_mise_a_jour', { ascending: false })
+        .gt('quantite', 0)
+        .order('technicien_id')
 
       if (error) throw error
-      setStocks(data || [])
+      setStockData(data || [])
+      console.log('Stock technicien chargé:', data?.length, 'entrées')
     } catch (error) {
-      console.error('Error fetching stocks:', error)
+      console.error('Error fetching stock technicien:', error)
     } finally {
       setLoading(false)
     }
   }
 
-  const filteredStocks = selectedTechnicien === "all" 
-    ? stocks 
-    : stocks.filter(s => s.technicien_id === selectedTechnicien)
+  // Filtrer les données
+  const filteredData = stockData.filter(item => {
+    const matchesSearch = 
+      (item.article?.nom?.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (item.article?.numero_article?.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (item.numero_serie?.numero_serie?.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (item.numero_serie?.adresse_mac?.toLowerCase().includes(searchTerm.toLowerCase()))
 
-  const groupedByTechnicien = filteredStocks.reduce((acc, stock) => {
-    const key = stock.technicien_id
-    if (!acc[key]) {
-      acc[key] = {
-        technicien: stock.technicien,
-        stocks: []
-      }
-    }
-    acc[key].stocks.push(stock)
-    return acc
-  }, {} as Record<string, { technicien: any, stocks: StockTechnicien[] }>)
+    const matchesTechnicien = 
+      selectedTechnicien === 'all' || 
+      item.technicien_id === selectedTechnicien
+
+    return matchesSearch && matchesTechnicien
+  })
+
+  // Calculer les statistiques
+  const stats = {
+    totalArticles: filteredData.reduce((sum, item) => sum + item.quantite, 0),
+    totalLignes: filteredData.length,
+    techniciens: new Set(filteredData.map(item => item.technicien_id)).size
+  }
 
   if (loading) {
     return (
@@ -91,121 +99,147 @@ export default function StockTechnicienPage() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Stock Technicien</h1>
           <p className="text-muted-foreground mt-1">
-            Inventaire du matériel par technicien
+            Matériel en possession des techniciens
           </p>
         </div>
-        <Select value={selectedTechnicien} onValueChange={setSelectedTechnicien}>
-          <SelectTrigger className="w-full md:w-64">
-            <SelectValue placeholder="Tous les techniciens" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Tous les techniciens</SelectItem>
-            {techniciens.map((tech) => (
-              <SelectItem key={tech.id} value={tech.id}>
-                {tech.nom} {tech.prenom}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
       </div>
 
+      {/* Statistiques */}
       <div className="grid gap-4 md:grid-cols-3">
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Techniciens
+              Total articles
             </CardTitle>
-            <Users className="h-4 w-4 text-blue-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{Object.keys(groupedByTechnicien).length}</div>
+            <div className="text-2xl font-bold">{stats.totalArticles}</div>
           </CardContent>
         </Card>
+
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Articles différents
+              Lignes de stock
             </CardTitle>
-            <Package className="h-4 w-4 text-green-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {new Set(filteredStocks.map(s => s.article_id)).size}
-            </div>
+            <div className="text-2xl font-bold">{stats.totalLignes}</div>
           </CardContent>
         </Card>
+
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Total unités
+              Techniciens actifs
             </CardTitle>
-            <Package className="h-4 w-4 text-purple-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {filteredStocks.reduce((sum, s) => sum + s.quantite, 0)}
-            </div>
+            <div className="text-2xl font-bold">{stats.techniciens}</div>
           </CardContent>
         </Card>
       </div>
 
-      {Object.keys(groupedByTechnicien).length === 0 ? (
-        <Card>
-          <CardContent className="py-12 text-center text-muted-foreground">
-            <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
-            <p>Aucun stock technicien</p>
-          </CardContent>
-        </Card>
-      ) : (
-        Object.entries(groupedByTechnicien).map(([techId, { technicien, stocks }]) => (
-          <Card key={techId}>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="text-xl">
-                    {technicien.nom} {technicien.prenom}
-                  </CardTitle>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {stocks.length} article{stocks.length > 1 ? 's' : ''} • {' '}
-                    {stocks.reduce((sum, s) => sum + s.quantite, 0)} unités
-                  </p>
-                </div>
-                <Badge className="bg-blue-100 text-blue-800">
-                  Technicien
-                </Badge>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {stocks.map((stock) => (
-                  <div 
-                    key={stock.id}
-                    className="flex items-center justify-between p-3 rounded-lg border hover:bg-accent transition-colors"
-                  >
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <Package className="h-4 w-4 text-muted-foreground" />
-                        <span className="font-medium">{stock.article?.nom || 'Article inconnu'}</span>
-                      </div>
-                      <div className="flex items-center gap-2 mt-1 text-sm text-muted-foreground">
-                        <MapPin className="h-3 w-3" />
-                        <span>{stock.localisation}</span>
-                        <span className="text-xs">
-                          • {new Date(stock.derniere_mise_a_jour).toLocaleDateString('fr-BE')}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-2xl font-bold">{stock.quantite}</p>
-                      <p className="text-xs text-muted-foreground">unités</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        ))
-      )}
+      {/* Filtres */}
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex gap-4">
+            <div className="flex-1">
+              <Input
+                placeholder="Rechercher par article, numéro de série, MAC..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+            <select
+              className="px-4 py-2 border rounded-lg"
+              value={selectedTechnicien}
+              onChange={(e) => setSelectedTechnicien(e.target.value)}
+            >
+              <option value="all">Tous les techniciens</option>
+              {personnes.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.nom} {p.prenom}
+                </option>
+              ))}
+            </select>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Tableau */}
+      <Card>
+        <CardHeader>
+          <CardTitle>{filteredData.length} entrée(s)</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-muted">
+                <tr>
+                  <th className="text-left p-4 font-semibold">Article</th>
+                  <th className="text-left p-4 font-semibold">N° Article</th>
+                  <th className="text-left p-4 font-semibold">N° Série</th>
+                  <th className="text-left p-4 font-semibold">Adresse MAC</th>
+                  <th className="text-center p-4 font-semibold">Quantité</th>
+                  <th className="text-left p-4 font-semibold">Technicien</th>
+                  <th className="text-left p-4 font-semibold">Localisation</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredData.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="text-center py-12 text-muted-foreground">
+                      Aucun stock trouvé
+                    </td>
+                  </tr>
+                ) : (
+                  filteredData.map((item, idx) => (
+                    <tr 
+                      key={item.id} 
+                      className={idx % 2 === 0 ? 'bg-card' : 'bg-muted/30'}
+                    >
+                      <td className="p-4 font-medium">
+                        {item.article?.nom || 'Article inconnu'}
+                      </td>
+                      <td className="p-4 text-muted-foreground">
+                        {item.article?.numero_article || '-'}
+                      </td>
+                      <td className="p-4">
+                        {item.numero_serie?.numero_serie ? (
+                          <Badge variant="outline" className="font-mono text-xs">
+                            {item.numero_serie.numero_serie}
+                          </Badge>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </td>
+                      <td className="p-4">
+                        {item.numero_serie?.adresse_mac ? (
+                          <Badge variant="outline" className="font-mono text-xs">
+                            {item.numero_serie.adresse_mac}
+                          </Badge>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </td>
+                      <td className="p-4 text-center font-semibold">
+                        {item.quantite}
+                      </td>
+                      <td className="p-4">
+                        {item.personne?.nom} {item.personne?.prenom || ''}
+                      </td>
+                      <td className="p-4 text-sm text-muted-foreground">
+                        {item.localisation || 'camionnette'}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   )
 }

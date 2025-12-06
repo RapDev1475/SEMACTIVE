@@ -156,6 +156,7 @@ export default function MouvementsPage() {
   async function fetchMouvements() {
     setLoading(true)
     try {
+      console.log('🔄 Chargement des mouvements...')
       const { data, error } = await supabase
         .from('mouvements')
         .select(`
@@ -167,7 +168,13 @@ export default function MouvementsPage() {
         .order('date_mouvement', { ascending: false })
         .limit(100)
 
-      if (error) throw error
+      if (error) {
+        console.error('❌ Erreur lors du chargement:', error)
+        throw error
+      }
+      
+      console.log(`✅ ${data?.length || 0} mouvements chargés`)
+      console.log('Premier mouvement:', data?.[0])
       setMouvements(data || [])
     } catch (error) {
       console.error('Error fetching mouvements:', error)
@@ -619,6 +626,27 @@ export default function MouvementsPage() {
 
         if (stockError) throw stockError
 
+        // METTRE À JOUR L'EMPLACEMENT DU NUMÉRO DE SÉRIE
+        if (ligne.numero_serie_id && mouvementData.localisation_destination) {
+          try {
+            const { error: updateSerieError } = await supabase
+              .from('numeros_serie')
+              .update({ 
+                localisation: mouvementData.localisation_destination,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', ligne.numero_serie_id)
+
+            if (updateSerieError) {
+              console.error('Erreur mise à jour emplacement série:', updateSerieError)
+            } else {
+              console.log(`✅ Emplacement mis à jour pour série ${ligne.numero_serie}: ${mouvementData.localisation_destination}`)
+            }
+          } catch (error) {
+            console.error('Erreur lors de la mise à jour de l\'emplacement:', error)
+          }
+        }
+
         // GESTION DU STOCK TECHNICIEN
         
         // Cas 1 : Retrait depuis Stock Technicien (décrémenter stock du technicien source)
@@ -749,6 +777,9 @@ export default function MouvementsPage() {
     if (filterType === "all") return matchesSearch
     return matchesSearch && m.type_mouvement === filterType
   })
+
+  console.log(`📊 Mouvements totaux: ${mouvements.length}, Filtrés: ${filteredMouvements.length}`)
+  console.log(`🔍 Recherche: "${searchTerm}", Filtre type: "${filterType}"`)
 
   const stats = {
     total: mouvements.length,
