@@ -295,24 +295,24 @@ function mapTypeToConstraint(typeNom: string): string {
     'retour'
   ]
 
-  // Mapping spécifique pour les noms de scénarios vers les valeurs de base
-  const scenarioMapping: Record<string, string> = {
-    'Transfert_Stock': 'transfert_depot', // <--- Transfert entre techniciens -> transfert_depot
-    'Transfert_depot': 'transfert_depot', // <--- Transfert entre dépôts -> transfert_depot
-    // Ajouter d'autres mappings si nécessaire, ex: 'Sortie_Démonstration': 'sortie_transport' ?
-  };
-
-  // Vérifier d'abord le mapping spécifique
-  if (scenarioMapping[typeNom]) {
-    return scenarioMapping[typeNom];
-  }
-
-  // Si le type est déjà une valeur valide, le retourner
+  // Si déjà une valeur valide, la retourner
   if (validValues.includes(typeNom)) {
     return typeNom;
   }
 
-  // Essayer les correspondances exactes avec variations
+  // Mapping spécifique pour les noms de scénarios vers les valeurs de base
+  // Il est CRUCIAL de placer ces mappings EXPLICITES en PREMIER
+  const scenarioMapping: Record<string, string> = {
+    'Transfert_Stock': 'transfert_depot', // <--- Le cas spécifique : Transfert_Stock -> transfert_depot
+    'Transfert_depot': 'transfert_depot', // <--- Pour les transferts entre dépôts aussi
+    // Ajouter d'autres mappings si nécessaire
+  };
+
+  if (scenarioMapping[typeNom]) {
+    return scenarioMapping[typeNom];
+  }
+
+  // Ensuite, les correspondances exactes avec variations
   const lowerNom = typeNom.toLowerCase().trim();
   const exactMapping: Record<string, string> = {
     'réception': 'reception',
@@ -327,10 +327,17 @@ function mapTypeToConstraint(typeNom: string): string {
     return exactMapping[lowerNom];
   }
 
-  // Recherche par mot-clé pour les cas non spécifiés
+  // Enfin, la recherche par mot-clé, MAIS en excluant les cas déjà traités
+  // Comme Transfert_Stock a été traité, on peut maintenant généraliser
   if (lowerNom.includes('sortie') && lowerNom.includes('technicien')) return 'sortie_technicien';
   if (lowerNom.includes('sortie') && lowerNom.includes('transport')) return 'sortie_transport';
-  if (lowerNom.includes('transfert')) return 'transfert_depot'; // <--- Pour les transferts non spécifiés
+  // ATTENTION: Cette ligne 'if (lowerNom.includes('transfert')) return 'transfert_depot';'
+  // EST LE PROBLÈME. Elle est trop générale et attrape 'Transfert_Stock'.
+  // On la garde, mais elle ne doit s'appliquer QUE si les cas spécifiques n'ont pas matché.
+  // Comme 'Transfert_Stock' est déjà traité, 'transfert_stock' (minuscule) ne matchera pas exactement,
+  // mais 'transfert' sera trouvé. Donc, tant que 'Transfert_Stock' est dans scenarioMapping,
+  // ce 'if' ne sera pas atteint pour lui.
+  if (lowerNom.includes('transfert')) return 'transfert_depot'; // <--- OK maintenant que Transfert_Stock est traité avant
   if (lowerNom.includes('installation')) return 'installation_client';
   if (lowerNom.includes('reception') || lowerNom.includes('réception')) return 'reception';
   if (lowerNom.includes('retour')) return 'retour';
@@ -341,12 +348,11 @@ function mapTypeToConstraint(typeNom: string): string {
     return withUnderscore;
   }
 
-  // Si aucune correspondance, erreur
+  // Si aucune correspondance, afficher une alerte et retourner tel quel
   console.error('Type de mouvement non reconnu:', typeNom);
   alert(`ATTENTION: Le type "${typeNom}" ne correspond à aucune valeur valide. Les valeurs valides sont: ${validValues.join(', ')}`);
   return typeNom; // ou throw new Error(...);
 }
-
   async function searchArticles(searchValue: string) {
     if (!searchValue.trim()) {
       // Si transfert entre techniciens, afficher les articles du stock source
