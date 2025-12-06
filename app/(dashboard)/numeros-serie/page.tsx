@@ -13,7 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Search, Hash, MapPin, Package } from "lucide-react"
+import { Search, Hash, MapPin, Package, User } from "lucide-react"
 
 type NumeroSerieWithArticle = {
   id: string
@@ -27,6 +27,12 @@ type NumeroSerieWithArticle = {
     numero_article: string
     code_ean: string
   }
+  stock_technicien?: Array<{
+    personne?: {
+      nom: string
+      prenom: string
+    }
+  }>
 }
 
 export default function NumerosSeriesPage() {
@@ -51,7 +57,10 @@ export default function NumerosSeriesPage() {
         .from('numeros_serie')
         .select(`
           *,
-          article:articles(nom, numero_article, code_ean)
+          article:articles(nom, numero_article, code_ean),
+          stock_technicien(
+            personne:personnes(nom, prenom)
+          )
         `)
         .order('created_at', { ascending: false })
 
@@ -231,48 +240,61 @@ export default function NumerosSeriesPage() {
             </div>
           ) : (
             <div className="space-y-2">
-              {filteredSeries.map((serie) => (
-                <div
-                  key={serie.id}
-                  className="flex items-center justify-between p-4 rounded-lg border hover:bg-accent transition-colors cursor-pointer"
-                  onClick={() => window.location.href = `/numeros-serie/${serie.id}/edit`}
-                >
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
-                      <p className="font-mono font-bold text-lg">{serie.numero_serie}</p>
-                      <Badge className={getStatusBadge(serie.statut)}>
-                        {serie.statut}
-                      </Badge>
-                    </div>
-                    
-                    {serie.adresse_mac && (
-                      <p className="text-sm text-muted-foreground font-mono mb-1">
-                        <strong>MAC:</strong> {serie.adresse_mac}
-                      </p>
-                    )}
-
-                    {serie.article && (
-                      <p className="text-sm text-muted-foreground mb-1">
-                        <strong>Article:</strong> {serie.article.nom} ({serie.article.numero_article})
-                      </p>
-                    )}
-
-                    {serie.localisation && (
-                      <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                        <MapPin className="h-3 w-3" />
-                        {serie.localisation}
+              {filteredSeries.map((serie) => {
+                const technicien = serie.stock_technicien?.[0]?.personne
+                return (
+                  <div
+                    key={serie.id}
+                    className="flex items-center justify-between p-4 rounded-lg border hover:bg-accent transition-colors cursor-pointer"
+                    onClick={() => window.location.href = `/numeros-serie/${serie.id}/edit`}
+                  >
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-2">
+                        <p className="font-mono font-bold text-lg">{serie.numero_serie}</p>
+                        <Badge className={getStatusBadge(serie.statut)}>
+                          {serie.statut}
+                        </Badge>
                       </div>
-                    )}
-                  </div>
+                      
+                      {serie.adresse_mac && (
+                        <p className="text-sm text-muted-foreground font-mono mb-1">
+                          <strong>MAC:</strong> {serie.adresse_mac}
+                        </p>
+                      )}
 
-                  <div className="text-right text-sm text-muted-foreground">
-                    <p>Ajouté le</p>
-                    <p className="font-medium">
-                      {new Date(serie.created_at).toLocaleDateString('fr-BE')}
-                    </p>
+                      {serie.article && (
+                        <p className="text-sm text-muted-foreground mb-1">
+                          <strong>Article:</strong> {serie.article.nom} ({serie.article.numero_article})
+                        </p>
+                      )}
+
+                      {serie.localisation && (
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <div className="flex items-center gap-1">
+                            <MapPin className="h-3 w-3" />
+                            {serie.localisation}
+                          </div>
+                          {technicien && (
+                            <div className="flex items-center gap-1 text-blue-600">
+                              <User className="h-3 w-3" />
+                              <span className="font-medium">
+                                {technicien.nom} {technicien.prenom}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="text-right text-sm text-muted-foreground">
+                      <p>Ajouté le</p>
+                      <p className="font-medium">
+                        {new Date(serie.created_at).toLocaleDateString('fr-BE')}
+                      </p>
+                    </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </CardContent>
