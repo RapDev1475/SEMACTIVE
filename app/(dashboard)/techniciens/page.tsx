@@ -24,10 +24,12 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Plus, Search, Users, User, Phone, Mail, Edit, MapPin, CreditCard, Briefcase, Projector } from "lucide-react" // Ajout des icônes
-import type { Personne } from "@/lib/types"
+import type { Personne, Projet, Fonction } from "@/lib/types" // Assure-toi que Projet et Fonction sont définis dans ton fichier de types
 
 export default function TechniciensPage() {
   const [personnes, setPersonnes] = useState<Personne[]>([])
+  const [projets, setProjets] = useState<Projet[]>([]) // Nouvel état pour les projets
+  const [fonctions, setFonctions] = useState<Fonction[]>([]) // Nouvel état pour les fonctions
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [filterType, setFilterType] = useState<string>("all")
@@ -53,22 +55,57 @@ export default function TechniciensPage() {
     boite_postale: "",
     code_postal: "",
     commune: "",
-    // --- Nouveaux champs ---
-    projet: "",
-    fonction: "",
+    // --- Changement dans le formData ---
+    projet_id: "", // Maintenant un ID
+    fonction_id: "", // Maintenant un ID
     // ---
   })
 
   useEffect(() => {
     fetchPersonnes()
+    fetchProjets() // Appel à la fonction pour charger les projets
+    fetchFonctions() // Appel à la fonction pour charger les fonctions
   }, [])
+
+  async function fetchProjets() { // Nouvelle fonction
+    try {
+      const { data, error } = await supabase
+        .from('projets')
+        .select('*')
+        .order('nom')
+
+      if (error) throw error
+      setProjets(data || [])
+    } catch (error) {
+      console.error('Error fetching projets:', error)
+    }
+  }
+
+  async function fetchFonctions() { // Nouvelle fonction
+    try {
+      const { data, error } = await supabase
+        .from('fonctions')
+        .select('*')
+        .order('nom')
+
+      if (error) throw error
+      setFonctions(data || [])
+    } catch (error) {
+      console.error('Error fetching fonctions:', error)
+    }
+  }
 
   async function fetchPersonnes() {
     setLoading(true)
     try {
+      // --- CHANGEMENT : Ajout des jointures pour récupérer le nom du projet et de la fonction ---
       const { data, error } = await supabase
         .from('personnes')
-        .select('*')
+        .select(`
+          *,
+          projet:projets(nom),  -- Jointure avec la table projets
+          fonction:fonctions(nom) -- Jointure avec la table fonctions
+        `)
         .order('nom')
 
       if (error) throw error
@@ -87,9 +124,9 @@ export default function TechniciensPage() {
       const dataToSave = {
         ...formData,
         delai_paiement_jours: formData.delai_paiement_jours ? parseInt(formData.delai_paiement_jours) : null,
-        // --- Conversion des champs projet/fonction en null si vide ---
-        projet: formData.projet || null,
-        fonction: formData.fonction || null,
+        // --- Conversion des champs projet_id/fonction_id en null si vide ---
+        projet_id: formData.projet_id || null,
+        fonction_id: formData.fonction_id || null,
         // ---
       }
 
@@ -132,8 +169,8 @@ export default function TechniciensPage() {
         code_postal: "",
         commune: "",
         // --- Réinitialisation des nouveaux champs ---
-        projet: "",
-        fonction: "",
+        projet_id: "",
+        fonction_id: "",
         // ---
       })
     } catch (error: any) {
@@ -162,9 +199,9 @@ export default function TechniciensPage() {
       boite_postale: personne.boite_postale || "",
       code_postal: personne.code_postal || "",
       commune: personne.commune || "",
-      // --- Chargement des nouveaux champs ---
-      projet: personne.projet || "",
-      fonction: personne.fonction || "",
+      // --- Changement dans le chargement ---
+      projet_id: personne.projet_id || "", // Charger l'ID
+      fonction_id: personne.fonction_id || "", // Charger l'ID
       // ---
     })
     setDialogOpen(true)
@@ -176,10 +213,10 @@ export default function TechniciensPage() {
       (p.prenom && p.prenom.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (p.email && p.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (p.numero_perid && p.numero_perid.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (p.erp_id && p.erp_id.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      // --- Ajout de la recherche sur les nouveaux champs ---
-      (p.projet && p.projet.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (p.fonction && p.fonction.toLowerCase().includes(searchTerm.toLowerCase()))
+      (p.erp_id && p.erp_id.toLowerCase().includes(searchTerm.toLowerCase()))
+      // --- Recherche sur le nom du projet/fonction via la jointure ---
+      || (p.projet?.nom && p.projet.nom.toLowerCase().includes(searchTerm.toLowerCase())) 
+      || (p.fonction?.nom && p.fonction.nom.toLowerCase().includes(searchTerm.toLowerCase()))
       // ---
     
     if (filterType === "all") return matchesSearch
@@ -246,8 +283,8 @@ export default function TechniciensPage() {
                 code_postal: "",
                 commune: "",
                 // --- Réinitialisation des nouveaux champs ---
-                projet: "",
-                fonction: "",
+                projet_id: "",
+                fonction_id: "",
                 // ---
               })
             }
@@ -314,35 +351,43 @@ export default function TechniciensPage() {
                 </div>
               </div>
 
-              {/* --- NOUVEAU : Informations Projet/Fonction --- */}
+              {/* --- NOUVEAU : Informations Projet/Fonction avec Select --- */}
               <div className="space-y-4 p-4 bg-gray-50 dark:bg-gray-900/20 rounded-lg border">
                 <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
                   Projet & Fonction
                 </h3>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="projet">Projet</Label>
-                    <div className="relative">
-                      <Projector className="absolute left-2 top-3 h-4 w-4 text-muted-foreground" /> {/* Icône projet */}
-                      <Input
-                        id="projet"
-                        className="pl-8"
-                        value={formData.projet}
-                        onChange={(e) => setFormData({...formData, projet: e.target.value})}
-                      />
-                    </div>
+                    <Label htmlFor="projet_id">Projet</Label>
+                    <Select value={formData.projet_id} onValueChange={(value) => setFormData({...formData, projet_id: value})}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Sélectionnez un projet" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">Aucun projet</SelectItem> {/* Option pour NULL */}
+                        {projets.map((projet) => (
+                          <SelectItem key={projet.id} value={projet.id}>
+                            {projet.nom}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="fonction">Fonction</Label>
-                    <div className="relative">
-                      <Briefcase className="absolute left-2 top-3 h-4 w-4 text-muted-foreground" /> {/* Icône fonction */}
-                      <Input
-                        id="fonction"
-                        className="pl-8"
-                        value={formData.fonction}
-                        onChange={(e) => setFormData({...formData, fonction: e.target.value})}
-                      />
-                    </div>
+                    <Label htmlFor="fonction_id">Fonction</Label>
+                    <Select value={formData.fonction_id} onValueChange={(value) => setFormData({...formData, fonction_id: value})}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Sélectionnez une fonction" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">Aucune fonction</SelectItem> {/* Option pour NULL */}
+                        {fonctions.map((fonction) => (
+                          <SelectItem key={fonction.id} value={fonction.id}>
+                            {fonction.nom}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
               </div>
@@ -623,19 +668,19 @@ export default function TechniciensPage() {
                         {personne.entreprise}
                       </p>
                     )}
-                    {/* --- Affichage Projet/Fonction --- */}
-                    {(personne.projet || personne.fonction) && (
+                    {/* --- Affichage Projet/Fonction via la jointure --- */}
+                    {(personne.projet?.nom || personne.fonction?.nom) && (
                       <div className="flex flex-wrap gap-1 mt-1">
-                        {personne.projet && (
+                        {personne.projet?.nom && (
                           <Badge variant="secondary" className="text-xs">
                             <Projector className="mr-1 h-3 w-3" /> {/* Icône projet */}
-                            {personne.projet}
+                            {personne.projet.nom} {/* Affichage du nom via la jointure */}
                           </Badge>
                         )}
-                        {personne.fonction && (
+                        {personne.fonction?.nom && (
                           <Badge variant="secondary" className="text-xs">
                             <Briefcase className="mr-1 h-3 w-3" /> {/* Icône fonction */}
-                            {personne.fonction}
+                            {personne.fonction.nom} {/* Affichage du nom via la jointure */}
                           </Badge>
                         )}
                       </div>

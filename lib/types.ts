@@ -55,6 +55,20 @@ export interface NumeroSerie {
   article?: Article;
 }
 
+export type Projet = {
+  id: string;
+  nom: string;
+  description?: string | null;
+  created_at: string; // ou Date si tu la convertis
+};
+
+export type Fonction = {
+  id: string;
+  nom: string;
+  description?: string | null;
+  created_at: string; // ou Date si tu la convertis
+};
+
 export type Personne = {
   id: string
   nom: string
@@ -67,11 +81,18 @@ export type Personne = {
   numero_perid?: string    // ← Ajoutez cette ligne
   erp_id?: string          // ← Ajoutez cette ligne
   created_at: string
+  // --- Anciennes propriétés projet/fonction remplacées ---
+  // projet?: string | null;
+  // fonction?: string | null;
   // --- Nouvelles propriétés ---
-  projet?: string | null;   // Correspond à la colonne 'projet' dans la base
-  fonction?: string | null; // Correspond à la colonne 'fonction' dans la base
+  projet_id?: string | null;   // Correspond à la colonne 'projet_id' dans la base
+  fonction_id?: string | null; // Correspond à la colonne 'fonction_id' dans la base
   // ---
+  // Optionnellement, inclure les objets liés si tu les récupères via des jointures
+  projet?: Projet; // Si tu fais une jointure
+  fonction?: Fonction; // Si tu fais une jointure
 }
+
 
 export interface Client {
   id: string;
