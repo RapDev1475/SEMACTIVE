@@ -73,7 +73,8 @@ export default function MouvementsPage() {
   
   // Données communes à toutes les lignes du mouvement
   const [mouvementData, setMouvementData] = useState({
-    personne_id: "",
+    personne_id: "", // Technicien destination (ou unique)
+    personne_source_id: "", // Technicien source (pour transferts entre techniciens)
     type_mouvement: "",
     localisation_origine: "",
     localisation_destination: "",
@@ -223,9 +224,28 @@ export default function MouvementsPage() {
         localisation_origine: scenario.emplacement_origine,
         type_mouvement: scenario.type_mouvement,
         localisation_destination: scenario.emplacement_destination,
+        personne_id: "", // Reset technicien destination
+        personne_source_id: "", // Reset technicien source
       }))
       console.log('Scénario appliqué:', scenario)
     }
+  }
+
+  // Déterminer si on a besoin de sélectionner des techniciens
+  function needsTechnicienSource(): boolean {
+    // Si l'origine est "Stock Technicien", on a besoin du technicien source
+    return mouvementData.localisation_origine === "Stock Technicien"
+  }
+
+  function needsTechnicienDestination(): boolean {
+    // Si la destination est "Stock Technicien", on a besoin du technicien destination
+    return mouvementData.localisation_destination === "Stock Technicien"
+  }
+
+  function isTransfertEntreTechniciens(): boolean {
+    // C'est un transfert entre techniciens si origine ET destination = Stock Technicien
+    return mouvementData.localisation_origine === "Stock Technicien" && 
+           mouvementData.localisation_destination === "Stock Technicien"
   }
 
   // Mapper le nom du type vers les valeurs valides de la contrainte CHECK
@@ -418,6 +438,23 @@ export default function MouvementsPage() {
       return
     }
 
+    // Validation des techniciens
+    if (mouvementData.localisation_origine === "Stock Technicien" && !mouvementData.personne_source_id) {
+      alert("Veuillez sélectionner le technicien source")
+      return
+    }
+
+    if (mouvementData.localisation_destination === "Stock Technicien" && !mouvementData.personne_id) {
+      alert("Veuillez sélectionner le technicien destination")
+      return
+    }
+
+    // Empêcher transfert vers le même technicien
+    if (isTransfertEntreTechniciens() && mouvementData.personne_source_id === mouvementData.personne_id) {
+      alert("Le technicien source et destination doivent être différents")
+      return
+    }
+
     try {
       const dateMouvement = new Date().toISOString()
       const typeMapped = mapTypeToConstraint(mouvementData.type_mouvement)
@@ -426,16 +463,26 @@ export default function MouvementsPage() {
       console.log('Type original:', mouvementData.type_mouvement)
       console.log('Type mappé:', typeMapped)
 
+      // Récupérer les noms des techniciens pour les remarques
+      let remarquesFinales = mouvementData.remarques
+      if (mouvementData.personne_source_id && mouvementData.personne_id) {
+        // Transfert entre techniciens - ajouter l'info dans les remarques
+        const techSource = personnes.find(p => p.id === mouvementData.personne_source_id)
+        const techDest = personnes.find(p => p.id === mouvementData.personne_id)
+        const infoTransfert = `Transfert: ${techSource?.nom} ${techSource?.prenom || ''} → ${techDest?.nom} ${techDest?.prenom || ''}`
+        remarquesFinales = remarquesFinales ? `${infoTransfert} | ${remarquesFinales}` : infoTransfert
+      }
+
       // Préparer toutes les lignes de mouvement à insérer
       const mouvementsToInsert = lignesMouvement.map(ligne => ({
         article_id: ligne.article_id,
         numero_serie_id: ligne.numero_serie_id || null,
-        personne_id: mouvementData.personne_id || null,
+        personne_id: mouvementData.personne_id || mouvementData.personne_source_id || null,
         type_mouvement: typeMapped,
         localisation_origine: mouvementData.localisation_origine || null,
         localisation_destination: mouvementData.localisation_destination || null,
         quantite: ligne.quantite,
-        remarques: mouvementData.remarques,
+        remarques: remarquesFinales,
         date_mouvement: dateMouvement,
       }))
       
@@ -472,10 +519,56 @@ export default function MouvementsPage() {
 
         if (stockError) throw stockError
 
-        // Si c'est un transfert vers un technicien, gérer stock_technicien
-        if (mouvementData.personne_id && (typeMapped === 'transfert_depot' || typeMapped === 'sortie_technicien')) {
+        // GESTION DU STOCK TECHNICIEN
+        
+        // Cas 1 : Retrait depuis Stock Technicien (décrémenter stock du technicien source)
+        if (mouvementData.personne_source_id && mouvementData.localisation_origine === "Stock Technicien") {
           try {
-            // Construire la requête pour vérifier si l'entrée existe
+            let queryStock = supabase
+              .from('stock_technicien')
+              .select('*')
+              .eq('technicien_id', mouvementData.personne_source_id)
+              .eq('article_id', ligne.article_id)
+
+            if (ligne.numero_serie_id) {
+              queryStock = queryStock.eq('numero_serie_id', ligne.numero_serie_id)
+            } else {
+              queryStock = queryStock.is('numero_serie_id', null)
+            }
+
+            const { data: existingStock } = await queryStock.maybeSingle()
+
+            if (existingStock) {
+              // Décrémenter la quantité
+              const newQty = existingStock.quantite - ligne.quantite
+              console.log(`Retrait stock technicien source: ${existingStock.quantite} - ${ligne.quantite} = ${newQty}`)
+              
+              if (newQty <= 0) {
+                // Supprimer l'entrée si quantité = 0
+                await supabase
+                  .from('stock_technicien')
+                  .delete()
+                  .eq('id', existingStock.id)
+              } else {
+                // Mettre à jour la quantité
+                await supabase
+                  .from('stock_technicien')
+                  .update({ 
+                    quantite: newQty,
+                    derniere_mise_a_jour: new Date().toISOString()
+                  })
+                  .eq('id', existingStock.id)
+              }
+            }
+          } catch (error) {
+            console.error('Erreur retrait stock_technicien source:', error)
+            alert(`Erreur lors du retrait du stock technicien pour ${ligne.article_nom}`)
+          }
+        }
+
+        // Cas 2 : Ajout vers Stock Technicien (incrémenter stock du technicien destination)
+        if (mouvementData.personne_id && mouvementData.localisation_destination === "Stock Technicien") {
+          try {
             let queryStock = supabase
               .from('stock_technicien')
               .select('*')
@@ -488,35 +581,22 @@ export default function MouvementsPage() {
               queryStock = queryStock.is('numero_serie_id', null)
             }
 
-            const { data: existingStock, error: fetchError } = await queryStock.maybeSingle()
-
-            // Ne pas traiter fetchError car il est normal de ne rien trouver
-            console.log('Recherche stock existant pour:', {
-              technicien: mouvementData.personne_id,
-              article: ligne.article_id,
-              serie: ligne.numero_serie_id,
-              trouve: existingStock
-            })
+            const { data: existingStock } = await queryStock.maybeSingle()
 
             if (existingStock) {
-              // Mettre à jour la quantité
-              console.log('Mise à jour stock existant, quantité:', existingStock.quantite, '+', ligne.quantite)
-              const { error: updateError } = await supabase
+              // Incrémenter la quantité
+              console.log(`Ajout stock technicien destination: ${existingStock.quantite} + ${ligne.quantite}`)
+              await supabase
                 .from('stock_technicien')
                 .update({ 
                   quantite: existingStock.quantite + ligne.quantite,
                   derniere_mise_a_jour: new Date().toISOString()
                 })
                 .eq('id', existingStock.id)
-
-              if (updateError) {
-                console.error('Erreur mise à jour stock_technicien:', updateError)
-                throw updateError
-              }
             } else {
               // Créer une nouvelle entrée
-              console.log('Création nouvelle entrée stock_technicien pour:', ligne.article_nom)
-              const { error: insertError } = await supabase
+              console.log('Création nouvelle entrée stock_technicien destination pour:', ligne.article_nom)
+              await supabase
                 .from('stock_technicien')
                 .insert({
                   technicien_id: mouvementData.personne_id,
@@ -525,16 +605,10 @@ export default function MouvementsPage() {
                   quantite: ligne.quantite,
                   localisation: mouvementData.localisation_destination || 'camionnette',
                 })
-
-              if (insertError) {
-                console.error('Erreur insertion stock_technicien:', insertError)
-                throw insertError
-              }
             }
-          } catch (stockTechError) {
-            console.error('Erreur gestion stock_technicien:', stockTechError)
-            // Ne pas faire throw pour ne pas bloquer le reste, mais logger
-            alert(`Attention: erreur lors de la mise à jour du stock technicien pour ${ligne.article_nom}`)
+          } catch (error) {
+            console.error('Erreur ajout stock_technicien destination:', error)
+            alert(`Erreur lors de l'ajout au stock technicien pour ${ligne.article_nom}`)
           }
         }
       }
@@ -548,6 +622,7 @@ export default function MouvementsPage() {
       setLignesMouvement([])
       setMouvementData({
         personne_id: "",
+        personne_source_id: "",
         type_mouvement: typesMouvement[0]?.nom || "",
         localisation_origine: "",
         localisation_destination: "",
@@ -698,53 +773,159 @@ export default function MouvementsPage() {
         )}
 
         {mouvementData.type_mouvement && (
-          <div className="grid grid-cols-3 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg text-green-600">Origine</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="h-14 flex items-center px-4 bg-green-50 rounded-lg border-2 border-green-200">
-                  <p className="font-semibold">{mouvementData.localisation_origine}</p>
-                </div>
-              </CardContent>
-            </Card>
+          <>
+            {/* Cas 1 : Transfert entre techniciens - 4 colonnes */}
+            {isTransfertEntreTechniciens() ? (
+              <div className="grid grid-cols-4 gap-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg text-green-600">Origine</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-14 flex items-center px-4 bg-green-50 rounded-lg border-2 border-green-200">
+                      <p className="font-semibold">{mouvementData.localisation_origine}</p>
+                    </div>
+                  </CardContent>
+                </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg text-blue-600">Destination</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="h-14 flex items-center px-4 bg-blue-50 rounded-lg border-2 border-blue-200">
-                  <p className="font-semibold">{mouvementData.localisation_destination}</p>
-                </div>
-              </CardContent>
-            </Card>
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg text-green-600">Technicien source</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <Select 
+                      value={mouvementData.personne_source_id || "none"}
+                      onValueChange={(value) => setMouvementData({...mouvementData, personne_source_id: value === "none" ? "" : value})}
+                    >
+                      <SelectTrigger className="h-14 text-lg">
+                        <SelectValue placeholder="Choisir" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Aucun</SelectItem>
+                        {personnes.filter(p => p.type === 'technicien').map((p) => (
+                          <SelectItem key={p.id} value={p.id}>
+                            {p.nom} {p.prenom}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </CardContent>
+                </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Technicien (optionnel)</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Select 
-                  value={mouvementData.personne_id || "none"}
-                  onValueChange={(value) => setMouvementData({...mouvementData, personne_id: value === "none" ? "" : value})}
-                >
-                  <SelectTrigger className="h-14 text-lg">
-                    <SelectValue placeholder="Aucun" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Aucun</SelectItem>
-                    {personnes.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.nom} {p.prenom}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </CardContent>
-            </Card>
-          </div>
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg text-blue-600">Destination</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-14 flex items-center px-4 bg-blue-50 rounded-lg border-2 border-blue-200">
+                      <p className="font-semibold">{mouvementData.localisation_destination}</p>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg text-blue-600">Technicien destination</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <Select 
+                      value={mouvementData.personne_id || "none"}
+                      onValueChange={(value) => setMouvementData({...mouvementData, personne_id: value === "none" ? "" : value})}
+                    >
+                      <SelectTrigger className="h-14 text-lg">
+                        <SelectValue placeholder="Choisir" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Aucun</SelectItem>
+                        {personnes.filter(p => p.type === 'technicien' && p.id !== mouvementData.personne_source_id).map((p) => (
+                          <SelectItem key={p.id} value={p.id}>
+                            {p.nom} {p.prenom}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </CardContent>
+                </Card>
+              </div>
+            ) : (
+              /* Cas 2 : Autres mouvements - 2 ou 3 colonnes selon besoin de technicien */
+              <div className={`grid ${needsTechnicienSource() || needsTechnicienDestination() ? 'grid-cols-3' : 'grid-cols-2'} gap-6`}>
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg text-green-600">Origine</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-14 flex items-center px-4 bg-green-50 rounded-lg border-2 border-green-200">
+                      <p className="font-semibold">{mouvementData.localisation_origine}</p>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {needsTechnicienSource() && !needsTechnicienDestination() && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg text-green-600">De quel technicien ?</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <Select 
+                        value={mouvementData.personne_source_id || "none"}
+                        onValueChange={(value) => setMouvementData({...mouvementData, personne_source_id: value === "none" ? "" : value})}
+                      >
+                        <SelectTrigger className="h-14 text-lg">
+                          <SelectValue placeholder="Choisir" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Aucun</SelectItem>
+                          {personnes.filter(p => p.type === 'technicien').map((p) => (
+                            <SelectItem key={p.id} value={p.id}>
+                              {p.nom} {p.prenom}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </CardContent>
+                  </Card>
+                )}
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg text-blue-600">Destination</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-14 flex items-center px-4 bg-blue-50 rounded-lg border-2 border-blue-200">
+                      <p className="font-semibold">{mouvementData.localisation_destination}</p>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {needsTechnicienDestination() && !needsTechnicienSource() && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg text-blue-600">Vers quel technicien ?</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <Select 
+                        value={mouvementData.personne_id || "none"}
+                        onValueChange={(value) => setMouvementData({...mouvementData, personne_id: value === "none" ? "" : value})}
+                      >
+                        <SelectTrigger className="h-14 text-lg">
+                          <SelectValue placeholder="Choisir" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Aucun</SelectItem>
+                          {personnes.filter(p => p.type === 'technicien').map((p) => (
+                            <SelectItem key={p.id} value={p.id}>
+                              {p.nom} {p.prenom}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
+            )}
+          </>
         )}
 
         {mouvementData.type_mouvement && (
