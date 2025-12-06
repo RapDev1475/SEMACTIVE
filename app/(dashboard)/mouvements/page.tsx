@@ -7,14 +7,6 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import {
   Select,
@@ -55,7 +47,7 @@ export default function MouvementsPage() {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [filterType, setFilterType] = useState<string>("all")
-  const [dialogOpen, setDialogOpen] = useState(false)
+  const [showForm, setShowForm] = useState(false)
   const [articleSearch, setArticleSearch] = useState("")
   
   // État pour les lignes de mouvement temporaires
@@ -333,7 +325,7 @@ export default function MouvementsPage() {
       }
 
       // Fermer le dialog et réinitialiser
-      setDialogOpen(false)
+      setShowForm(false)
       fetchMouvements()
       fetchArticles()
       
@@ -405,6 +397,254 @@ export default function MouvementsPage() {
     )
   }
 
+  // Affichage du formulaire pleine page
+  if (showForm) {
+    return (
+      <div className="space-y-6 p-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold">Enregistrer un mouvement</h1>
+            <p className="text-muted-foreground mt-1">
+              Ajoutez plusieurs lignes puis validez le mouvement
+            </p>
+          </div>
+          <Button variant="outline" onClick={() => {
+            setShowForm(false)
+            setLignesMouvement([])
+          }}>
+            <X className="mr-2 h-4 w-4" />
+            Fermer
+          </Button>
+        </div>
+
+        <div className="grid grid-cols-3 gap-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Type de mouvement</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Select 
+                value={mouvementData.type_mouvement} 
+                onValueChange={(value) => setMouvementData({...mouvementData, type_mouvement: value})}
+              >
+                <SelectTrigger className="h-14 text-lg">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {typesMouvement.map((type) => (
+                    <SelectItem key={type.id} value={type.nom}>
+                      {type.nom}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Pour quel technicien ?</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Select 
+                value={mouvementData.personne_id || "none"}
+                onValueChange={(value) => setMouvementData({...mouvementData, personne_id: value === "none" ? "" : value})}
+              >
+                <SelectTrigger className="h-14 text-lg">
+                  <SelectValue placeholder="Aucun" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Aucun</SelectItem>
+                  {personnes.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.nom} {p.prenom}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Remarques</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Input
+                className="h-14 text-lg"
+                value={mouvementData.remarques}
+                onChange={(e) => setMouvementData({...mouvementData, remarques: e.target.value})}
+                placeholder="Notes..."
+              />
+            </CardContent>
+          </Card>
+        </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Ajouter un article</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={ajouterLigne} className="space-y-6">
+              <div className="grid grid-cols-12 gap-6">
+                <div className="col-span-8">
+                  <Label className="text-base mb-2 block">Rechercher article (Scanner EAN / MAC / Série)</Label>
+                  <Input
+                    className="h-16 text-xl"
+                    placeholder="Scanner ou rechercher..."
+                    value={articleSearch}
+                    onChange={(e) => {
+                      setArticleSearch(e.target.value)
+                      searchArticles(e.target.value)
+                    }}
+                    autoFocus
+                  />
+                </div>
+
+                <div className="col-span-2">
+                  <Label className="text-base mb-2 block">Quantité</Label>
+                  <Input
+                    className="h-16 text-xl text-center"
+                    type="number"
+                    min="1"
+                    value={ligneFormData.quantite}
+                    onChange={(e) => setLigneFormData({...ligneFormData, quantite: parseInt(e.target.value) || 1})}
+                  />
+                </div>
+
+                <div className="col-span-2">
+                  <Label className="text-base mb-2 block opacity-0">Action</Label>
+                  <Button type="submit" className="w-full h-16 text-lg" size="lg">
+                    <Plus className="mr-2 h-5 w-5" />
+                    Ajouter
+                  </Button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-6">
+                <div>
+                  <Label className="text-base mb-2 block">Article sélectionné</Label>
+                  <Select 
+                    value={ligneFormData.article_id} 
+                    onValueChange={(value) => setLigneFormData({...ligneFormData, article_id: value})}
+                  >
+                    <SelectTrigger className="h-14 text-lg">
+                      <SelectValue placeholder="Sélectionnez un article" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {articles.length === 0 ? (
+                        <div className="p-4 text-muted-foreground text-center">
+                          {articleSearch ? 'Aucun résultat' : 'Recherchez un article'}
+                        </div>
+                      ) : (
+                        articles.map((article) => (
+                          <SelectItem key={article.id} value={article.id}>
+                            {article.nom} ({article.numero_article}) - Stock: {article.quantite_stock}
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {ligneFormData.article_id && (
+                  <div className="p-6 bg-blue-50 dark:bg-blue-950 rounded-lg border flex items-center">
+                    {(() => {
+                      const art = articles.find(a => a.id === ligneFormData.article_id)
+                      if (!art) return null
+                      return (
+                        <div>
+                          <p className="font-semibold text-lg">{art.nom}</p>
+                          <p className="text-muted-foreground">
+                            {art.numero_article} • Stock: {art.quantite_stock}
+                          </p>
+                        </div>
+                      )
+                    })()}
+                  </div>
+                )}
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+
+        {lignesMouvement.length > 0 && (
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg">Lignes du mouvement ({lignesMouvement.length})</CardTitle>
+                <Button 
+                  variant="ghost" 
+                  onClick={() => setLignesMouvement([])}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Tout effacer
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="border rounded-lg overflow-hidden">
+                <table className="w-full">
+                  <thead className="bg-muted">
+                    <tr>
+                      <th className="text-left p-4 font-semibold text-base">Article</th>
+                      <th className="text-left p-4 font-semibold text-base">N° Article</th>
+                      <th className="text-center p-4 font-semibold text-base">Stock actuel</th>
+                      <th className="text-center p-4 font-semibold text-base">Quantité</th>
+                      <th className="text-center p-4 font-semibold text-base w-24">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {lignesMouvement.map((ligne, idx) => (
+                      <tr key={ligne.id} className={idx % 2 === 0 ? 'bg-card' : 'bg-muted/30'}>
+                        <td className="p-4 font-medium text-base">{ligne.article_nom}</td>
+                        <td className="p-4 text-muted-foreground">{ligne.article_numero}</td>
+                        <td className="p-4 text-center text-base">{ligne.stock_actuel}</td>
+                        <td className="p-4 text-center font-semibold text-lg">{ligne.quantite}</td>
+                        <td className="p-4 text-center">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => supprimerLigne(ligne.id)}
+                          >
+                            <Trash2 className="h-5 w-5 text-red-500" />
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        <div className="flex gap-4 justify-end">
+          <Button 
+            variant="outline"
+            size="lg"
+            className="h-14 px-8 text-lg"
+            onClick={() => {
+              setShowForm(false)
+              setLignesMouvement([])
+            }}
+          >
+            Annuler
+          </Button>
+          <Button 
+            size="lg"
+            className="h-14 px-8 text-lg"
+            onClick={validerMouvement}
+            disabled={lignesMouvement.length === 0}
+          >
+            Valider le mouvement ({lignesMouvement.length} ligne{lignesMouvement.length > 1 ? 's' : ''})
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  // Affichage normal de la liste des mouvements
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -414,235 +654,10 @@ export default function MouvementsPage() {
             Historique complet des mouvements d&apos;articles
           </p>
         </div>
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="btn-shimmer">
-              <Plus className="mr-2 h-4 w-4" />
-              Nouveau mouvement
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-[95vw] max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Enregistrer un mouvement</DialogTitle>
-              <DialogDescription>
-                Ajoutez plusieurs lignes puis validez le mouvement en une fois
-              </DialogDescription>
-            </DialogHeader>
-
-            <div className="space-y-4">
-              {/* Informations communes - une seule ligne */}
-              <div className="grid grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label>Type de mouvement *</Label>
-                  <Select 
-                    value={mouvementData.type_mouvement} 
-                    onValueChange={(value) => setMouvementData({...mouvementData, type_mouvement: value})}
-                  >
-                    <SelectTrigger className="h-12">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {typesMouvement.map((type) => (
-                        <SelectItem key={type.id} value={type.nom}>
-                          {type.nom}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Technicien</Label>
-                  <Select 
-                    value={mouvementData.personne_id || "none"}
-                    onValueChange={(value) => setMouvementData({...mouvementData, personne_id: value === "none" ? "" : value})}
-                  >
-                    <SelectTrigger className="h-12">
-                      <SelectValue placeholder="Aucun" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Aucun</SelectItem>
-                      {personnes.map((p) => (
-                        <SelectItem key={p.id} value={p.id}>
-                          {p.nom} {p.prenom}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Remarques globales</Label>
-                  <Input
-                    className="h-12"
-                    value={mouvementData.remarques}
-                    onChange={(e) => setMouvementData({...mouvementData, remarques: e.target.value})}
-                    placeholder="Notes..."
-                  />
-                </div>
-              </div>
-
-              <div className="border-t pt-4" />
-
-              {/* Formulaire pour ajouter une ligne - disposition horizontale */}
-              <form onSubmit={ajouterLigne} className="space-y-4">
-                <div className="grid grid-cols-12 gap-4 items-end">
-                  <div className="col-span-8 space-y-2">
-                    <Label>Rechercher article (Scanner EAN / MAC / Série) *</Label>
-                    <Input
-                      className="h-12 text-lg"
-                      placeholder="Scanner ou rechercher..."
-                      value={articleSearch}
-                      onChange={(e) => {
-                        setArticleSearch(e.target.value)
-                        searchArticles(e.target.value)
-                      }}
-                      autoFocus
-                    />
-                  </div>
-
-                  <div className="col-span-2 space-y-2">
-                    <Label>Quantité</Label>
-                    <Input
-                      className="h-12 text-lg text-center"
-                      type="number"
-                      min="1"
-                      value={ligneFormData.quantite}
-                      onChange={(e) => setLigneFormData({...ligneFormData, quantite: parseInt(e.target.value) || 1})}
-                    />
-                  </div>
-
-                  <div className="col-span-2">
-                    <Button type="submit" className="w-full h-12" size="lg">
-                      <Plus className="mr-2 h-5 w-5" />
-                      Ajouter
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Article sélectionné</Label>
-                    <Select 
-                      value={ligneFormData.article_id} 
-                      onValueChange={(value) => setLigneFormData({...ligneFormData, article_id: value})}
-                    >
-                      <SelectTrigger className="h-12">
-                        <SelectValue placeholder="Sélectionnez un article" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {articles.length === 0 ? (
-                          <div className="p-2 text-sm text-muted-foreground text-center">
-                            {articleSearch ? 'Aucun résultat' : 'Recherchez un article'}
-                          </div>
-                        ) : (
-                          articles.map((article) => (
-                            <SelectItem key={article.id} value={article.id}>
-                              {article.nom} ({article.numero_article}) - Stock: {article.quantite_stock}
-                            </SelectItem>
-                          ))
-                        )}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {ligneFormData.article_id && (
-                    <div className="p-4 bg-blue-50 dark:bg-blue-950 rounded-lg border flex items-center">
-                      {(() => {
-                        const art = articles.find(a => a.id === ligneFormData.article_id)
-                        if (!art) return null
-                        return (
-                          <div>
-                            <p className="font-semibold">{art.nom}</p>
-                            <p className="text-sm text-muted-foreground">
-                              {art.numero_article} • Stock: {art.quantite_stock}
-                            </p>
-                          </div>
-                        )
-                      })()}
-                    </div>
-                  )}
-                </div>
-              </form>
-
-              {/* Liste des lignes ajoutées */}
-              {lignesMouvement.length > 0 && (
-                <>
-                  <div className="border-t pt-4" />
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <h3 className="font-semibold text-lg">Lignes du mouvement ({lignesMouvement.length})</h3>
-                      <Button 
-                        variant="ghost" 
-                        size="sm"
-                        onClick={() => setLignesMouvement([])}
-                      >
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Tout effacer
-                      </Button>
-                    </div>
-                    
-                    <div className="border rounded-lg overflow-hidden">
-                      <table className="w-full">
-                        <thead className="bg-muted">
-                          <tr>
-                            <th className="text-left p-3 font-semibold">Article</th>
-                            <th className="text-left p-3 font-semibold">N° Article</th>
-                            <th className="text-center p-3 font-semibold">Stock actuel</th>
-                            <th className="text-center p-3 font-semibold">Quantité</th>
-                            <th className="text-center p-3 font-semibold w-20">Action</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {lignesMouvement.map((ligne, idx) => (
-                            <tr key={ligne.id} className={idx % 2 === 0 ? 'bg-card' : 'bg-muted/30'}>
-                              <td className="p-3 font-medium">{ligne.article_nom}</td>
-                              <td className="p-3 text-muted-foreground">{ligne.article_numero}</td>
-                              <td className="p-3 text-center">{ligne.stock_actuel}</td>
-                              <td className="p-3 text-center font-semibold">{ligne.quantite}</td>
-                              <td className="p-3 text-center">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => supprimerLigne(ligne.id)}
-                                >
-                                  <Trash2 className="h-4 w-4 text-red-500" />
-                                </Button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                </>
-              )}
-
-              {/* Boutons de validation */}
-              <div className="flex gap-3 justify-end pt-4 border-t">
-                <Button 
-                  type="button" 
-                  variant="outline"
-                  size="lg"
-                  onClick={() => {
-                    setDialogOpen(false)
-                    setLignesMouvement([])
-                  }}
-                >
-                  Annuler
-                </Button>
-                <Button 
-                  type="button"
-                  size="lg"
-                  onClick={validerMouvement}
-                  disabled={lignesMouvement.length === 0}
-                >
-                  Valider le mouvement ({lignesMouvement.length} ligne{lignesMouvement.length > 1 ? 's' : ''})
-                </Button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
+        <Button className="btn-shimmer" onClick={() => setShowForm(true)}>
+          <Plus className="mr-2 h-4 w-4" />
+          Nouveau mouvement
+        </Button>
       </div>
 
       <div className="grid gap-4 md:grid-cols-4">
