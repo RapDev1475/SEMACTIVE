@@ -285,6 +285,8 @@ async function fetchMouvements() {
 
   // Mapper le nom du type vers les valeurs valides de la contrainte CHECK
   function mapTypeToConstraint(typeNom: string): string {
+    console.log('DEBUG - mapTypeToConstraint appelée avec:', typeNom); // <--- LOG AJOUTÉ
+
     // Valeurs valides selon la contrainte CHECK (à adapter selon ta base)
     const validValues = [
       'reception',
@@ -297,6 +299,7 @@ async function fetchMouvements() {
 
     // Si déjà une valeur valide, la retourner
     if (validValues.includes(typeNom)) {
+      console.log('DEBUG - typeNom est déjà une valeur valide:', typeNom);
       return typeNom;
     }
 
@@ -309,7 +312,9 @@ async function fetchMouvements() {
     };
 
     if (scenarioMapping[typeNom]) {
-      return scenarioMapping[typeNom];
+      const mappedValue = scenarioMapping[typeNom];
+      console.log('DEBUG - Mapping spécifique trouvé:', typeNom, '->', mappedValue);
+      return mappedValue;
     }
 
     // Ensuite, les correspondances exactes avec variations
@@ -324,27 +329,47 @@ async function fetchMouvements() {
     };
 
     if (exactMapping[lowerNom]) {
-      return exactMapping[lowerNom];
+      const mappedValue = exactMapping[lowerNom];
+      console.log('DEBUG - Mapping exact trouvé:', typeNom, '->', mappedValue);
+      return mappedValue;
     }
 
     // Enfin, la recherche par mot-clé, MAIS en excluant les cas déjà traités
-    // Comme Transfert_Stock a été traité, on peut maintenant généraliser
-    if (lowerNom.includes('sortie') && lowerNom.includes('technicien')) return 'sortie_technicien';
-    if (lowerNom.includes('sortie') && lowerNom.includes('transport')) return 'sortie_transport';
-    // ATTENTION: Cette ligne 'if (lowerNom.includes('transfert')) return 'transfert_depot';'
-    // EST LE PROBLÈME. Elle est trop générale et attrape 'Transfert_Stock'.
-    // On la garde, mais elle ne doit s'appliquer QUE si les cas spécifiques n'ont pas matché.
-    // Comme 'Transfert_Stock' est déjà traité, 'transfert_stock' (minuscule) ne matchera pas exactement,
-    // mais 'transfert' sera trouvé. Donc, tant que 'Transfert_Stock' est dans scenarioMapping,
-    // ce 'if' ne sera pas atteint pour lui.
-    if (lowerNom.includes('transfert')) return 'transfert_depot'; // <--- OK maintenant que Transfert_Stock est traité avant
-    if (lowerNom.includes('installation')) return 'installation_client';
-    if (lowerNom.includes('reception') || lowerNom.includes('réception')) return 'reception';
-    if (lowerNom.includes('retour')) return 'retour';
+    if (lowerNom.includes('sortie') && lowerNom.includes('technicien')) {
+      const mappedValue = 'sortie_technicien';
+      console.log('DEBUG - Mapping mot-clé trouvé:', typeNom, '->', mappedValue);
+      return mappedValue;
+    }
+    if (lowerNom.includes('sortie') && lowerNom.includes('transport')) {
+      const mappedValue = 'sortie_transport';
+      console.log('DEBUG - Mapping mot-clé trouvé:', typeNom, '->', mappedValue);
+      return mappedValue;
+    }
+    if (lowerNom.includes('transfert')) { // <--- C'EST CETTE LIGNE QUI ÉTAIT LE PROBLÈME AVANT
+      const mappedValue = 'transfert_depot';
+      console.log('DEBUG - Mapping mot-clé trouvé:', typeNom, '->', mappedValue); // <--- Ce log NE DEVRAIT PAS s'afficher pour 'Transfert_Stock' avec la correction
+      return mappedValue;
+    }
+    if (lowerNom.includes('installation')) {
+      const mappedValue = 'installation_client';
+      console.log('DEBUG - Mapping mot-clé trouvé:', typeNom, '->', mappedValue);
+      return mappedValue;
+    }
+    if (lowerNom.includes('reception') || lowerNom.includes('réception')) {
+      const mappedValue = 'reception';
+      console.log('DEBUG - Mapping mot-clé trouvé:', typeNom, '->', mappedValue);
+      return mappedValue;
+    }
+    if (lowerNom.includes('retour')) {
+      const mappedValue = 'retour';
+      console.log('DEBUG - Mapping mot-clé trouvé:', typeNom, '->', mappedValue);
+      return mappedValue;
+    }
 
     // Par défaut, essayer de remplacer les espaces par des underscores
     const withUnderscore = lowerNom.replace(/\s+/g, '_');
     if (validValues.includes(withUnderscore)) {
+      console.log('DEBUG - Mapping underscore trouvé:', typeNom, '->', withUnderscore);
       return withUnderscore;
     }
 
