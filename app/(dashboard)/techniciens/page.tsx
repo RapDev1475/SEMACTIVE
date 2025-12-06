@@ -67,7 +67,7 @@ export default function TechniciensPage() {
     fetchFonctions() // Appel à la fonction pour charger les fonctions
   }, [])
 
-  async function fetchProjets() { // Nouvelle fonction
+  async function fetchProjets() { // Nouvelle fonction - CORRIGÉE
     try {
       const { data, error } = await supabase
         .from('projets')
@@ -75,13 +75,17 @@ export default function TechniciensPage() {
         .order('nom')
 
       if (error) throw error
-      setProjets(data || [])
+      // --- FILTRE RENFORCÉ ICI ---
+      const projetsFiltres = data?.filter(p => p && p.id && p.id !== '') || [];
+      setProjets(projetsFiltres);
+      // ---
     } catch (error) {
       console.error('Error fetching projets:', error)
     }
   }
 
-  async function fetchFonctions() { // Nouvelle fonction
+
+  async function fetchFonctions() { // Nouvelle fonction - CORRIGÉE
     try {
       const { data, error } = await supabase
         .from('fonctions')
@@ -89,7 +93,10 @@ export default function TechniciensPage() {
         .order('nom')
 
       if (error) throw error
-      setFonctions(data || [])
+      // --- FILTRE RENFORCÉ ICI ---
+      const fonctionsFiltrees = data?.filter(f => f && f.id && f.id !== '') || [];
+      setFonctions(fonctionsFiltrees);
+      // ---
     } catch (error) {
       console.error('Error fetching fonctions:', error)
     }
