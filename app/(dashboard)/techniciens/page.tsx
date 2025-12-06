@@ -23,19 +23,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Plus, Search, Users, User, Phone, Mail, Edit, MapPin, CreditCard, Briefcase, Projector } from "lucide-react"
-import type { Personne, Projet, Fonction } from "@/lib/types"
+import { Plus, Search, Users, User, Phone, Mail, Edit, MapPin, CreditCard, Briefcase, Projector } from "lucide-react" // Ajout des icônes
+import type { Personne, Projet, Fonction } from "@/lib/types" // Assure-toi que Projet et Fonction sont définis dans ton fichier de types
 
 export default function TechniciensPage() {
   const [personnes, setPersonnes] = useState<Personne[]>([])
-  const [projets, setProjets] = useState<Projet[]>([])
-  const [fonctions, setFonctions] = useState<Fonction[]>([])
+  const [projets, setProjets] = useState<Projet[]>([]) // Nouvel état pour les projets
+  const [fonctions, setFonctions] = useState<Fonction[]>([]) // Nouvel état pour les fonctions
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [filterType, setFilterType] = useState<string>("all")
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingPerson, setEditingPerson] = useState<Personne | null>(null)
-
+  
   const [formData, setFormData] = useState({
     nom: "",
     prenom: "",
@@ -55,7 +55,7 @@ export default function TechniciensPage() {
     boite_postale: "",
     code_postal: "",
     commune: "",
-    // --- Changement dans le formData ---
+    // --- Nouvelles propriétés ---
     projet_id: "", // Maintenant un ID
     fonction_id: "", // Maintenant un ID
     // ---
@@ -63,11 +63,11 @@ export default function TechniciensPage() {
 
   useEffect(() => {
     fetchPersonnes()
-    fetchProjets()
-    fetchFonctions()
+    fetchProjets() // Appel à la fonction pour charger les projets
+    fetchFonctions() // Appel à la fonction pour charger les fonctions
   }, [])
 
-  async function fetchProjets() {
+  async function fetchProjets() { // Nouvelle fonction
     try {
       const { data, error } = await supabase
         .from('projets')
@@ -85,7 +85,7 @@ export default function TechniciensPage() {
     }
   }
 
-  async function fetchFonctions() {
+  async function fetchFonctions() { // Nouvelle fonction
     try {
       const { data, error } = await supabase
         .from('fonctions')
@@ -122,7 +122,7 @@ export default function TechniciensPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-
+    
     try {
       const dataToSave = {
         ...formData,
@@ -130,6 +130,7 @@ export default function TechniciensPage() {
         // --- Conversion des champs projet_id/fonction_id en null si vide ---
         projet_id: formData.projet_id || null,
         fonction_id: formData.fonction_id || null,
+        // ---
       }
 
       if (editingPerson) {
@@ -150,7 +151,7 @@ export default function TechniciensPage() {
       setDialogOpen(false)
       setEditingPerson(null)
       fetchPersonnes()
-
+      
       setFormData({
         nom: "",
         prenom: "",
@@ -170,79 +171,83 @@ export default function TechniciensPage() {
         boite_postale: "",
         code_postal: "",
         commune: "",
+        // --- Réinitialisation des nouveaux champs ---
         projet_id: "",
         fonction_id: "",
+        // ---
       })
     } catch (error: any) {
       alert("Erreur: " + error.message)
     }
   }
 
-// --- CHANGEMENT : handleEdit avec vérification RENFORCÉE et existence ---
-function handleEdit(personne: any) {
-  setEditingPerson(personne)
+  // --- CHANGEMENT : handleEdit avec vérification RENFORCÉE et existence ---
+  function handleEdit(personne: any) {
+    setEditingPerson(personne)
 
-  // --- VÉRIFICATION RENFORCÉE ET EXISTENCE ---
-  // On s'assure que les IDs sont des chaînes non vides
-  const projetIdRaw = personne.projet_id;
-  const fonctionIdRaw = personne.fonction_id;
+    // --- VÉRIFICATION RENFORCÉE ET EXISTENCE ---
+    // On s'assure que les IDs sont des chaînes non vides
+    const projetIdRaw = personne.projet_id;
+    const fonctionIdRaw = personne.fonction_id;
 
-  // Vérifier si les IDs sont des chaînes non vides et si elles existent dans les listes chargées
-  // On ne fait la vérification d'existence que si les listes sont chargées (longueur > 0)
-  const projetIdToSet = (
-    projetIdRaw && 
-    typeof projetIdRaw === 'string' && 
-    projetIdRaw.trim() !== '' && 
-    projets.length > 0 && // Vérifier que la liste est chargée
-    projets.some(p => p.id === projetIdRaw) // Vérifier l'existence
-  ) ? projetIdRaw : "";
+    // Vérifier si les IDs sont des chaînes non vides et si elles existent dans les listes chargées
+    // On ne fait la vérification d'existence que si les listes sont chargées (longueur > 0)
+    const projetIdToSet = (
+      projetIdRaw && 
+      typeof projetIdRaw === 'string' && 
+      projetIdRaw.trim() !== '' && 
+      projets.length > 0 && // Vérifier que la liste est chargée
+      projets.some(p => p.id === projetIdRaw) // Vérifier l'existence
+    ) ? projetIdRaw : "";
 
-  const fonctionIdToSet = (
-    fonctionIdRaw && 
-    typeof fonctionIdRaw === 'string' && 
-    fonctionIdRaw.trim() !== '' && 
-    fonctions.length > 0 && // Vérifier que la liste est chargée
-    fonctions.some(f => f.id === fonctionIdRaw) // Vérifier l'existence
-  ) ? fonctionIdRaw : "";
+    const fonctionIdToSet = (
+      fonctionIdRaw && 
+      typeof fonctionIdRaw === 'string' && 
+      fonctionIdRaw.trim() !== '' && 
+      fonctions.length > 0 && // Vérifier que la liste est chargée
+      fonctions.some(f => f.id === fonctionIdRaw) // Vérifier l'existence
+    ) ? fonctionIdRaw : "";
 
-  setFormData({
-    nom: personne.nom,
-    prenom: personne.prenom || "",
-    type: personne.type,
-    email: personne.email || "",
-    telephone: personne.telephone || "",
-    entreprise: personne.entreprise || "",
-    numero_perid: personne.numero_perid || "",
-    erp_id: personne.erp_id || "",
-    remarques: personne.remarques || "",
-    numero_tva: personne.numero_tva || "",
-    iban: personne.iban || "",
-    bic: personne.bic || "",
-    delai_paiement_jours: personne.delai_paiement_jours?.toString() || "",
-    adresse: personne.adresse || "",
-    numero: personne.numero || "",
-    boite_postale: personne.boite_postale || "",
-    code_postal: personne.code_postal || "",
-    commune: personne.commune || "",
-    // --- Assignation avec vérification ---
-    projet_id: projetIdToSet,
-    fonction_id: fonctionIdToSet,
-    // ---
-  })
-  setDialogOpen(true)
-}
-// --- FIN CHANGEMENT ---
+    setFormData({
+      nom: personne.nom,
+      prenom: personne.prenom || "",
+      type: personne.type,
+      email: personne.email || "",
+      telephone: personne.telephone || "",
+      entreprise: personne.entreprise || "",
+      numero_perid: personne.numero_perid || "",
+      erp_id: personne.erp_id || "",
+      remarques: personne.remarques || "",
+      numero_tva: personne.numero_tva || "",
+      iban: personne.iban || "",
+      bic: personne.bic || "",
+      delai_paiement_jours: personne.delai_paiement_jours?.toString() || "",
+      adresse: personne.adresse || "",
+      numero: personne.numero || "",
+      boite_postale: personne.boite_postale || "",
+      code_postal: personne.code_postal || "",
+      commune: personne.commune || "",
+      // --- Assignation avec vérification ---
+      projet_id: projetIdToSet,
+      fonction_id: fonctionIdToSet,
+      // ---
+    })
+    setDialogOpen(true)
+  }
+  // --- FIN CHANGEMENT ---
 
   const filteredPersonnes = personnes.filter(p => {
-    const matchesSearch =
+    const matchesSearch = 
       p.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (p.prenom && p.prenom.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (p.email && p.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (p.numero_perid && p.numero_perid.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (p.erp_id && p.erp_id.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (p.projet_id && projets.find(pr => pr.id === p.projet_id)?.nom.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (p.fonction_id && fonctions.find(f => f.id === p.fonction_id)?.nom.toLowerCase().includes(searchTerm.toLowerCase()))
-
+      (p.erp_id && p.erp_id.toLowerCase().includes(searchTerm.toLowerCase()))
+      // --- Recherche sur le nom du projet/fonction via les tableaux locaux ---
+      || (p.projet_id && projets.find(pr => pr.id === p.projet_id)?.nom.toLowerCase().includes(searchTerm.toLowerCase())) 
+      || (p.fonction_id && fonctions.find(f => f.id === p.fonction_id)?.nom.toLowerCase().includes(searchTerm.toLowerCase()))
+      // ---
+    
     if (filterType === "all") return matchesSearch
     return matchesSearch && p.type === filterType
   })
@@ -281,8 +286,8 @@ function handleEdit(personne: any) {
             Gérez vos techniciens, clients et contacts
           </p>
         </div>
-        <Dialog
-          open={dialogOpen}
+        <Dialog 
+          open={dialogOpen} 
           onOpenChange={(open) => {
             setDialogOpen(open)
             if (!open) {
@@ -306,8 +311,10 @@ function handleEdit(personne: any) {
                 boite_postale: "",
                 code_postal: "",
                 commune: "",
+                // --- Réinitialisation des nouveaux champs ---
                 projet_id: "",
                 fonction_id: "",
+                // ---
               })
             }
           }}
@@ -324,7 +331,7 @@ function handleEdit(personne: any) {
                 {editingPerson ? "Modifier la personne" : "Ajouter une personne"}
               </DialogTitle>
               <DialogDescription>
-                {editingPerson
+                {editingPerson 
                   ? "Modifiez les informations de cette personne"
                   : "Ajoutez un technicien, client ou autre contact"
                 }
@@ -337,7 +344,6 @@ function handleEdit(personne: any) {
               </div>
             ) : (
               <form onSubmit={handleSubmit} className="space-y-6">
-                {/* ... (Informations générales, Identifiants, Coordonnées, Adresse, Informations financières, Remarques) ... */}
                 {/* Informations générales */}
                 <div className="space-y-4">
                   <h3 className="text-sm font-semibold">Informations générales</h3>
@@ -363,8 +369,8 @@ function handleEdit(personne: any) {
 
                   <div className="space-y-2">
                     <Label htmlFor="type">Type *</Label>
-                    <Select
-                      value={formData.type}
+                    <Select 
+                      value={formData.type} 
                       onValueChange={(value: any) => setFormData({...formData, type: value})}
                     >
                       <SelectTrigger>
@@ -380,16 +386,16 @@ function handleEdit(personne: any) {
                   </div>
                 </div>
 
-                {/* --- NOUVEAU : Informations Projet/Fonction avec Select (Ultra-prudent) --- */}
-                <div className="space-y-4 p-4 bg-gray-50 dark:bg-gray-900/20 rounded-lg border">
+                {/* --- NOUVEAU : Informations Projet/Fonction avec Select (TEMPORAIREMENT COMMENTÉ) --- */}
+                {/* <div className="space-y-4 p-4 bg-gray-50 dark:bg-gray-900/20 rounded-lg border">
                   <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
                     Projet & Fonction
                   </h3>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="projet_id">Projet</Label>
-                      <Select
-                        value={formData.projet_id}
+                      <Select 
+                        value={formData.projet_id} 
                         onValueChange={(value) => setFormData({...formData, projet_id: value})}
                       >
                         <SelectTrigger>
@@ -397,8 +403,9 @@ function handleEdit(personne: any) {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="">Aucun projet</SelectItem>
-                          {/* On mappe uniquement sur les projets avec id non vide */}
-                          {projets.map((projet) => (
+                          {projets
+                            .filter(p => p.id && p.id !== "") // Filtrer les projets avec un ID valide
+                            .map((projet) => (
                             <SelectItem key={projet.id} value={projet.id}>
                               {projet.nom}
                             </SelectItem>
@@ -408,8 +415,8 @@ function handleEdit(personne: any) {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="fonction_id">Fonction</Label>
-                      <Select
-                        value={formData.fonction_id}
+                      <Select 
+                        value={formData.fonction_id} 
                         onValueChange={(value) => setFormData({...formData, fonction_id: value})}
                       >
                         <SelectTrigger>
@@ -417,8 +424,9 @@ function handleEdit(personne: any) {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="">Aucune fonction</SelectItem>
-                          {/* On mappe uniquement sur les fonctions avec id non vide */}
-                          {fonctions.map((fonction) => (
+                          {fonctions
+                            .filter(f => f.id && f.id !== "") // Filtrer les fonctions avec un ID valide
+                            .map((fonction) => (
                             <SelectItem key={fonction.id} value={fonction.id}>
                               {fonction.nom}
                             </SelectItem>
@@ -427,10 +435,9 @@ function handleEdit(personne: any) {
                       </Select>
                     </div>
                   </div>
-                </div>
+                </div> */}
                 {/* --- FIN NOUVEAU --- */}
 
-                {/* ... (Le reste du formulaire) ... */}
                 {/* Identifiants technicien */}
                 {formData.type === 'technicien' && (
                   <div className="space-y-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border">
@@ -610,7 +617,6 @@ function handleEdit(personne: any) {
         </Dialog>
       </div>
 
-      {/* ... (Stats, Barre de recherche, Affichage des cartes) ... */}
       <div className="grid gap-4 md:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -709,25 +715,25 @@ function handleEdit(personne: any) {
                       </p>
                     )}
                     {/* --- Affichage Projet/Fonction via recherche dans les tableaux locaux --- */}
-                    {(personne.projet_id || personne.fonction_id) && (
+                    {(personne.projet_id || personne.fonction_id) && ( // Vérifie si un ID est présent
                       <div className="flex flex-wrap gap-1 mt-1">
                         {personne.projet_id && (() => {
-                          const projet = projets.find(p => p.id === personne.projet_id);
-                          return projet ? (
+                          const projet = projets.find(p => p.id === personne.projet_id); // Recherche dans le tableau local
+                          return projet ? ( // Si trouvé
                             <Badge variant="secondary" className="text-xs">
                               <Projector className="mr-1 h-3 w-3" />
-                              {projet.nom}
+                              {projet.nom} {/* Affiche le nom */}
                             </Badge>
-                          ) : null;
+                          ) : null; // Sinon, affiche rien
                         })()}
                         {personne.fonction_id && (() => {
-                          const fonction = fonctions.find(f => f.id === personne.fonction_id);
-                          return fonction ? (
+                          const fonction = fonctions.find(f => f.id === personne.fonction_id); // Recherche dans le tableau local
+                          return fonction ? ( // Si trouvé
                             <Badge variant="secondary" className="text-xs">
                               <Briefcase className="mr-1 h-3 w-3" />
-                              {fonction.nom}
+                              {fonction.nom} {/* Affiche le nom */}
                             </Badge>
-                          ) : null;
+                          ) : null; // Sinon, affiche rien
                         })()}
                       </div>
                     )}
@@ -804,9 +810,9 @@ function handleEdit(personne: any) {
                   </p>
                 )}
                 <div className="pt-3 border-t">
-                  <Button
-                    variant="outline"
-                    size="sm"
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
                     className="w-full"
                     onClick={() => handleEdit(personne)}
                   >
