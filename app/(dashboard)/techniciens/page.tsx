@@ -242,6 +242,8 @@ export default function TechniciensPage() {
       technicien: 'bg-blue-100 text-blue-800',
       client: 'bg-green-100 text-green-800',
       fournisseur: 'bg-purple-100 text-purple-800',
+	  gestionnaire: 'bg-purple-100 text-purple-800',
+	  transporteur: 'bg-purple-100 text-purple-800',
       autre: 'bg-gray-100 text-gray-800',
     }
     return variants[type] || variants.autre
@@ -349,6 +351,8 @@ export default function TechniciensPage() {
                       <SelectItem value="technicien">Technicien</SelectItem>
                       <SelectItem value="client">Client</SelectItem>
                       <SelectItem value="fournisseur">Fournisseur</SelectItem>
+					  <SelectItem value="gestionnaire">Gestionnaire</SelectItem>
+					  <SelectItem value="transporteur">Transporteur</SelectItem>					  
                       <SelectItem value="autre">Autre</SelectItem>
                     </SelectContent>
                   </Select>
