@@ -1038,34 +1038,46 @@ export default function MouvementsPage() {
 
         <div className="grid grid-cols-2 gap-6">
           <div>
-            <Label className="text-base mb-2 block">Article sélectionné</Label>
-            <Select 
-              value={ligneFormData.article_id} 
-              onValueChange={(value) => setLigneFormData({...ligneFormData, article_id: value})}
-            >
-              <SelectTrigger className="h-14 text-lg">
-                <SelectValue placeholder="Sélectionnez un article" />
-              </SelectTrigger>
-              <SelectContent>
-                {articles.length === 0 ? (
-                  <div className="p-4 text-muted-foreground text-center">
-                    {articleSearch ? 'Aucun résultat' : 'Recherchez un article'}
-                  </div>
-                ) : (
-                  articles.map((article) => (
-                    <SelectItem key={article.id} value={article.id}>
-                      {article.nom} ({article.numero_article}) - Stock: {article.quantite_stock}
-                    </SelectItem>
-                  ))
-                )}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex items-end">
-            <div className="text-sm text-muted-foreground">
-              💡 Tapez le nom ou scannez un code pour rechercher
+  <Label className="text-base mb-2 block">Article sélectionné</Label>
+  <Select 
+    value={ligneFormData.article_id} 
+    onValueChange={(value) => setLigneFormData({...ligneFormData, article_id: value})}
+  >
+    <SelectTrigger className="h-14 text-lg">
+      <SelectValue placeholder="Sélectionnez un article" />
+    </SelectTrigger>
+    <SelectContent>
+      <div className="p-2 sticky top-0 bg-background">
+        <Input
+          placeholder="Rechercher par nom..."
+          value={articleSearch}
+          onChange={(e) => {
+            setArticleSearch(e.target.value)
+            searchArticles(e.target.value)
+          }}
+          className="h-10 mb-2"
+          onClick={(e) => e.stopPropagation()}
+        />
+      </div>
+      {articles.length === 0 ? (
+        <div className="p-4 text-muted-foreground text-center">
+          {articleSearch ? 'Aucun résultat' : 'Tapez pour rechercher'}
+        </div>
+      ) : (
+        articles.map((article) => (
+          <SelectItem key={article.id} value={article.id}>
+            <div className="flex flex-col py-1">
+              <span className="font-semibold">{article.nom}</span>
+              <span className="text-xs text-muted-foreground">
+                {article.numero_article} • Stock: {article.quantite_stock}
+              </span>
             </div>
-          </div>
+          </SelectItem>
+        ))
+      )}
+    </SelectContent>
+  </Select>
+</div>
         </div>
       </form>
     </CardContent>
