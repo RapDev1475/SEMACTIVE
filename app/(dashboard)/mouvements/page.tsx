@@ -128,9 +128,9 @@ export default function MouvementsPage() {
   const [nouvelleAdresseMac, setNouvelleAdresseMac] = useState<string>("")
 
   // --- États des Filtres ---
-  const [filterSearch, setFilterSearch] = useState("all")
+  const [filterSearch, setFilterSearch] = useState("")
   const [filterType, setFilterType] = useState("all")
-  const [filterTechnicien, setFilterTechnicien] = useState("")
+  const [filterTechnicien, setFilterTechnicien] = useState("all")
   const [filterDateDebut, setFilterDateDebut] = useState("")
   const [filterDateFin, setFilterDateFin] = useState("")
 
