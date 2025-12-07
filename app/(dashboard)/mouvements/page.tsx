@@ -1,10 +1,12 @@
 "use client"
 
 import { useState, useEffect } from 'react'
+// ✅ Import corrigé pour pointer vers le client Supabase
 import { supabase } from "@/lib/supabase/client"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
+// ✅ CORRIGÉ : Ajout de Card, CardContent, CardHeader, CardTitle
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Trash2, Plus, TrendingUp, TrendingDown, RefreshCw, History } from 'lucide-react'
@@ -51,19 +53,21 @@ interface StockTechnicien {
 
 interface Mouvement {
   id: string
-  article_id: string 
-  numero_serie_id?: string 
-  personne_id?: string 
-  personne_source_id?: string 
+  article_id: string // Clé étrangère vers la table articles
+  numero_serie_id?: string // Clé étrangère vers la table numeros_serie
+  personne_id?: string // Clé étrangère vers la table personnes
+  personne_source_id?: string // Clé étrangère vers la table personnes
   type_mouvement: string
   localisation_origine?: string
   localisation_destination?: string
   remarques?: string
   date_mouvement: string
-  quantite: number 
+  quantite: number // Quantité pour *cette* ligne
   created_at: string
 }
 
+// Le type MouvementWithRelations est ajusté pour refléter la structure actuelle
+// Chaque entrée de la table mouvements est une ligne de mouvement
 interface MouvementWithRelations {
   id: string
   article_id: string
@@ -77,22 +81,25 @@ interface MouvementWithRelations {
   date_mouvement: string
   quantite: number
   created_at: string
+  // Données liées chargées via les relations Supabase
   article?: Article
   numero_serie?: NumeroSerie
   personne_source?: Personne
   personne_dest?: Personne
 }
 
+// --- Composant Principal ---
 export default function MouvementsPage() {
   const [mouvements, setMouvements] = useState<MouvementWithRelations[]>([])
   const [articles, setArticles] = useState<Article[]>([])
   const [personnes, setPersonnes] = useState<Personne[]>([])
   const [typesMouvement, setTypesMouvement] = useState<TypeMouvement[]>([])
   const [emplacements, setEmplacements] = useState<{id: string, nom: string}[]>([])
-  const [scenarios, setScenarios] = useState<any[]>([]) 
+  const [scenarios, setScenarios] = useState<any[]>([]) // À typer plus précisément si nécessaire
   const [showForm, setShowForm] = useState(false)
   const [loading, setLoading] = useState(true)
 
+  // --- États du Formulaire de Mouvement ---
   const [mouvementData, setMouvementData] = useState({
     personne_id: "",
     personne_source_id: "",
@@ -101,11 +108,13 @@ export default function MouvementsPage() {
     localisation_destination: "",
     remarques: "",
   })
-
-  const [lignesMouvement, setLignesMouvement] = useState<Mouvement[]>([])
+  // Maintenant, lignesMouvement correspond directement aux entrées de la table mouvements en attente
+  // ✅ CORRIGÉ : Ajout des champs temporaires pour les nouveaux numéros de série
+  type LigneMouvementAvecNouveau = Mouvement & { nouveau_numero_serie?: string; nouvelle_adresse_mac?: string; };
+  const [lignesMouvement, setLignesMouvement] = useState<LigneMouvementAvecNouveau[]>([])
   const [stockTechnicienSource, setStockTechnicienSource] = useState<StockTechnicien[]>([])
 
-
+  // --- États du Formulaire d'Ajout de Ligne ---
   const [ligneFormData, setLigneFormData] = useState({
     article_id: "",
     quantite: 1,
@@ -114,14 +123,18 @@ export default function MouvementsPage() {
   const [articleSearchSelect, setArticleSearchSelect] = useState("")
   const [numerosSerieDisponibles, setNumerosSerieDisponibles] = useState<NumeroSerie[]>([])
   const [numeroSerieSelectionne, setNumeroSerieSelectionne] = useState("")
+  // --- NOUVEAU : États pour le nouveau numéro de série ---
   const [nouveauNumeroSerie, setNouveauNumeroSerie] = useState<string>("")
   const [nouvelleAdresseMac, setNouvelleAdresseMac] = useState<string>("")
+
+  // --- États des Filtres ---
   const [filterSearch, setFilterSearch] = useState("")
   const [filterType, setFilterType] = useState("")
   const [filterTechnicien, setFilterTechnicien] = useState("")
   const [filterDateDebut, setFilterDateDebut] = useState("")
   const [filterDateFin, setFilterDateFin] = useState("")
 
+  // --- Chargement Initial ---
   useEffect(() => {
     fetchMouvements()
     fetchArticles()
@@ -131,8 +144,11 @@ export default function MouvementsPage() {
     fetchScenarios()
   }, [])
 
+  // --- Fonctions de Chargement ---
+  // ✅ CORRIGÉ : Utilise la structure de la table mouvements
   async function fetchMouvements() {
     try {
+      // Charger les mouvements avec les relations
       const { data, error } = await supabase
         .from('mouvements')
         .select(`
@@ -143,7 +159,7 @@ export default function MouvementsPage() {
           personne_dest:personnes!personne_id(nom, prenom)
         `)
         .order('date_mouvement', { ascending: false })
-        .order('created_at', { ascending: true })
+        .order('created_at', { ascending: true }) // Pour ordonner les lignes d'un même mouvement
 
       if (error) {
         console.error('❌ Erreur lors du chargement:', error)
@@ -152,6 +168,7 @@ export default function MouvementsPage() {
 
       console.log(`✅ ${data.length || 0} lignes de mouvement chargées`)
       console.log('Premières lignes:', data.slice(0, 2))
+      // Les données sont déjà au bon format
       setMouvements(data as MouvementWithRelations[])
     } catch (error) {
       console.error('Error fetching mouvements:', error)
@@ -243,6 +260,7 @@ export default function MouvementsPage() {
     }
   }
 
+  // --- Fonctions Utilitaires ---
   function needsTechnicienSource(): boolean {
     return mouvementData.localisation_origine === "Stock Technicien"
   }
@@ -290,6 +308,7 @@ export default function MouvementsPage() {
     return typeNom
   }
 
+  // --- Fonctions de Recherche ---
   async function searchArticles(searchValue: string) {
     if (!searchValue.trim()) {
       if (isTransfertEntreTechniciens() && mouvementData.personne_source_id) {
@@ -329,6 +348,7 @@ export default function MouvementsPage() {
             return
           }
         } else {
+          // Si pas trouvé dans les séries, chercher dans les articles du stock
           const articlesDisponibles = stockTechnicienSource.filter(s =>
             s.article && s.article.nom.toLowerCase().includes(searchValue.toLowerCase())
           ).map(s => s.article).filter(Boolean) as Article[]
@@ -338,7 +358,7 @@ export default function MouvementsPage() {
         }
       }
 
-
+      // Pour les autres types de mouvements, chercher dans tous les articles
       const { data, error } = await supabase
         .from('articles')
         .select('*')
@@ -353,7 +373,8 @@ export default function MouvementsPage() {
       if (data && data.length === 1 && !isSerialOrMacSearch) {
         const article = data[0]
         setLigneFormData({...ligneFormData, article_id: article.id})
-        setArticleSearchSelect("")
+        setArticleSearchSelect("") // Reset recherche Select après sélection
+        // ✅ Appel à loadNumerosSerieForArticle après scan
         loadNumerosSerieForArticle(article.id)
         if (isSerialOrMacSearch && foundNumeroSerie) {
           setTimeout(() => {
@@ -375,6 +396,7 @@ export default function MouvementsPage() {
       return
     }
     try {
+      // Si transfert entre techniciens, charger uniquement depuis le stock source
       if (isTransfertEntreTechniciens() && mouvementData.personne_source_id) {
         const seriesInStock = stockTechnicienSource.filter(s =>
           s.article_id === articleId &&
@@ -382,6 +404,7 @@ export default function MouvementsPage() {
         )
         setNumerosSerieDisponibles(seriesInStock.map(s => s.numero_serie).filter(Boolean) as NumeroSerie[])
       } else {
+        // Pour les réceptions, charger TOUS les numéros de série de cet article, quel que soit leur statut
         if (mouvementData.type_mouvement?.toLowerCase().includes('reception')) {
           const { data } = await supabase
             .from('numeros_serie')
@@ -389,6 +412,7 @@ export default function MouvementsPage() {
             .eq('article_id', articleId)
           setNumerosSerieDisponibles(data || [])
         } else {
+          // Pour les autres types de mouvements, charger uniquement les séries disponibles
           const { data } = await supabase
             .from('numeros_serie')
             .select('*')
@@ -403,8 +427,9 @@ export default function MouvementsPage() {
     }
   }
 
-
+  // --- Fonctions d'Ajout de Ligne ---
   function ajouterLigneAuto(article: Article, numeroSerie?: NumeroSerie) {
+    // Vérifier si le technicien source a cet article en stock (pour transfert)
     if (isTransfertEntreTechniciens() && mouvementData.personne_source_id) {
       const stockEntry = stockTechnicienSource.find(s =>
         s.article_id === article.id &&
@@ -424,35 +449,45 @@ export default function MouvementsPage() {
       }
     }
 
-    const nouvelleLigne: Mouvement = {
-      id: crypto.randomUUID(),
+    const nouvelleLigne: LigneMouvementAvecNouveau = {
+      id: crypto.randomUUID(), // ID temporaire pour la liste
       article_id: article.id,
       numero_serie_id: numeroSerie?.id,
+      // Les personnes sont définies dans le formulaire principal
       personne_id: mouvementData.personne_id,
       personne_source_id: mouvementData.personne_source_id,
       type_mouvement: mouvementData.type_mouvement,
       localisation_origine: mouvementData.localisation_origine,
       localisation_destination: mouvementData.localisation_destination,
       remarques: mouvementData.remarques,
-      date_mouvement: "", 
+      // Date sera définie lors de la validation
+      date_mouvement: "", // sera rempli plus tard
       quantite: 1,
-      created_at: "", 
+      created_at: "", // sera rempli plus tard
+      // Ajout des champs temporaires si un numéro de série est fourni
+      nouveau_numero_serie: numeroSerie?.numero_serie,
+      nouvelle_adresse_mac: numeroSerie?.adresse_mac,
     }
     setLignesMouvement([...lignesMouvement, nouvelleLigne])
 
+    // IMPORTANT: Recharger TOUS les articles disponibles après le scan
     if (isTransfertEntreTechniciens() && mouvementData.personne_source_id) {
+      // Pour transfert entre techniciens: tous les articles du stock source
       const articlesDisponibles = stockTechnicienSource.map(s => s.article).filter(Boolean) as Article[]
       const uniqueArticles = Array.from(new Map(articlesDisponibles.map(a => [a.id, a])).values())
       setArticles(uniqueArticles)
     } else {
+      // Pour les autres cas: tous les articles
       fetchArticles()
     }
 
+    // Réinitialiser les champs
     setArticleSearch("")
     setArticleSearchSelect("")
     setLigneFormData({ article_id: "", quantite: 1 })
     setNumerosSerieDisponibles([])
     setNumeroSerieSelectionne("")
+    // ✅ Réinitialiser aussi les nouveaux champs
     setNouveauNumeroSerie("")
     setNouvelleAdresseMac("")
   }
@@ -466,67 +501,89 @@ export default function MouvementsPage() {
     const article = articles.find(a => a.id === ligneFormData.article_id)
     if (!article) return
 
+    // --- LOGIQUE MODIFIÉE POUR RÉCEPTION ---
     if (mouvementData.type_mouvement?.toLowerCase().includes('reception')) {
+      // Pour une réception, on privilégie le nouveau numéro de série saisi
       if (nouveauNumeroSerie.trim()) {
-        const nouvelleLigne: Mouvement = {
-          id: crypto.randomUUID(),
+        // On crée la ligne avec les infos du nouveau numéro, l'ID sera créé plus tard
+        const nouvelleLigne: LigneMouvementAvecNouveau = {
+          id: crypto.randomUUID(), // ID temporaire pour la liste
           article_id: ligneFormData.article_id,
-          numero_serie_id: undefined, 
+          numero_serie_id: undefined, // Sera créé dans validerMouvement
+          // Les personnes sont définies dans le formulaire principal
           personne_id: mouvementData.personne_id,
           personne_source_id: mouvementData.personne_source_id,
           type_mouvement: mouvementData.type_mouvement,
           localisation_origine: mouvementData.localisation_origine,
           localisation_destination: mouvementData.localisation_destination,
           remarques: mouvementData.remarques,
-          date_mouvement: "", 
+          // Date sera définie lors de la validation
+          date_mouvement: "", // sera rempli plus tard
           quantite: ligneFormData.quantite,
-          created_at: "", 
+          created_at: "", // sera rempli plus tard
+          // Stockage temporaire du numéro de série saisi
+          nouveau_numero_serie: nouveauNumeroSerie.trim(),
+          nouvelle_adresse_mac: nouvelleAdresseMac.trim() || undefined,
         }
         setLignesMouvement([...lignesMouvement, nouvelleLigne])
       } else if (numeroSerieSelectionne && numeroSerieSelectionne !== "none") {
+        // Sinon, on peut quand même sélectionner un numéro existant
         const serieInfo = numerosSerieDisponibles.find(s => s.id === numeroSerieSelectionne)
-        const nouvelleLigne: Mouvement = {
-          id: crypto.randomUUID(),
+        const nouvelleLigne: LigneMouvementAvecNouveau = {
+          id: crypto.randomUUID(), // ID temporaire pour la liste
           article_id: ligneFormData.article_id,
           numero_serie_id: serieInfo?.id,
+          // Les personnes sont définies dans le formulaire principal
           personne_id: mouvementData.personne_id,
           personne_source_id: mouvementData.personne_source_id,
           type_mouvement: mouvementData.type_mouvement,
           localisation_origine: mouvementData.localisation_origine,
           localisation_destination: mouvementData.localisation_destination,
           remarques: mouvementData.remarques,
-          date_mouvement: "",
+          // Date sera définie lors de la validation
+          date_mouvement: "", // sera rempli plus tard
           quantite: ligneFormData.quantite,
-          created_at: "", 
+          created_at: "", // sera rempli plus tard
+          // Ajout des champs temporaires si un numéro de série est sélectionné
+          nouveau_numero_serie: serieInfo?.numero_serie,
+          nouvelle_adresse_mac: serieInfo?.adresse_mac,
         }
         setLignesMouvement([...lignesMouvement, nouvelleLigne])
       } else {
+        // Aucun numéro de série fourni
         alert("Veuillez saisir ou sélectionner un numéro de série pour la réception.")
         return
       }
     } else {
+      // Pour les autres types de mouvements, on utilise la logique existante
       let serieInfo = null
       if (numeroSerieSelectionne && numeroSerieSelectionne !== "none") {
         serieInfo = numerosSerieDisponibles.find(s => s.id === numeroSerieSelectionne)
       }
 
-      const nouvelleLigne: Mouvement = {
-        id: crypto.randomUUID(),
+      const nouvelleLigne: LigneMouvementAvecNouveau = {
+        id: crypto.randomUUID(), // ID temporaire pour la liste
         article_id: ligneFormData.article_id,
         numero_serie_id: serieInfo?.id,
+        // Les personnes sont définies dans le formulaire principal
         personne_id: mouvementData.personne_id,
         personne_source_id: mouvementData.personne_source_id,
         type_mouvement: mouvementData.type_mouvement,
         localisation_origine: mouvementData.localisation_origine,
         localisation_destination: mouvementData.localisation_destination,
         remarques: mouvementData.remarques,
-        date_mouvement: "", 
+        // Date sera définie lors de la validation
+        date_mouvement: "", // sera rempli plus tard
         quantite: ligneFormData.quantite,
-        created_at: "", 
+        created_at: "", // sera rempli plus tard
+        // Ajout des champs temporaires si un numéro de série est sélectionné
+        nouveau_numero_serie: serieInfo?.numero_serie,
+        nouvelle_adresse_mac: serieInfo?.adresse_mac,
       }
       setLignesMouvement([...lignesMouvement, nouvelleLigne])
     }
 
+    // Réinitialiser TOUS les champs
     setLigneFormData({
       article_id: "",
       quantite: 1,
@@ -535,8 +592,8 @@ export default function MouvementsPage() {
     setArticleSearchSelect("")
     setNumerosSerieDisponibles([])
     setNumeroSerieSelectionne("")
-    setNouveauNumeroSerie("")
-    setNouvelleAdresseMac("")
+    setNouveauNumeroSerie("") // ✅ Réinitialiser le champ de nouveau numéro
+    setNouvelleAdresseMac("") // ✅ Réinitialiser le champ de nouvelle adresse MAC
   }
 
   function supprimerLigne(ligneId: string) {
@@ -568,16 +625,16 @@ export default function MouvementsPage() {
 
     // --- NOUVEAU : Créer les numéros de série manquants ---
     // On va devoir traiter les lignes pour créer les numéros de série si nécessaire
-    // On va supposer que `lignesMouvement` est du type `LigneMouvementAvecNouveau[]` ou similaire
-    // interface LigneMouvementAvecNouveau extends Omit<Mouvement, 'numero_serie_id'> { numero_serie_id?: string; nouveau_numero_serie?: string; nouvelle_adresse_mac?: string; }
-    type LigneMouvementAvecNouveau = Mouvement & { nouveau_numero_serie?: string; nouvelle_adresse_mac?: string; };
+    // On utilise le type LigneMouvementAvecNouveau défini plus haut
 
-    const lignesAMettreAJour = [...lignesMouvement].map(l => ({...l} as LigneMouvementAvecNouveau));
+    const lignesAMettreAJour = [...lignesMouvement].map(l => ({...l})); // Copie du tableau
 
     try {
       for (let i = 0; i < lignesAMettreAJour.length; i++) {
         const ligne = lignesAMettreAJour[i];
+        // Si la ligne a un nouveau_numero_serie mais pas de numero_serie_id, c'est un nouveau (pour réception)
         if (ligne.numero_serie_id === undefined && ligne.nouveau_numero_serie) {
+          // Vérifier s'il existe déjà dans la base pour éviter les doublons
           const { data: serieExistante } = await supabase
             .from('numeros_serie')
             .select('id')
@@ -587,6 +644,7 @@ export default function MouvementsPage() {
 
           let nouvelleSerieId;
           if (serieExistante) {
+            // Si le numéro de série existe déjà pour cet article, on l'utilise
             nouvelleSerieId = serieExistante.id;
             console.warn(`Le numéro de série ${ligne.nouveau_numero_serie} existait déjà pour l'article ${ligne.article_id}, utilisation de l'ID existant.`);
           } else {
@@ -597,8 +655,8 @@ export default function MouvementsPage() {
                 article_id: ligne.article_id,
                 numero_serie: ligne.nouveau_numero_serie,
                 adresse_mac: ligne.nouvelle_adresse_mac || null,
-                statut: 'disponible',
-                localisation: mouvementData.localisation_destination || 'inconnue', 
+                statut: 'disponible', // Ou 'reçu', à vous de voir
+                localisation: mouvementData.localisation_destination || 'inconnue', // Initialiser la localisation
               }])
               .select('id')
               .single();
@@ -607,14 +665,15 @@ export default function MouvementsPage() {
             nouvelleSerieId = nouvelleSerie.id;
             console.log(`✅ Nouveau numéro de série créé: ${ligne.nouveau_numero_serie} avec ID ${nouvelleSerieId}`);
           }
-        
+          // Mettre à jour la ligne avec le nouvel ID
           ligne.numero_serie_id = nouvelleSerieId;
+          // Supprimer les champs temporaires pour la requête finale
           delete ligne.nouveau_numero_serie;
           delete ligne.nouvelle_adresse_mac;
         }
       }
 
-      
+      // Maintenant, `lignesAMettreAJour` contient toutes les lignes avec un `numero_serie_id` valide
       const dateMouvement = new Date().toISOString()
       console.log('DEBUG - Valeur de mouvementData.type_mouvement AVANT mapping:', mouvementData.type_mouvement)
       const typeMapped = mapTypeToConstraint(mouvementData.type_mouvement)
@@ -627,17 +686,17 @@ export default function MouvementsPage() {
         remarquesFinales = remarquesFinales ? `${infoTransfert} | ${remarquesFinales}` : infoTransfert
       }
 
-     
+      // Utiliser `lignesAMettreAJour` au lieu de `lignesMouvement`
       const mouvementsToInsert = lignesAMettreAJour.map(ligne => ({
         article_id: ligne.article_id,
-        numero_serie_id: ligne.numero_serie_id || null,
-        personne_id: ligne.personne_id || mouvementData.personne_id || mouvementData.personne_source_id || null,
-        personne_source_id: ligne.personne_source_id || mouvementData.personne_source_id || null,
-        type_mouvement: ligne.type_mouvement || typeMapped,
-        localisation_origine: ligne.localisation_origine || mouvementData.localisation_origine || null,
-        localisation_destination: ligne.localisation_destination || mouvementData.localisation_destination || null,
+        numero_serie_id: ligne.numero_serie_id || null, // Utiliser l'ID potentiellement créé
+        personne_id: ligne.personne_id || mouvementData.personne_id || mouvementData.personne_source_id || null, // Utiliser l'ID de la ligne ou du formulaire
+        personne_source_id: ligne.personne_source_id || mouvementData.personne_source_id || null, // Utiliser l'ID de la ligne ou du formulaire
+        type_mouvement: ligne.type_mouvement || typeMapped, // Utiliser le type de la ligne ou du formulaire
+        localisation_origine: ligne.localisation_origine || mouvementData.localisation_origine || null, // Utiliser l'origine de la ligne ou du formulaire
+        localisation_destination: ligne.localisation_destination || mouvementData.localisation_destination || null, // Utiliser la destination de la ligne ou du formulaire
         quantite: ligne.quantite,
-        remarques: ligne.remarques || remarquesFinales,
+        remarques: ligne.remarques || remarquesFinales, // Utiliser les remarques de la ligne ou du formulaire
         date_mouvement: dateMouvement,
       }))
 
@@ -649,8 +708,8 @@ export default function MouvementsPage() {
         .insert(mouvementsToInsert)
       if (mouvementError) throw mouvementError
 
-   
-      for (const ligne of lignesAMettreAJour) {
+      // --- La boucle de mise à jour du stock commence ici ---
+      for (const ligne of lignesAMettreAJour) { // Toujours utiliser `lignesAMettreAJour`
         const article = articles.find(a => a.id === ligne.article_id)
         if (!article) continue
 
@@ -789,7 +848,12 @@ export default function MouvementsPage() {
     } catch (error: any) {
       alert("Erreur: " + error.message)
     }
-  } // Fin de la fonction validerMouvement
+  }
+
+  // --- Filtrage des Mouvements Affichés ---
+  // Le filtrage est plus complexe maintenant car chaque ligne est une entrée distincte
+  // On pourrait grouper par `date_mouvement`, `type_mouvement`, `personne_id`, `personne_source_id` pour former des "mouvements" logiques.
+  // Pour l'instant, on filtre sur la liste brute des lignes.
   const filteredMouvements = mouvements.filter(m => {
     const matchesSearch = !filterSearch || (
       m.article?.nom.toLowerCase().includes(filterSearch.toLowerCase()) ||
@@ -818,6 +882,10 @@ export default function MouvementsPage() {
     }
     return matchesSearch && matchesType && matchesTechnicien && matchesDate
   })
+
+  // --- Calculs Statistiques ---
+  // Le calcul des stats est maintenant basé sur les lignes, donc un mouvement de 5 articles comptera comme 5.
+  // Si vous voulez compter les "mouvements" logiques, il faudrait grouper par date, type, personnes.
   const stats = {
     receptions: mouvements.filter(m => m.type_mouvement?.toLowerCase().includes('reception')).length,
     sorties: mouvements.filter(m => m.type_mouvement?.toLowerCase().includes('sortie')).length,
@@ -849,6 +917,7 @@ export default function MouvementsPage() {
     }
   }
 
+  // --- Affichage ---
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -914,7 +983,7 @@ export default function MouvementsPage() {
                   onValueChange={(value) => {
                     const newValue = value === "none" ? "" : value
                     setMouvementData({...mouvementData, personne_source_id: newValue})
-                    fetchStockTechnicienSource(newValue)
+                    fetchStockTechnicienSource(newValue) // Charger le stock du technicien source
                   }}
                 >
                   <SelectTrigger className="h-14 text-lg">
@@ -998,8 +1067,8 @@ export default function MouvementsPage() {
                     value={ligneFormData.article_id}
                     onValueChange={(value) => {
                       setLigneFormData({...ligneFormData, article_id: value})
-                      setArticleSearchSelect("")
-                      loadNumerosSerieForArticle(value)
+                      setArticleSearchSelect("") // Reset recherche Select après sélection
+                      loadNumerosSerieForArticle(value) // Charger les séries pour cet article
                     }}
                   >
                     <SelectTrigger className="h-14 text-lg">
@@ -1070,7 +1139,7 @@ export default function MouvementsPage() {
                         <SelectValue placeholder="Sélectionnez un numéro" />
                       </SelectTrigger>
                       <SelectContent>
-                        {/* Filtrer les séries avec un ID non vide */}
+                        {/* ✅ CORRIGÉ : Filtrer les séries avec un ID non vide */}
                         {numerosSerieDisponibles.filter(serie => serie.id && serie.id.trim() !== "").map((serie) => (
                           <SelectItem key={serie.id} value={serie.id}>
                             {serie.numero_serie} {serie.adresse_mac ? `(${serie.adresse_mac})` : ''}
@@ -1123,9 +1192,11 @@ export default function MouvementsPage() {
                   </thead>
                   <tbody>
                     {lignesMouvement.map((ligne) => {
+                      // Trouver les infos de l'article et du numéro de série pour cette ligne temporaire
                       const article = articles.find(a => a.id === ligne.article_id);
-                      const numeroSerieAffiche = ligne.numero_serie_id ? (numerosSerieDisponibles.find(s => s.id === ligne.numero_serie_id)?.numero_serie || 'Inconnu') : (ligne as any).nouveau_numero_serie || 'Nouveau à créer';
-                      const adresseMacAffiche = ligne.numero_serie_id ? (numerosSerieDisponibles.find(s => s.id === ligne.numero_serie_id)?.adresse_mac || '-') : (ligne as any).nouvelle_adresse_mac || '-';
+                      // Si la ligne a un nouveau numéro de série en attente, on l'affiche
+                      const numeroSerieAffiche = ligne.numero_serie_id ? (numerosSerieDisponibles.find(s => s.id === ligne.numero_serie_id)?.numero_serie || 'Inconnu') : (ligne.nouveau_numero_serie || 'Nouveau à créer');
+                      const adresseMacAffiche = ligne.numero_serie_id ? (numerosSerieDisponibles.find(s => s.id === ligne.numero_serie_id)?.adresse_mac || '-') : (ligne.nouvelle_adresse_mac || '-');
 
                       return (
                         <tr key={ligne.id} className="border-b hover:bg-muted/50">
