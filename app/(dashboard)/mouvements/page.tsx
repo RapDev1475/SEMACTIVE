@@ -331,6 +331,10 @@ export default function MouvementsPage() {
             isSerialOrMacSearch = true
             foundNumeroSerie = serialData[0]
             setArticles([serialData[0].article])
+			// ✅ Mettre à jour le formData et charger les séries pour cet article
+			const article = serialData[0].article;
+			setLigneFormData({...ligneFormData, article_id: article.id});
+			loadNumerosSerieForArticle(article.id);
             setTimeout(() => {
               ajouterLigneAuto(serialData[0].article, foundNumeroSerie)
             }, 100)
@@ -374,6 +378,7 @@ export default function MouvementsPage() {
       if (data && data.length === 1) {
         const article = data[0]
         setLigneFormData({...ligneFormData, article_id: article.id})
+		loadNumerosSerieForArticle(article.id)
         if (isSerialOrMacSearch && foundNumeroSerie) {
           setTimeout(() => {
             ajouterLigneAuto(article, foundNumeroSerie)
