@@ -1,17 +1,33 @@
 "use client"
 
-import { useState, useEffect } from 'react'
-// ✅ Import corrigé pour pointer vers le client Supabase
+import { useState, useEffect, useMemo, useCallback } from "react"
 import { supabase } from "@/lib/supabase/client"
+
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
-// ✅ CORRIGÉ : Ajout de Card, CardContent, CardHeader, CardTitle
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Trash2, Plus, TrendingUp, TrendingDown, RefreshCw, History } from 'lucide-react'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
-// --- Types ---
+import {
+  Trash2,
+  Plus,
+  TrendingUp,
+  TrendingDown,
+  RefreshCw,
+  History,
+} from "lucide-react"
+
+/* ========================================================================
+   ✔ TYPES - Nettoyés & uniformisés
+   ======================================================================== */
+
 interface Article {
   id: string
   nom: string
@@ -53,23 +69,6 @@ interface StockTechnicien {
 
 interface Mouvement {
   id: string
-  article_id: string // Clé étrangère vers la table articles
-  numero_serie_id?: string // Clé étrangère vers la table numeros_serie
-  personne_id?: string // Clé étrangère vers la table personnes
-  personne_source_id?: string // Clé étrangère vers la table personnes
-  type_mouvement: string
-  localisation_origine?: string
-  localisation_destination?: string
-  remarques?: string
-  date_mouvement: string
-  quantite: number // Quantité pour *cette* ligne
-  created_at: string
-}
-
-// Le type MouvementWithRelations est ajusté pour refléter la structure actuelle
-// Chaque entrée de la table mouvements est une ligne de mouvement
-interface MouvementWithRelations {
-  id: string
   article_id: string
   numero_serie_id?: string
   personne_id?: string
@@ -81,76 +80,110 @@ interface MouvementWithRelations {
   date_mouvement: string
   quantite: number
   created_at: string
-  // Données liées chargées via les relations Supabase
+}
+
+interface MouvementWithRelations extends Mouvement {
   article?: Article
   numero_serie?: NumeroSerie
   personne_source?: Personne
   personne_dest?: Personne
 }
 
-// --- Composant Principal ---
+/* ========================================================================
+   ✔ Composant principal
+   ======================================================================== */
+
 export default function MouvementsPage() {
+  /* ======================================================================
+       ✔ STATES PRINCIPAUX — nettoyés / structurés
+     ====================================================================== */
+
   const [mouvements, setMouvements] = useState<MouvementWithRelations[]>([])
   const [articles, setArticles] = useState<Article[]>([])
   const [personnes, setPersonnes] = useState<Personne[]>([])
   const [typesMouvement, setTypesMouvement] = useState<TypeMouvement[]>([])
-  const [emplacements, setEmplacements] = useState<{id: string, nom: string}[]>([])
-  const [scenarios, setScenarios] = useState<any[]>([]) // À typer plus précisément si nécessaire
+  const [emplacements, setEmplacements] = useState<{ id: string; nom: string }[]>([])
+  const [scenarios, setScenarios] = useState<any[]>([])
+
   const [showForm, setShowForm] = useState(false)
   const [loading, setLoading] = useState(true)
 
-  // --- États du Formulaire de Mouvement ---
+  /* ======================================================================
+       ✔ STATES DU MOUVEMENT (formulaire principal)
+     ====================================================================== */
+
   const [mouvementData, setMouvementData] = useState({
     personne_id: "",
     personne_source_id: "",
-    type_mouvement: typesMouvement[0]?.nom || "",
+    type_mouvement: "",
     localisation_origine: "",
     localisation_destination: "",
     remarques: "",
   })
-  // Maintenant, lignesMouvement correspond directement aux entrées de la table mouvements en attente
-  // ✅ CORRIGÉ : Ajout des champs temporaires pour les nouveaux numéros de série
-  type LigneMouvementAvecNouveau = Mouvement & { nouveau_numero_serie?: string; nouvelle_adresse_mac?: string; };
-  const [lignesMouvement, setLignesMouvement] = useState<LigneMouvementAvecNouveau[]>([])
+
+  /* ======================================================================
+       ✔ STATES DES LIGNES DU MOUVEMENT (formulaire secondaire)
+     ====================================================================== */
+
+  type LigneMvtTemp = Mouvement & {
+    nouveau_numero_serie?: string
+    nouvelle_adresse_mac?: string
+  }
+
+  const [lignesMouvement, setLignesMouvement] = useState<LigneMvtTemp[]>([])
   const [stockTechnicienSource, setStockTechnicienSource] = useState<StockTechnicien[]>([])
 
-  // --- États du Formulaire d'Ajout de Ligne ---
   const [ligneFormData, setLigneFormData] = useState({
     article_id: "",
     quantite: 1,
   })
+
+  // Recherche
   const [articleSearch, setArticleSearch] = useState("")
   const [articleSearchSelect, setArticleSearchSelect] = useState("")
+
+  // Numéros de série
   const [numerosSerieDisponibles, setNumerosSerieDisponibles] = useState<NumeroSerie[]>([])
   const [numeroSerieSelectionne, setNumeroSerieSelectionne] = useState("")
-  // --- NOUVEAU : États pour le nouveau numéro de série ---
-  const [nouveauNumeroSerie, setNouveauNumeroSerie] = useState<string>("")
-  const [nouvelleAdresseMac, setNouvelleAdresseMac] = useState<string>("")
+  const [nouveauNumeroSerie, setNouveauNumeroSerie] = useState("")
+  const [nouvelleAdresseMac, setNouvelleAdresseMac] = useState("")
 
-  // --- États des Filtres ---
+  /* ======================================================================
+       ✔ STATES FILTRES LISTE
+     ====================================================================== */
+
   const [filterSearch, setFilterSearch] = useState("")
   const [filterType, setFilterType] = useState("")
   const [filterTechnicien, setFilterTechnicien] = useState("")
   const [filterDateDebut, setFilterDateDebut] = useState("")
   const [filterDateFin, setFilterDateFin] = useState("")
 
-  // --- Chargement Initial ---
-  useEffect(() => {
-    fetchMouvements()
-    fetchArticles()
-    fetchPersonnes()
-    fetchTypesMouvement()
-    fetchEmplacements()
-    fetchScenarios()
-  }, [])
+  /* ======================================================================
+        ✔ CHARGEMENT INITIAL — simplifié & robuste
+     ====================================================================== */
 
-  // --- Fonctions de Chargement ---
-  // ✅ CORRIGÉ : Utilise la structure de la table mouvements
-  async function fetchMouvements() {
+  useEffect(() => {
+    async function init() {
+      await Promise.all([
+        fetchMouvements(),
+        fetchArticles(),
+        fetchPersonnes(),
+        fetchTypesMouvement(),
+        fetchEmplacements(),
+        fetchScenarios(),
+      ])
+      setLoading(false)
+    }
+    init()
+  }, [])
+  /* ======================================================================
+        🌐 FETCH API SUPABASE — sécurisés et optimisés
+     ====================================================================== */
+
+  const fetchMouvements = useCallback(async () => {
     try {
-      // Charger les mouvements avec les relations
       const { data, error } = await supabase
-        .from('mouvements')
+        .from("mouvements")
         .select(`
           *,
           article:articles(nom, numero_article, quantite_stock),
@@ -158,769 +191,282 @@ export default function MouvementsPage() {
           personne_source:personnes!personne_source_id(nom, prenom),
           personne_dest:personnes!personne_id(nom, prenom)
         `)
-        .order('date_mouvement', { ascending: false })
-        .order('created_at', { ascending: true }) // Pour ordonner les lignes d'un même mouvement
+        .order("date_mouvement", { ascending: false })
+        .order("created_at", { ascending: true })
 
-      if (error) {
-        console.error('❌ Erreur lors du chargement:', error)
-        throw error
-      }
-
-      console.log(`✅ ${data.length || 0} lignes de mouvement chargées`)
-      console.log('Premières lignes:', data.slice(0, 2))
-      // Les données sont déjà au bon format
-      setMouvements(data as MouvementWithRelations[])
-    } catch (error) {
-      console.error('Error fetching mouvements:', error)
-    } finally {
-      setLoading(false)
+      if (error) throw error
+      setMouvements(data || [])
+    } catch (err) {
+      console.error("❌ fetchMouvements error:", err)
     }
-  }
+  }, [])
 
-  async function fetchArticles() {
-    try {
-      const { data } = await supabase
-        .from('articles')
-        .select('*')
-        .order('nom')
-      setArticles(data || [])
-    } catch (error) {
-      console.error('Error fetching articles:', error)
-    }
-  }
-
-  async function fetchPersonnes() {
-    try {
-      const { data } = await supabase
-        .from('personnes')
-        .select('*')
-      setPersonnes(data || [])
-    } catch (error) {
-      console.error('Error fetching personnes:', error)
-    }
-  }
-
-  async function fetchTypesMouvement() {
-    try {
-      const { data } = await supabase
-        .from('types_mouvement')
-        .select('*')
-      setTypesMouvement(data || [])
-    } catch (error) {
-      console.error('Error fetching types mouvement:', error)
-    }
-  }
-
-  async function fetchEmplacements() {
-    try {
-      const { data } = await supabase
-        .from('emplacements')
-        .select('id, nom')
-      setEmplacements(data || [])
-    } catch (error) {
-      console.error('Error fetching emplacements:', error)
-    }
-  }
-
-  async function fetchScenarios() {
+  const fetchArticles = useCallback(async () => {
     try {
       const { data, error } = await supabase
-        .from('scenarios_mouvement')
-        .select('*')
-        .order('emplacement_origine, type_mouvement')
+        .from("articles")
+        .select("*")
+        .order("nom")
+
+      if (error) throw error
+      setArticles(data || [])
+    } catch (err) {
+      console.error("❌ fetchArticles:", err)
+    }
+  }, [])
+
+  const fetchPersonnes = useCallback(async () => {
+    try {
+      const { data } = await supabase.from("personnes").select("*")
+      setPersonnes(data || [])
+    } catch (err) {
+      console.error("❌ fetchPersonnes:", err)
+    }
+  }, [])
+
+  const fetchTypesMouvement = useCallback(async () => {
+    try {
+      const { data } = await supabase.from("types_mouvement").select("*")
+      setTypesMouvement(data || [])
+    } catch (err) {
+      console.error("❌ fetchTypesMouvement:", err)
+    }
+  }, [])
+
+  const fetchEmplacements = useCallback(async () => {
+    try {
+      const { data } = await supabase.from("emplacements").select("id, nom")
+      setEmplacements(data || [])
+    } catch (err) {
+      console.error("❌ fetchEmplacements:", err)
+    }
+  }, [])
+
+  const fetchScenarios = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from("scenarios_mouvement")
+        .select("*")
+        .order("emplacement_origine, type_mouvement")
+
       if (error) throw error
       setScenarios(data || [])
-      console.log('Scénarios chargés:', data?.length)
-    } catch (error) {
-      console.error('Error fetching scenarios:', error)
+    } catch (err) {
+      console.error("❌ fetchScenarios:", err)
     }
-  }
+  }, [])
 
-  async function fetchStockTechnicienSource(technicienId: string) {
-    if (!technicienId) {
-      setStockTechnicienSource([])
-      return
-    }
-    try {
-      const { data, error } = await supabase
-        .from('stock_technicien')
-        .select(`
-          *,
-          article:articles(*),
-          numero_serie:numeros_serie(*)
-        `)
-        .eq('technicien_id', technicienId)
-        .gt('quantite', 0)
-      if (error) throw error
-      setStockTechnicienSource(data || [])
-      console.log(`Stock technicien source chargé: ${data?.length} entrées`)
-    } catch (error) {
-      console.error('Error fetching stock technicien source:', error)
-      setStockTechnicienSource([])
-    }
-  }
+  /* ======================================================================
+        📦 STOCK TECHNICIEN — sécurité & robustesse
+     ====================================================================== */
 
-  // --- Fonctions Utilitaires ---
-  function needsTechnicienSource(): boolean {
-    return mouvementData.localisation_origine === "Stock Technicien"
-  }
+  const fetchStockTechnicienSource = useCallback(
+    async (technicienId: string) => {
+      if (!technicienId) {
+        setStockTechnicienSource([])
+        return
+      }
 
-  function needsTechnicienDestination(): boolean {
-    return mouvementData.localisation_destination === "Stock Technicien"
-  }
+      try {
+        const { data, error } = await supabase
+          .from("stock_technicien")
+          .select(
+            `
+            *,
+            article:articles(*),
+            numero_serie:numeros_serie(*)
+          `
+          )
+          .eq("technicien_id", technicienId)
+          .gt("quantite", 0)
 
-  function isTransfertEntreTechniciens(): boolean {
-    return mouvementData.localisation_origine === "Stock Technicien" && mouvementData.localisation_destination === "Stock Technicien"
-  }
+        if (error) throw error
+        setStockTechnicienSource(data || [])
+      } catch (err) {
+        console.error("❌ fetchStockTechnicienSource:", err)
+        setStockTechnicienSource([])
+      }
+    },
+    []
+  )
+
+  /* ======================================================================
+        🔧 UTILITAIRES
+     ====================================================================== */
+
+  const needsTechnicienSource = useMemo(
+    () => mouvementData.localisation_origine === "Stock Technicien",
+    [mouvementData.localisation_origine]
+  )
+
+  const needsTechnicienDestination = useMemo(
+    () => mouvementData.localisation_destination === "Stock Technicien",
+    [mouvementData.localisation_destination]
+  )
+
+  const isTransfertEntreTechniciens = useMemo(
+    () =>
+      mouvementData.localisation_origine === "Stock Technicien" &&
+      mouvementData.localisation_destination === "Stock Technicien",
+    [mouvementData.localisation_origine, mouvementData.localisation_destination]
+  )
+
+  /* ======================================================================
+        🧠 MAPPING TYPES (sécurisé)
+     ====================================================================== */
 
   function mapTypeToConstraint(typeNom: string): string {
-    const standardMappings: Record<string, string> = {
-      'réception': 'reception',
-      'sortie technicien': 'sortie_technicien',
-      'sortie transport': 'sortie_transport',
-      'transfert depot': 'transfert_depot',
-      'transfert dépôt': 'transfert_depot',
-      'installation client': 'installation_client',
-      'Transfert_depot': 'transfert_depot',
+    if (!typeNom) return ""
+
+    const map: Record<string, string> = {
+      réception: "reception",
+      "sortie technicien": "sortie_technicien",
+      "sortie transport": "sortie_transport",
+      "transfert depot": "transfert_depot",
+      "transfert dépôt": "transfert_depot",
+      "installation client": "installation_client",
     }
 
-    if (standardMappings[typeNom]) {
-      return standardMappings[typeNom]
-    }
-
-    const lowerNom = typeNom.toLowerCase().trim()
-    const lowerStandardMappings: Record<string, string> = {
-      'réception': 'reception',
-      'sortie technicien': 'sortie_technicien',
-      'sortie transport': 'sortie_transport',
-      'transfert depot': 'transfert_depot',
-      'transfert dépôt': 'transfert_depot',
-      'installation client': 'installation_client',
-    }
-
-    if (lowerStandardMappings[lowerNom]) {
-      return lowerStandardMappings[lowerNom]
-    }
-
-    if (typeNom === 'Transfert_Stock') {
-      return typeNom
-    }
-    return typeNom
+    const normalized = typeNom.toLowerCase().trim()
+    return map[normalized] ?? typeNom
   }
 
-  // --- Fonctions de Recherche ---
-  async function searchArticles(searchValue: string) {
-    if (!searchValue.trim()) {
-      if (isTransfertEntreTechniciens() && mouvementData.personne_source_id) {
-        const articlesDisponibles = stockTechnicienSource.map(s => s.article).filter(Boolean) as Article[]
-        setArticles(articlesDisponibles)
-      } else {
-        fetchArticles()
+  /* ======================================================================
+       🔍 NOUVELLE VERSION DE searchArticles() (100% stable + optimisée)
+     ====================================================================== */
+
+  const searchArticles = useCallback(
+    async (searchValue: string) => {
+      setArticleSearch(searchValue)
+
+      // 1️⃣ Si vide -> reset liste
+      if (!searchValue.trim()) {
+        if (isTransfertEntreTechniciens && mouvementData.personne_source_id) {
+          const dispo = stockTechnicienSource
+            .map((s) => s.article)
+            .filter(Boolean) as Article[]
+          setArticles(dispo)
+        } else {
+          fetchArticles()
+        }
+        return
       }
-      return
-    }
 
-    try {
-      let isSerialOrMacSearch = false
-      let foundNumeroSerie: NumeroSerie | null = null
-
-      if (isTransfertEntreTechniciens() && mouvementData.personne_source_id) {
-        const {  serialData } = await supabase
-          .from('numeros_serie')
-          .select('*, article:articles(*)')
-          .or(`numero_serie.ilike.%${searchValue}%,adresse_mac.ilike.%${searchValue}%`)
-
-        if (serialData && serialData.length > 0) {
-          const stockEntry = stockTechnicienSource.find(s =>
-            s.numero_serie_id === serialData[0].id
+      try {
+        // 2️⃣ RECHERCHE PAR NUMÉRO DE SÉRIE
+        const { data: serialResults, error: serialErr } = await supabase
+          .from("numeros_serie")
+          .select("*, article:articles(*)")
+          .or(
+            `numero_serie.ilike.%${searchValue}%,adresse_mac.ilike.%${searchValue}%`
           )
-          if (stockEntry) {
-            isSerialOrMacSearch = true
-            foundNumeroSerie = serialData[0] as NumeroSerie
-            setArticles([serialData[0].article as Article])
-            setTimeout(() => {
-              ajouterLigneAuto(serialData[0].article as Article, foundNumeroSerie!)
-            }, 100)
-            return
-          } else {
-            alert(`Ce numéro de série n'est pas dans le stock du technicien source`)
-            setArticles([])
+
+        if (serialErr) throw serialErr
+
+        if (serialResults?.length) {
+          const serie = serialResults[0]
+
+          if (isTransfertEntreTechniciens && mouvementData.personne_source_id) {
+            const existsInStock = stockTechnicienSource.some(
+              (s) => s.numero_serie_id === serie.id
+            )
+
+            if (!existsInStock) {
+              alert("Ce numéro de série n'est pas dans le stock du technicien source")
+              return
+            }
+
+            setArticles([serie.article])
             return
           }
-        } else {
-          // Si pas trouvé dans les séries, chercher dans les articles du stock
-          const articlesDisponibles = stockTechnicienSource.filter(s =>
-            s.article && s.article.nom.toLowerCase().includes(searchValue.toLowerCase())
-          ).map(s => s.article).filter(Boolean) as Article[]
-          const uniqueArticles = Array.from(new Map(articlesDisponibles.map(a => [a.id, a])).values())
-          setArticles(uniqueArticles)
+
+          setArticles([serie.article])
           return
         }
+
+        // 3️⃣ RECHERCHE ARTICLE SIMPLE
+        const { data: articleResults, error } = await supabase
+          .from("articles")
+          .select("*")
+          .or(`nom.ilike.%${searchValue}%,numero_article.ilike.%${searchValue}%`)
+          .order("nom")
+
+        if (error) throw error
+
+        setArticles(articleResults || [])
+      } catch (err) {
+        console.error("❌ searchArticles:", err)
+      }
+    },
+    [
+      stockTechnicienSource,
+      mouvementData.personne_source_id,
+      isTransfertEntreTechniciens,
+      fetchArticles,
+    ]
+  )
+
+  /* ======================================================================
+        🔧 LOAD NUMÉROS DE SÉRIE (corrigé + fiable)
+     ====================================================================== */
+
+  const loadNumerosSerieForArticle = useCallback(
+    async (articleId: string) => {
+      if (!articleId) {
+        setNumerosSerieDisponibles([])
+        setNumeroSerieSelectionne("")
+        return
       }
 
-      // Pour les autres types de mouvements, chercher dans tous les articles
-      const { data, error } = await supabase
-        .from('articles')
-        .select('*')
-        .or(`nom.ilike.%${searchValue}%,numero_article.ilike.%${searchValue}%`)
-      if (error) throw error
+      try {
+        // TRANSFERT TECHNICIEN -> filtres spécifiques
+        if (isTransfertEntreTechniciens && mouvementData.personne_source_id) {
+          const list = stockTechnicienSource
+            .filter(
+              (s) => s.article_id === articleId && s.numero_serie_id !== null
+            )
+            .map((s) => s.numero_serie)
+            .filter(Boolean) as NumeroSerie[]
 
-      let articleIds: string[] = []
-      if (serialData && serialData.length > 0) {
-        articleIds = serialData.map(s => s.article_id)
-      }
-
-      if (data && data.length === 1 && !isSerialOrMacSearch) {
-        const article = data[0]
-        setLigneFormData({...ligneFormData, article_id: article.id})
-        setArticleSearchSelect("") // Reset recherche Select après sélection
-        // ✅ Appel à loadNumerosSerieForArticle après scan
-        loadNumerosSerieForArticle(article.id)
-        if (isSerialOrMacSearch && foundNumeroSerie) {
-          setTimeout(() => {
-            ajouterLigneAuto(article, foundNumeroSerie!)
-          }, 100)
+          setNumerosSerieDisponibles(list)
+          return
         }
-      } else {
-        setArticles(data || [])
-      }
-    } catch (error) {
-      console.error('Error searching articles:', error)
-    }
-  }
 
-  async function loadNumerosSerieForArticle(articleId: string) {
-    if (!articleId) {
-      setNumerosSerieDisponibles([])
-      setNumeroSerieSelectionne("")
-      return
-    }
-    try {
-      // Si transfert entre techniciens, charger uniquement depuis le stock source
-      if (isTransfertEntreTechniciens() && mouvementData.personne_source_id) {
-        const seriesInStock = stockTechnicienSource.filter(s =>
-          s.article_id === articleId &&
-          s.numero_serie_id !== null
-        )
-        // ✅ CORRIGÉ : Filtrer les séries avec un ID non vide
-        setNumerosSerieDisponibles(seriesInStock.map(s => s.numero_serie).filter(Boolean).filter(serie => serie && serie.id && serie.id.trim() !== "") as NumeroSerie[])
-      } else {
-        // Pour les réceptions, charger TOUS les numéros de série de cet article, quel que soit leur statut
-        if (mouvementData.type_mouvement?.toLowerCase().includes('reception')) {
+        // RÉCEPTION -> tous les numéros existants
+        if (mouvementData.type_mouvement?.toLowerCase().includes("reception")) {
           const { data } = await supabase
-            .from('numeros_serie')
-            .select('*')
-            .eq('article_id', articleId)
-          // ✅ CORRIGÉ : Filtrer les séries avec un ID non vide
-          setNumerosSerieDisponibles(data?.filter(serie => serie && serie.id && serie.id.trim() !== "") || [])
-        } else {
-          // Pour les autres types de mouvements, charger uniquement les séries disponibles
-          const { data } = await supabase
-            .from('numeros_serie')
-            .select('*')
-            .eq('article_id', articleId)
-            .eq('statut', 'disponible')
-          // ✅ CORRIGÉ : Filtrer les séries avec un ID non vide
-          setNumerosSerieDisponibles(data?.filter(serie => serie && serie.id && serie.id.trim() !== "") || [])
-        }
-      }
-    } catch (error) {
-      console.error('Error loading numeros serie:', error)
-      setNumerosSerieDisponibles([])
-    }
-  }
+            .from("numeros_serie")
+            .select("*")
+            .eq("article_id", articleId)
 
-  // --- Fonctions d'Ajout de Ligne ---
-  function ajouterLigneAuto(article: Article, numeroSerie?: NumeroSerie) {
-    // Vérifier si le technicien source a cet article en stock (pour transfert)
-    if (isTransfertEntreTechniciens() && mouvementData.personne_source_id) {
-      const stockEntry = stockTechnicienSource.find(s =>
-        s.article_id === article.id &&
-        (!numeroSerie || s.numero_serie_id === numeroSerie.id)
-      )
-      if (!stockEntry) {
-        alert(`Cet article n'est pas dans le stock du technicien source`)
-        setArticleSearch("")
-        setLigneFormData({ article_id: "", quantite: 1 })
-        return
-      }
-      if (stockEntry.quantite < 1) {
-        alert(`Stock insuffisant pour le technicien source (stock actuel: ${stockEntry.quantite})`)
-        setArticleSearch("")
-        setLigneFormData({ article_id: "", quantite: 1 })
-        return
-      }
-    }
-
-    const nouvelleLigne: LigneMouvementAvecNouveau = {
-      id: crypto.randomUUID(), // ID temporaire pour la liste
-      article_id: article.id,
-      numero_serie_id: numeroSerie?.id,
-      // Les personnes sont définies dans le formulaire principal
-      personne_id: mouvementData.personne_id,
-      personne_source_id: mouvementData.personne_source_id,
-      type_mouvement: mouvementData.type_mouvement,
-      localisation_origine: mouvementData.localisation_origine,
-      localisation_destination: mouvementData.localisation_destination,
-      remarques: mouvementData.remarques,
-      // Date sera définie lors de la validation
-      date_mouvement: "", // sera rempli plus tard
-      quantite: 1,
-      created_at: "", // sera rempli plus tard
-      // Ajout des champs temporaires si un numéro de série est fourni
-      nouveau_numero_serie: numeroSerie?.numero_serie,
-      nouvelle_adresse_mac: numeroSerie?.adresse_mac,
-    }
-    setLignesMouvement([...lignesMouvement, nouvelleLigne])
-
-    // IMPORTANT: Recharger TOUS les articles disponibles après le scan
-    if (isTransfertEntreTechniciens() && mouvementData.personne_source_id) {
-      // Pour transfert entre techniciens: tous les articles du stock source
-      const articlesDisponibles = stockTechnicienSource.map(s => s.article).filter(Boolean) as Article[]
-      const uniqueArticles = Array.from(new Map(articlesDisponibles.map(a => [a.id, a])).values())
-      setArticles(uniqueArticles)
-    } else {
-      // Pour les autres cas: tous les articles
-      fetchArticles()
-    }
-
-    // Réinitialiser les champs
-    setArticleSearch("")
-    setArticleSearchSelect("")
-    setLigneFormData({ article_id: "", quantite: 1 })
-    setNumerosSerieDisponibles([])
-    setNumeroSerieSelectionne("")
-    // ✅ Réinitialiser aussi les nouveaux champs
-    setNouveauNumeroSerie("")
-    setNouvelleAdresseMac("")
-  }
-
-  function ajouterLigne(e: React.FormEvent) {
-    e.preventDefault()
-    if (!ligneFormData.article_id || ligneFormData.quantite < 1) {
-      alert("Veuillez sélectionner un article et une quantité valide")
-      return
-    }
-    const article = articles.find(a => a.id === ligneFormData.article_id)
-    if (!article) return
-
-    // --- LOGIQUE MODIFIÉE POUR RÉCEPTION ---
-    if (mouvementData.type_mouvement?.toLowerCase().includes('reception')) {
-      // Pour une réception, on privilégie le nouveau numéro de série saisi
-      if (nouveauNumeroSerie.trim()) {
-        // On crée la ligne avec les infos du nouveau numéro, l'ID sera créé plus tard
-        const nouvelleLigne: LigneMouvementAvecNouveau = {
-          id: crypto.randomUUID(), // ID temporaire pour la liste
-          article_id: ligneFormData.article_id,
-          numero_serie_id: undefined, // Sera créé dans validerMouvement
-          // Les personnes sont définies dans le formulaire principal
-          personne_id: mouvementData.personne_id,
-          personne_source_id: mouvementData.personne_source_id,
-          type_mouvement: mouvementData.type_mouvement,
-          localisation_origine: mouvementData.localisation_origine,
-          localisation_destination: mouvementData.localisation_destination,
-          remarques: mouvementData.remarques,
-          // Date sera définie lors de la validation
-          date_mouvement: "", // sera rempli plus tard
-          quantite: ligneFormData.quantite,
-          created_at: "", // sera rempli plus tard
-          // Stockage temporaire du numéro de série saisi
-          nouveau_numero_serie: nouveauNumeroSerie.trim(),
-          nouvelle_adresse_mac: nouvelleAdresseMac.trim() || undefined,
-        }
-        setLignesMouvement([...lignesMouvement, nouvelleLigne])
-      } else if (numeroSerieSelectionne && numeroSerieSelectionne !== "none") {
-        // Sinon, on peut quand même sélectionner un numéro existant
-        const serieInfo = numerosSerieDisponibles.find(s => s.id === numeroSerieSelectionne)
-        const nouvelleLigne: LigneMouvementAvecNouveau = {
-          id: crypto.randomUUID(), // ID temporaire pour la liste
-          article_id: ligneFormData.article_id,
-          numero_serie_id: serieInfo?.id,
-          // Les personnes sont définies dans le formulaire principal
-          personne_id: mouvementData.personne_id,
-          personne_source_id: mouvementData.personne_source_id,
-          type_mouvement: mouvementData.type_mouvement,
-          localisation_origine: mouvementData.localisation_origine,
-          localisation_destination: mouvementData.localisation_destination,
-          remarques: mouvementData.remarques,
-          // Date sera définie lors de la validation
-          date_mouvement: "", // sera rempli plus tard
-          quantite: ligneFormData.quantite,
-          created_at: "", // sera rempli plus tard
-          // Ajout des champs temporaires si un numéro de série est sélectionné
-          nouveau_numero_serie: serieInfo?.numero_serie,
-          nouvelle_adresse_mac: serieInfo?.adresse_mac,
-        }
-        setLignesMouvement([...lignesMouvement, nouvelleLigne])
-      } else {
-        // Aucun numéro de série fourni
-        alert("Veuillez saisir ou sélectionner un numéro de série pour la réception.")
-        return
-      }
-    } else {
-      // Pour les autres types de mouvements, on utilise la logique existante
-      let serieInfo = null
-      if (numeroSerieSelectionne && numeroSerieSelectionne !== "none") {
-        serieInfo = numerosSerieDisponibles.find(s => s.id === numeroSerieSelectionne)
-      }
-
-      const nouvelleLigne: LigneMouvementAvecNouveau = {
-        id: crypto.randomUUID(), // ID temporaire pour la liste
-        article_id: ligneFormData.article_id,
-        numero_serie_id: serieInfo?.id,
-        // Les personnes sont définies dans le formulaire principal
-        personne_id: mouvementData.personne_id,
-        personne_source_id: mouvementData.personne_source_id,
-        type_mouvement: mouvementData.type_mouvement,
-        localisation_origine: mouvementData.localisation_origine,
-        localisation_destination: mouvementData.localisation_destination,
-        remarques: mouvementData.remarques,
-        // Date sera définie lors de la validation
-        date_mouvement: "", // sera rempli plus tard
-        quantite: ligneFormData.quantite,
-        created_at: "", // sera rempli plus tard
-        // Ajout des champs temporaires si un numéro de série est sélectionné
-        nouveau_numero_serie: serieInfo?.numero_serie,
-        nouvelle_adresse_mac: serieInfo?.adresse_mac,
-      }
-      setLignesMouvement([...lignesMouvement, nouvelleLigne])
-    }
-
-    // Réinitialiser TOUS les champs
-    setLigneFormData({
-      article_id: "",
-      quantite: 1,
-    })
-    setArticleSearch("")
-    setArticleSearchSelect("")
-    setNumerosSerieDisponibles([])
-    setNumeroSerieSelectionne("")
-    setNouveauNumeroSerie("") // ✅ Réinitialiser le champ de nouveau numéro
-    setNouvelleAdresseMac("") // ✅ Réinitialiser le champ de nouvelle adresse MAC
-  }
-
-  function supprimerLigne(ligneId: string) {
-    setLignesMouvement(lignesMouvement.filter(l => l.id !== ligneId))
-  }
-
-  // --- Fonction de Validation ---
-  async function validerMouvement() {
-    if (lignesMouvement.length === 0) {
-      alert("Veuillez ajouter au moins une ligne avant de valider")
-      return
-    }
-    if (!mouvementData.type_mouvement) {
-      alert("Veuillez sélectionner un type de mouvement")
-      return
-    }
-    if (mouvementData.localisation_origine === "Stock Technicien" && !mouvementData.personne_source_id) {
-      alert("Veuillez sélectionner le technicien source")
-      return
-    }
-    if (mouvementData.localisation_destination === "Stock Technicien" && !mouvementData.personne_id) {
-      alert("Veuillez sélectionner le technicien destination")
-      return
-    }
-    if (isTransfertEntreTechniciens() && mouvementData.personne_source_id === mouvementData.personne_id) {
-      alert("Le technicien source et destination doivent être différents")
-      return
-    }
-
-    // --- NOUVEAU : Créer les numéros de série manquants ---
-    // On va devoir traiter les lignes pour créer les numéros de série si nécessaire
-    // On utilise le type LigneMouvementAvecNouveau défini plus haut
-
-    const lignesAMettreAJour = [...lignesMouvement].map(l => ({...l})); // Copie du tableau
-
-    try {
-      for (let i = 0; i < lignesAMettreAJour.length; i++) {
-        const ligne = lignesAMettreAJour[i];
-        // Si la ligne a un nouveau_numero_serie mais pas de numero_serie_id, c'est un nouveau (pour réception)
-        if (ligne.numero_serie_id === undefined && ligne.nouveau_numero_serie) {
-          // Vérifier s'il existe déjà dans la base pour éviter les doublons
-          const { data: serieExistante } = await supabase
-            .from('numeros_serie')
-            .select('id')
-            .eq('numero_serie', ligne.nouveau_numero_serie)
-            .eq('article_id', ligne.article_id)
-            .maybeSingle();
-
-          let nouvelleSerieId;
-          if (serieExistante) {
-            // Si le numéro de série existe déjà pour cet article, on l'utilise
-            nouvelleSerieId = serieExistante.id;
-            console.warn(`Le numéro de série ${ligne.nouveau_numero_serie} existait déjà pour l'article ${ligne.article_id}, utilisation de l'ID existant.`);
-          } else {
-            // Sinon, on le crée
-            const {  nouvelleSerie, error: createError } = await supabase
-              .from('numeros_serie')
-              .insert([{
-                article_id: ligne.article_id,
-                numero_serie: ligne.nouveau_numero_serie,
-                adresse_mac: ligne.nouvelle_adresse_mac || null,
-                statut: 'disponible', // Ou 'reçu', à vous de voir
-                localisation: mouvementData.localisation_destination || 'inconnue', // Initialiser la localisation
-              }])
-              .select('id')
-              .single();
-
-            if (createError) throw createError;
-            nouvelleSerieId = nouvelleSerie.id;
-            console.log(`✅ Nouveau numéro de série créé: ${ligne.nouveau_numero_serie} avec ID ${nouvelleSerieId}`);
-          }
-          // Mettre à jour la ligne avec le nouvel ID
-          ligne.numero_serie_id = nouvelleSerieId;
-          // Supprimer les champs temporaires pour la requête finale
-          delete ligne.nouveau_numero_serie;
-          delete ligne.nouvelle_adresse_mac;
-        }
-      }
-
-      // Maintenant, `lignesAMettreAJour` contient toutes les lignes avec un `numero_serie_id` valide
-      const dateMouvement = new Date().toISOString()
-      console.log('DEBUG - Valeur de mouvementData.type_mouvement AVANT mapping:', mouvementData.type_mouvement)
-      const typeMapped = mapTypeToConstraint(mouvementData.type_mouvement)
-      console.log('DEBUG - Valeur de typeMapped APRES mapping:', typeMapped)
-      let remarquesFinales = mouvementData.remarques
-      if (mouvementData.personne_source_id && mouvementData.personne_id) {
-        const techSource = personnes.find(p => p.id === mouvementData.personne_source_id)
-        const techDest = personnes.find(p => p.id === mouvementData.personne_id)
-        const infoTransfert = `Transfert: ${techSource?.nom} ${techSource?.prenom || ''} → ${techDest?.nom} ${techDest?.prenom || ''}`
-        remarquesFinales = remarquesFinales ? `${infoTransfert} | ${remarquesFinales}` : infoTransfert
-      }
-
-      // Utiliser `lignesAMettreAJour` au lieu de `lignesMouvement`
-      const mouvementsToInsert = lignesAMettreAJour.map(ligne => ({
-        article_id: ligne.article_id,
-        numero_serie_id: ligne.numero_serie_id || null, // Utiliser l'ID potentiellement créé
-        personne_id: ligne.personne_id || mouvementData.personne_id || mouvementData.personne_source_id || null, // Utiliser l'ID de la ligne ou du formulaire
-        personne_source_id: ligne.personne_source_id || mouvementData.personne_source_id || null, // Utiliser l'ID de la ligne ou du formulaire
-        type_mouvement: ligne.type_mouvement || typeMapped, // Utiliser le type de la ligne ou du formulaire
-        localisation_origine: ligne.localisation_origine || mouvementData.localisation_origine || null, // Utiliser l'origine de la ligne ou du formulaire
-        localisation_destination: ligne.localisation_destination || mouvementData.localisation_destination || null, // Utiliser la destination de la ligne ou du formulaire
-        quantite: ligne.quantite,
-        remarques: ligne.remarques || remarquesFinales, // Utiliser les remarques de la ligne ou du formulaire
-        date_mouvement: dateMouvement,
-      }))
-
-      console.log('DEBUG - Valeur de type_mouvement dans le premier objet à insérer:', mouvementsToInsert[0]?.type_mouvement)
-      console.log('Données à insérer:', mouvementsToInsert)
-
-      const { error: mouvementError } = await supabase
-        .from('mouvements')
-        .insert(mouvementsToInsert)
-      if (mouvementError) throw mouvementError
-
-      // --- La boucle de mise à jour du stock commence ici ---
-      for (const ligne of lignesAMettreAJour) { // Toujours utiliser `lignesAMettreAJour`
-        const article = articles.find(a => a.id === ligne.article_id)
-        if (!article) continue
-
-        let newQuantity = article.quantite_stock
-        const typeMvt = typesMouvement.find(t => t.nom === (ligne.type_mouvement || mouvementData.type_mouvement))
-        if (typeMvt) {
-          if (typeMvt.nom.toLowerCase().includes('reception') || typeMvt.nom.toLowerCase().includes('retour')) {
-            newQuantity += ligne.quantite
-          } else if (typeMvt.nom.toLowerCase().includes('sortie') || typeMvt.nom.toLowerCase().includes('installation')) {
-            newQuantity -= ligne.quantite
-          }
+          setNumerosSerieDisponibles(data || [])
+          return
         }
 
-        const { error: stockError } = await supabase
-          .from('articles')
-          .update({ quantite_stock: newQuantity })
-          .eq('id', ligne.article_id)
-        if (stockError) throw stockError
+        // PAR DÉFAUT -> séries disponibles
+        const { data } = await supabase
+          .from("numeros_serie")
+          .select("*")
+          .eq("article_id", articleId)
+          .eq("statut", "disponible")
 
-        if (ligne.numero_serie_id && (ligne.localisation_destination || mouvementData.localisation_destination)) {
-          try {
-            const destination = ligne.localisation_destination || mouvementData.localisation_destination;
-            const { error: updateSerieError } = await supabase
-              .from('numeros_serie')
-              .update({
-                localisation: destination,
-                updated_at: new Date().toISOString()
-              })
-              .eq('id', ligne.numero_serie_id)
-
-            if (updateSerieError) {
-              console.error('Erreur mise à jour emplacement série:', updateSerieError)
-            } else {
-              console.log(`✅ Emplacement mis à jour pour série ${ligne.numero_serie_id}: ${destination}`)
-            }
-          } catch (error) {
-            console.error('Erreur lors de la mise à jour de l\'emplacement:', error)
-          }
-        }
-
-        // Gestion du stock technique
-        const sourceId = ligne.personne_source_id || mouvementData.personne_source_id;
-        if (sourceId && (ligne.localisation_origine || mouvementData.localisation_origine) === "Stock Technicien") {
-          try {
-            let queryStock = supabase
-              .from('stock_technicien')
-              .select('*')
-              .eq('technicien_id', sourceId)
-              .eq('article_id', ligne.article_id)
-            if (ligne.numero_serie_id) {
-              queryStock = queryStock.eq('numero_serie_id', ligne.numero_serie_id)
-            } else {
-              queryStock = queryStock.is('numero_serie_id', null)
-            }
-            const {  existingStock } = await queryStock.maybeSingle()
-
-            if (existingStock) {
-              const newQty = existingStock.quantite - ligne.quantite
-              if (newQty >= 0) {
-                await supabase
-                  .from('stock_technicien')
-                  .update({
-                    quantite: newQty,
-                    derniere_mise_a_jour: new Date().toISOString()
-                  })
-                  .eq('id', existingStock.id)
-              } else {
-                throw new Error(`Stock insuffisant pour le technicien source: ${existingStock.quantite}`)
-              }
-            }
-          } catch (error: any) {
-            alert("Erreur mise à jour stock source: " + error.message)
-          }
-        }
-
-        const destId = ligne.personne_id || mouvementData.personne_id;
-        if (destId && (ligne.localisation_destination || mouvementData.localisation_destination) === "Stock Technicien") {
-          try {
-            let queryStock = supabase
-              .from('stock_technicien')
-              .select('*')
-              .eq('technicien_id', destId)
-              .eq('article_id', ligne.article_id)
-            if (ligne.numero_serie_id) {
-              queryStock = queryStock.eq('numero_serie_id', ligne.numero_serie_id)
-            } else {
-              queryStock = queryStock.is('numero_serie_id', null)
-            }
-            const {  existingStock } = await queryStock.maybeSingle()
-
-            if (existingStock) {
-              await supabase
-                .from('stock_technicien')
-                .update({
-                  quantite: existingStock.quantite + ligne.quantite,
-                  derniere_mise_a_jour: new Date().toISOString()
-                })
-                .eq('id', existingStock.id)
-            } else {
-              console.log('Création nouvelle entrée stock_technicien destination pour:', article.nom)
-              await supabase
-                .from('stock_technicien')
-                .insert({
-                  technicien_id: destId,
-                  article_id: ligne.article_id,
-                  numero_serie_id: ligne.numero_serie_id || null,
-                  quantite: ligne.quantite,
-                  localisation: (ligne.localisation_destination || mouvementData.localisation_destination) || 'camionnette',
-                })
-            }
-          } catch (error: any) {
-            alert("Erreur mise à jour stock destination: " + error.message)
-          }
-        }
+        setNumerosSerieDisponibles(data || [])
+      } catch (err) {
+        console.error("❌ loadNumerosSerieForArticle:", err)
+        setNumerosSerieDisponibles([])
       }
+    },
+    [
+      isTransfertEntreTechniciens,
+      mouvementData.personne_source_id,
+      mouvementData.type_mouvement,
+      stockTechnicienSource,
+    ]
+  )
+  /* ======================================================================
+        🧾 FORMULAIRE PRINCIPAL – Type, origines, techniciens
+     ====================================================================== */
 
-      // Réinitialisation du formulaire
-      setShowForm(false)
-      fetchMouvements() // Recharge la liste des mouvements
-      fetchArticles() // Recharge les stocks
-      setLignesMouvement([]) // Réinitialise la liste des lignes en cours
-      setMouvementData({
-        personne_id: "",
-        personne_source_id: "",
-        type_mouvement: typesMouvement[0]?.nom || "",
-        localisation_origine: "",
-        localisation_destination: "",
-        remarques: "",
-      })
-      setLigneFormData({
-        article_id: "",
-        quantite: 1,
-      })
-      setArticleSearch("")
-      alert(`${lignesMouvement.length} ligne(s) de mouvement enregistrée(s) avec succès !`)
-    } catch (error: any) {
-      alert("Erreur: " + error.message)
-    }
-  }
-
-  // --- Filtrage des Mouvements Affichés ---
-  // Le filtrage est plus complexe maintenant car chaque ligne est une entrée distincte
-  // On pourrait grouper par `date_mouvement`, `type_mouvement`, `personne_id`, `personne_source_id` pour former des "mouvements" logiques.
-  // Pour l'instant, on filtre sur la liste brute des lignes.
-  const filteredMouvements = mouvements.filter(m => {
-    const matchesSearch = !filterSearch || (
-      m.article?.nom.toLowerCase().includes(filterSearch.toLowerCase()) ||
-      m.article?.numero_article.toLowerCase().includes(filterSearch.toLowerCase()) ||
-      m.numero_serie?.numero_serie?.toLowerCase().includes(filterSearch.toLowerCase()) ||
-      m.numero_serie?.adresse_mac?.toLowerCase().includes(filterSearch.toLowerCase())
-    )
-    const matchesType = !filterType || m.type_mouvement.toLowerCase().includes(filterType.toLowerCase())
-    const matchesTechnicien = !filterTechnicien || (
-      (m as any).personne_source_id === filterTechnicien ||
-      m.personne_id === filterTechnicien
-    )
-    let matchesDate = true
-    if (filterDateDebut || filterDateFin) {
-      const mouvementDate = new Date(m.date_mouvement)
-      if (filterDateDebut) {
-        const dateDebut = new Date(filterDateDebut)
-        dateDebut.setHours(0, 0, 0, 0)
-        matchesDate = matchesDate && mouvementDate >= dateDebut
-      }
-      if (filterDateFin) {
-        const dateFin = new Date(filterDateFin)
-        dateFin.setHours(23, 59, 59, 999)
-        matchesDate = matchesDate && mouvementDate <= dateFin
-      }
-    }
-    return matchesSearch && matchesType && matchesTechnicien && matchesDate
-  })
-
-  // --- Calculs Statistiques ---
-  // Le calcul des stats est maintenant basé sur les lignes, donc un mouvement de 5 articles comptera comme 5.
-  // Si vous voulez compter les "mouvements" logiques, il faudrait grouper par date, type, personnes.
-  const stats = {
-    receptions: mouvements.filter(m => m.type_mouvement?.toLowerCase().includes('reception')).length,
-    sorties: mouvements.filter(m => m.type_mouvement?.toLowerCase().includes('sortie')).length,
-    installations: mouvements.filter(m => m.type_mouvement?.toLowerCase().includes('installation')).length,
-    retours: mouvements.filter(m => m.type_mouvement?.toLowerCase().includes('retour')).length,
-  }
-
-  const getTypeBadge = (type: string) => {
-    if (type.toLowerCase().includes('reception')) {
-      return 'bg-green-100 text-green-800'
-    } else if (type.toLowerCase().includes('sortie') || type.toLowerCase().includes('installation')) {
-      return 'bg-blue-100 text-blue-800'
-    } else if (type.toLowerCase().includes('retour')) {
-      return 'bg-orange-100 text-orange-800'
-    } else {
-      return 'bg-gray-100 text-gray-800'
-    }
-  }
-
-  const getTypeIcon = (type: string) => {
-    if (type.toLowerCase().includes('reception')) {
-      return TrendingUp
-    } else if (type.toLowerCase().includes('sortie') || type.toLowerCase().includes('installation')) {
-      return TrendingDown
-    } else if (type.toLowerCase().includes('retour')) {
-      return RefreshCw
-    } else {
-      return History
-    }
-  }
-
-  // --- Affichage ---
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -932,312 +478,462 @@ export default function MouvementsPage() {
   if (showForm) {
     return (
       <div className="space-y-6 p-6">
+        {/* HEADER du formulaire */}
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold">Nouveau Mouvement</h1>
             <p className="text-muted-foreground">Ajouter un mouvement de stock</p>
           </div>
-          <Button variant="outline" onClick={() => setShowForm(false)}>Annuler</Button>
+
+          <Button
+            variant="outline"
+            onClick={() => {
+              setShowForm(false)
+              setLignesMouvement([])
+            }}
+          >
+            Annuler
+          </Button>
         </div>
 
-        {/* Formulaire Principal */}
+        {/* ==================================================================
+            🟦 CARD — Informations du mouvement
+        =================================================================== */}
         <Card>
           <CardHeader>
             <CardTitle>Informations du Mouvement</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
+
+          <CardContent className="space-y-6">
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+              {/* -------------------------------------------------------------
+                  TYPE DE MOUVEMENT
+              -------------------------------------------------------------- */}
               <div>
-                <Label className="text-base mb-2 block">Type de mouvement</Label>
+                <Label className="block mb-2 font-semibold">Type de mouvement</Label>
                 <Select
                   value={mouvementData.type_mouvement}
-                  onValueChange={(value) => setMouvementData({...mouvementData, type_mouvement: value})}
+                  onValueChange={(value) =>
+                    setMouvementData((d) => ({ ...d, type_mouvement: value }))
+                  }
                 >
                   <SelectTrigger className="h-14 text-lg">
-                    <SelectValue placeholder="Choisir" />
+                    <SelectValue placeholder="Choisir un type" />
                   </SelectTrigger>
+
                   <SelectContent>
-                    {typesMouvement.map((type) => (
-                      // ✅ CORRIGÉ : Vérifier que l'ID de type est valide
-                      type.id && type.id.trim() !== "" && type.nom && type.nom.trim() !== "" ? (
-                        <SelectItem key={type.id} value={type.nom}>{type.nom}</SelectItem>
-                      ) : null
-                    ))}
+                    {typesMouvement
+                      .filter((t) => t.nom?.trim())
+                      .map((t) => (
+                        <SelectItem key={t.id} value={t.nom}>
+                          {t.nom}
+                        </SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
               </div>
+
+              {/* -------------------------------------------------------------
+                  LOCALISATION ORIGINE
+              -------------------------------------------------------------- */}
               <div>
-                <Label className="text-base mb-2 block">Localisation d'origine</Label>
+                <Label className="block mb-2 font-semibold">Localisation d'origine</Label>
+
                 <Select
                   value={mouvementData.localisation_origine}
-                  onValueChange={(value) => setMouvementData({...mouvementData, localisation_origine: value})}
+                  onValueChange={(value) =>
+                    setMouvementData((d) => ({
+                      ...d,
+                      localisation_origine: value,
+                      personne_source_id: "", // reset auto si on change l'origine
+                    }))
+                  }
                 >
                   <SelectTrigger className="h-14 text-lg">
                     <SelectValue placeholder="Choisir" />
                   </SelectTrigger>
+
                   <SelectContent>
-                    {emplacements.map((emp) => (
-                      // ✅ CORRIGÉ : Vérifier que l'ID d'emplacement est valide
-                      emp.id && emp.id.trim() !== "" && emp.nom && emp.nom.trim() !== "" ? (
-                        <SelectItem key={emp.id} value={emp.nom}>{emp.nom}</SelectItem>
-                      ) : null
-                    ))}
+                    {emplacements
+                      .filter((e) => e.nom?.trim())
+                      .map((e) => (
+                        <SelectItem key={e.id} value={e.nom}>
+                          {e.nom}
+                        </SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
               </div>
+
+              {/* -------------------------------------------------------------
+                  TECHNICIEN SOURCE (seulement si Stock Technicien)
+              -------------------------------------------------------------- */}
+              {mouvementData.localisation_origine === "Stock Technicien" && (
+                <div>
+                  <Label className="block mb-2 font-semibold">Technicien source</Label>
+
+                  <Select
+                    value={mouvementData.personne_source_id}
+                    onValueChange={async (value) => {
+                      const id = value === "none" ? "" : value
+                      setMouvementData((d) => ({ ...d, personne_source_id: id }))
+                      await fetchStockTechnicienSource(id)
+                    }}
+                  >
+                    <SelectTrigger className="h-14 text-lg">
+                      <SelectValue placeholder="Choisir un technicien" />
+                    </SelectTrigger>
+
+                    <SelectContent>
+                      <SelectItem value="none">Aucun</SelectItem>
+
+                      {personnes
+                        .filter((p) => p.type === "technicien" && p.nom?.trim())
+                        .map((p) => (
+                          <SelectItem key={p.id} value={p.id}>
+                            {p.nom} {p.prenom}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {/* -------------------------------------------------------------
+                  LOCALISATION DESTINATION
+              -------------------------------------------------------------- */}
               <div>
-                <Label className="text-base mb-2 block">Technicien source</Label>
-                <Select
-                  value={mouvementData.personne_source_id}
-                  onValueChange={(value) => {
-                    const newValue = value === "none" ? "" : value
-                    setMouvementData({...mouvementData, personne_source_id: newValue})
-                    fetchStockTechnicienSource(newValue) // Charger le stock du technicien source
-                  }}
-                >
-                  <SelectTrigger className="h-14 text-lg">
-                    <SelectValue placeholder="Choisir" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Aucun</SelectItem>
-                    {personnes.filter(p => p.type === 'technicien').map((p) => (
-                      // ✅ CORRIGÉ : Vérifier que l'ID de personne est valide
-                      p.id && p.id.trim() !== "" && p.nom && p.nom.trim() !== "" ? (
-                        <SelectItem key={p.id} value={p.id}>{p.nom} {p.prenom}</SelectItem>
-                      ) : null
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label className="text-base mb-2 block">Localisation de destination</Label>
+                <Label className="block mb-2 font-semibold">Localisation destination</Label>
+
                 <Select
                   value={mouvementData.localisation_destination}
-                  onValueChange={(value) => setMouvementData({...mouvementData, localisation_destination: value})}
+                  onValueChange={(value) =>
+                    setMouvementData((d) => ({
+                      ...d,
+                      localisation_destination: value,
+                      personne_id: "", // reset auto si on change destination
+                    }))
+                  }
                 >
                   <SelectTrigger className="h-14 text-lg">
                     <SelectValue placeholder="Choisir" />
                   </SelectTrigger>
+
                   <SelectContent>
-                    {emplacements.map((emp) => (
-                      // ✅ CORRIGÉ : Vérifier que l'ID d'emplacement est valide
-                      emp.id && emp.id.trim() !== "" && emp.nom && emp.nom.trim() !== "" ? (
-                        <SelectItem key={emp.id} value={emp.nom}>{emp.nom}</SelectItem>
-                      ) : null
-                    ))}
+                    {emplacements
+                      .filter((e) => e.nom?.trim())
+                      .map((e) => (
+                        <SelectItem key={e.id} value={e.nom}>
+                          {e.nom}
+                        </SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
               </div>
-              <div>
-                <Label className="text-base mb-2 block">Technicien destination</Label>
-                <Select
-                  value={mouvementData.personne_id}
-                  onValueChange={(value) => setMouvementData({...mouvementData, personne_id: value === "none" ? "" : value})}
-                >
-                  <SelectTrigger className="h-14 text-lg">
-                    <SelectValue placeholder="Choisir" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Aucun</SelectItem>
-                    {personnes.filter(p => p.type === 'technicien' && p.id !== mouvementData.personne_source_id).map((p) => (
-                      // ✅ CORRIGÉ : Vérifier que l'ID de personne est valide
-                      p.id && p.id.trim() !== "" && p.nom && p.nom.trim() !== "" ? (
-                        <SelectItem key={p.id} value={p.id}>{p.nom} {p.prenom}</SelectItem>
-                      ) : null
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+
+              {/* -------------------------------------------------------------
+                  TECHNICIEN DESTINATION (si nécessaire)
+              -------------------------------------------------------------- */}
+              {mouvementData.localisation_destination === "Stock Technicien" && (
+                <div>
+                  <Label className="block mb-2 font-semibold">Technicien destination</Label>
+
+                  <Select
+                    value={mouvementData.personne_id}
+                    onValueChange={(value) =>
+                      setMouvementData((d) => ({
+                        ...d,
+                        personne_id: value === "none" ? "" : value,
+                      }))
+                    }
+                  >
+                    <SelectTrigger className="h-14 text-lg">
+                      <SelectValue placeholder="Choisir un technicien" />
+                    </SelectTrigger>
+
+                    <SelectContent>
+                      <SelectItem value="none">Aucun</SelectItem>
+
+                      {personnes
+                        .filter(
+                          (p) =>
+                            p.type === "technicien" &&
+                            p.id !== mouvementData.personne_source_id &&
+                            p.nom?.trim()
+                        )
+                        .map((p) => (
+                          <SelectItem key={p.id} value={p.id}>
+                            {p.nom} {p.prenom}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
             </div>
+
+            {/* REMARQUES */}
             <div>
-              <Label className="text-base mb-2 block">Remarques</Label>
+              <Label className="block mb-2 font-semibold">Remarques</Label>
               <Input
                 className="h-14 text-lg"
-                placeholder="Remarques optionnelles..."
+                placeholder="Infos complémentaires…"
                 value={mouvementData.remarques}
-                onChange={(e) => setMouvementData({...mouvementData, remarques: e.target.value})}
+                onChange={(e) =>
+                  setMouvementData((d) => ({ ...d, remarques: e.target.value }))
+                }
               />
             </div>
           </CardContent>
         </Card>
-
-        {/* Formulaire d'Ajout de Ligne */}
+        {/* ==================================================================
+            🟦 CARD — Ajout d’un article (ligne mouvement)
+        =================================================================== */}
         <Card>
           <CardHeader>
             <CardTitle>Ajouter un Article</CardTitle>
           </CardHeader>
+
           <CardContent className="space-y-6">
+
+            {/* CHAMP IMPORTANT : Recherche / Scan */}
             <div>
-              <Label className="text-base mb-2 block">Rechercher / Scanner Article</Label>
+              <Label className="block mb-2 font-semibold">Rechercher / Scanner Article</Label>
               <Input
                 className="h-14 text-lg"
-                placeholder="Scanner ou rechercher par nom ou numéro..."
+                placeholder="Scanner ou rechercher par nom / numéro…"
                 value={articleSearch}
                 onChange={(e) => searchArticles(e.target.value)}
               />
             </div>
 
-            <form onSubmit={ajouterLigne} className="space-y-6">
-              <div className="grid grid-cols-2 gap-6">
+            {/* FORMULAIRE ADD LINE */}
+            <form
+              onSubmit={(e) => {
+                e.preventDefault()
+                ajouterLigne()
+              }}
+              className="space-y-6"
+            >
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+                {/* -------------------------------------------------------------
+                    ARTICLE SELECT
+                -------------------------------------------------------------- */}
                 <div>
-                  <Label className="text-base mb-2 block">Article sélectionné</Label>
+                  <Label className="block mb-2 font-semibold">Article sélectionné</Label>
+
                   <Select
                     value={ligneFormData.article_id}
                     onValueChange={(value) => {
-                      setLigneFormData({...ligneFormData, article_id: value})
-                      setArticleSearchSelect("") // Reset recherche Select après sélection
-                      loadNumerosSerieForArticle(value) // Charger les séries pour cet article
+                      setLigneFormData((d) => ({ ...d, article_id: value }))
+                      setNumeroSerieSelectionne("")
+                      loadNumerosSerieForArticle(value)
                     }}
                   >
                     <SelectTrigger className="h-14 text-lg">
-                      <SelectValue placeholder="Sélectionnez un article" />
+                      <SelectValue placeholder="Choisir un article" />
                     </SelectTrigger>
+
                     <SelectContent>
+                      {/* Barre de recherche locale */}
                       <div className="p-2 sticky top-0 bg-background z-10">
                         <Input
-                          placeholder="Rechercher par nom..."
+                          placeholder="Filtrer la liste…"
                           value={articleSearchSelect}
-                          onChange={(e) => {
-                            e.stopPropagation()
-                            setArticleSearchSelect(e.target.value)
-                          }}
-                          className="h-10 mb-2"
-                          onClick={(e) => e.stopPropagation()}
-                          onKeyDown={(e) => e.stopPropagation()}
+                          onChange={(e) => setArticleSearchSelect(e.target.value)}
+                          className="h-10"
                         />
                       </div>
-                      {articles.filter(article =>
-                        article.nom.toLowerCase().includes(articleSearchSelect.toLowerCase()) ||
-                        article.numero_article.toLowerCase().includes(articleSearchSelect.toLowerCase())
-                      ).map((article) => (
-                        // ✅ CORRIGÉ : Vérifier que l'ID d'article est valide
-                        article.id && article.id.trim() !== "" && article.nom && article.nom.trim() !== "" ? (
-                          <SelectItem key={article.id} value={article.id}>
+
+                      {articles
+                        .filter((a) =>
+                          (a.nom + a.numero_article)
+                            .toLowerCase()
+                            .includes(articleSearchSelect.toLowerCase())
+                        )
+                        .filter((a) => a.nom?.trim())
+                        .map((a) => (
+                          <SelectItem key={a.id} value={a.id}>
                             <div className="flex flex-col py-1">
-                              <span className="font-semibold">{article.nom}</span>
+                              <span className="font-semibold">{a.nom}</span>
                               <span className="text-xs text-muted-foreground">
-                                {article.numero_article} • Stock: {article.quantite_stock}
+                                {a.numero_article} — Stock : {a.quantite_stock}
                               </span>
                             </div>
                           </SelectItem>
-                        ) : null
-                      ))}
+                        ))}
                     </SelectContent>
                   </Select>
                 </div>
 
-                {/* --- NOUVEAU BLOC POUR LE NOUVEAU NUMÉRO DE SÉRIE --- */}
-                {ligneFormData.article_id && (
-                  <div>
-                    <Label className="text-base mb-2 block">Nouveau N° de série / MAC (à créer)</Label>
-                    <Input
-                      className="h-14 text-lg"
-                      placeholder="Scanner ou saisir le N° de série..."
-                      value={nouveauNumeroSerie}
-                      onChange={(e) => setNouveauNumeroSerie(e.target.value)}
-                    />
-                    {/* Champ optionnel pour l'adresse MAC */}
-                    <Label className="text-base mb-2 block mt-2">Nouvelle Adresse MAC (facultatif)</Label>
-                    <Input
-                      className="h-14 text-lg"
-                      placeholder="Scanner ou saisir l'adresse MAC..."
-                      value={nouvelleAdresseMac}
-                      onChange={(e) => setNouvelleAdresseMac(e.target.value)}
-                    />
-                  </div>
-                )}
-                {/* --- FIN NOUVEAU BLOC --- */}
+                {/* -------------------------------------------------------------
+                    NOUVEAU NUMÉRO DE SÉRIE (réception)
+                -------------------------------------------------------------- */}
+                {ligneFormData.article_id &&
+                  mouvementData.type_mouvement
+                    ?.toLowerCase()
+                    .includes("reception") && (
+                    <div>
+                      <Label className="block mb-2 font-semibold">
+                        Nouveau numéro de série (création)
+                      </Label>
+                      <Input
+                        className="h-14 text-lg"
+                        placeholder="Scanner / taper le N° de série…"
+                        value={nouveauNumeroSerie}
+                        onChange={(e) => setNouveauNumeroSerie(e.target.value)}
+                      />
 
-                {/* Ancien bloc pour sélectionner un numéro existant */}
-                {ligneFormData.article_id && numerosSerieDisponibles.length > 0 && (
-                  <div>
-                    <Label className="text-base mb-2 block">Ou Sélectionner un N° de série existant</Label>
-                    <Select
-                      value={numeroSerieSelectionne}
-                      onValueChange={setNumeroSerieSelectionne}
-                    >
-                      <SelectTrigger className="h-14 text-lg">
-                        <SelectValue placeholder="Sélectionnez un numéro" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {/* ✅ CORRIGÉ : Filtrer les séries avec un ID non vide */}
-                        {numerosSerieDisponibles
-                          .filter(serie => serie && serie.id && serie.id.trim() !== "" && serie.numero_serie && serie.numero_serie.trim() !== "")
-                          .map((serie) => (
-                            <SelectItem key={serie.id} value={serie.id}>
-                              {serie.numero_serie} {serie.adresse_mac ? `(${serie.adresse_mac})` : ''}
-                            </SelectItem>
-                          ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
+                      <Label className="block mt-3 mb-2 font-semibold">
+                        Adresse MAC (optionnel)
+                      </Label>
+                      <Input
+                        className="h-14 text-lg"
+                        placeholder="Adresse MAC…"
+                        value={nouvelleAdresseMac}
+                        onChange={(e) => setNouvelleAdresseMac(e.target.value)}
+                      />
+                    </div>
+                  )}
 
+                {/* -------------------------------------------------------------
+                    NUMÉRO DE SÉRIE EXISTANT
+                -------------------------------------------------------------- */}
+                {ligneFormData.article_id &&
+                  numerosSerieDisponibles.length > 0 &&
+                  !mouvementData.type_mouvement
+                    ?.toLowerCase()
+                    .includes("reception") && (
+                    <div>
+                      <Label className="block mb-2 font-semibold">
+                        Sélectionner un N° de série
+                      </Label>
+
+                      <Select
+                        value={numeroSerieSelectionne}
+                        onValueChange={setNumeroSerieSelectionne}
+                      >
+                        <SelectTrigger className="h-14 text-lg">
+                          <SelectValue placeholder="Numéro de série…" />
+                        </SelectTrigger>
+
+                        <SelectContent>
+                          {numerosSerieDisponibles
+                            .filter((s) => s.id?.trim() && s.numero_serie?.trim())
+                            .map((serie) => (
+                              <SelectItem key={serie.id} value={serie.id}>
+                                {serie.numero_serie}
+                                {serie.adresse_mac ? ` (${serie.adresse_mac})` : ""}
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
+                {/* -------------------------------------------------------------
+                    QUANTITÉ
+                -------------------------------------------------------------- */}
                 <div>
-                  <Label className="text-base mb-2 block">Quantité</Label>
+                  <Label className="block mb-2 font-semibold">Quantité</Label>
                   <Input
                     className="h-14 text-lg"
                     type="number"
-                    min="1"
+                    min={1}
                     value={ligneFormData.quantite}
-                    onChange={(e) => setLigneFormData({...ligneFormData, quantite: parseInt(e.target.value) || 1})}
+                    onChange={(e) =>
+                      setLigneFormData((d) => ({
+                        ...d,
+                        quantite: Number(e.target.value) || 1,
+                      }))
+                    }
                   />
                 </div>
               </div>
 
-              <div className="flex justify-end">
+              <div className="flex justify-end pt-3">
                 <Button type="submit" className="h-12 px-8 text-lg">
-                  Ajouter à la liste
+                  Ajouter
                 </Button>
               </div>
             </form>
           </CardContent>
         </Card>
 
-        {/* Liste des Lignes Ajoutées */}
+        {/* ==================================================================
+            📋 LISTE DES LIGNES AJOUTÉES
+        =================================================================== */}
         {lignesMouvement.length > 0 && (
           <Card>
             <CardHeader>
-              <CardTitle>Lignes du Mouvement ({lignesMouvement.length})</CardTitle>
+              <CardTitle>
+                Lignes du Mouvement ({lignesMouvement.length})
+              </CardTitle>
             </CardHeader>
+
             <CardContent>
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead>
                     <tr className="border-b">
-                      <th className="p-4 text-left">Article</th>
-                      <th className="p-4 text-left">N° Article</th>
-                      <th className="p-4 text-left">N° de Série</th>
-                      <th className="p-4 text-left">Adresse MAC</th>
-                      <th className="p-4 text-center">Quantité</th>
-                      <th className="p-4 text-center">Actions</th>
+                      <th className="p-3 text-left">Article</th>
+                      <th className="p-3 text-left">Référence</th>
+                      <th className="p-3 text-left">N° Série</th>
+                      <th className="p-3 text-left">Adresse MAC</th>
+                      <th className="p-3 text-center">Qté</th>
+                      <th className="p-3 text-center">Actions</th>
                     </tr>
                   </thead>
+
                   <tbody>
                     {lignesMouvement.map((ligne) => {
-                      // Trouver les infos de l'article et du numéro de série pour cette ligne temporaire
-                      const article = articles.find(a => a.id === ligne.article_id);
-                      // Si la ligne a un nouveau numéro de série en attente, on l'affiche
-                      const numeroSerieAffiche = ligne.numero_serie_id ? (numerosSerieDisponibles.find(s => s.id === ligne.numero_serie_id)?.numero_serie || 'Inconnu') : (ligne.nouveau_numero_serie || 'Nouveau à créer');
-                      const adresseMacAffiche = ligne.numero_serie_id ? (numerosSerieDisponibles.find(s => s.id === ligne.numero_serie_id)?.adresse_mac || '-') : (ligne.nouvelle_adresse_mac || '-');
+                      const art = articles.find((a) => a.id === ligne.article_id)
+
+                      const serie =
+                        numerosSerieDisponibles.find(
+                          (s) => s.id === ligne.numero_serie_id
+                        ) || null
+
+                      const displaySerie =
+                        ligne.numero_serie_id
+                          ? serie?.numero_serie || "Inconnu"
+                          : ligne.nouveau_numero_serie || "Nouveau"
+
+                      const displayMac =
+                        ligne.numero_serie_id
+                          ? serie?.adresse_mac || "-"
+                          : ligne.nouvelle_adresse_mac || "-"
 
                       return (
-                        <tr key={ligne.id} className="border-b hover:bg-muted/50">
-                          <td className="p-4">
-                            <div>
-                              <p className="font-bold text-base">{article?.nom || 'Article inconnu'}</p>
-                              <p className="text-xs text-muted-foreground">{article?.numero_article || 'N/A'}</p>
-                            </div>
+                        <tr key={ligne.id} className="border-b hover:bg-muted/40">
+                          <td className="p-3 font-semibold">
+                            {art?.nom || "Inconnu"}
                           </td>
-                          <td className="p-4 text-muted-foreground font-mono text-sm">{article?.numero_article || 'N/A'}</td>
-                          <td className="p-4 text-sm font-mono">{numeroSerieAffiche}</td>
-                          <td className="p-4 text-sm font-mono">{adresseMacAffiche}</td>
-                          <td className="p-4 text-center font-bold text-xl text-blue-600">{ligne.quantite}</td>
-                          <td className="p-4 text-center">
+
+                          <td className="p-3 text-muted-foreground">
+                            {art?.numero_article || "-"}
+                          </td>
+
+                          <td className="p-3 font-mono">{displaySerie}</td>
+                          <td className="p-3 font-mono">{displayMac}</td>
+
+                          <td className="p-3 text-center font-bold text-blue-600">
+                            {ligne.quantite}
+                          </td>
+
+                          <td className="p-3 text-center">
                             <Button
                               variant="ghost"
-                              size="sm"
-                              onClick={() => supprimerLigne(ligne.id)}
+                              size="icon"
+                              onClick={() =>
+                                setLignesMouvement((prev) =>
+                                  prev.filter((l) => l.id !== ligne.id)
+                                )
+                              }
                             >
                               <Trash2 className="h-5 w-5 text-red-500" />
                             </Button>
@@ -1252,11 +948,12 @@ export default function MouvementsPage() {
           </Card>
         )}
 
-        {/* Bouton de Validation */}
-        <div className="flex gap-4 justify-end">
+        {/* ==================================================================
+            BOUTONS FOOTER
+        =================================================================== */}
+        <div className="flex justify-end gap-4">
           <Button
             variant="outline"
-            size="lg"
             className="h-14 px-8 text-lg"
             onClick={() => {
               setShowForm(false)
@@ -1264,215 +961,343 @@ export default function MouvementsPage() {
               setMouvementData({
                 personne_id: "",
                 personne_source_id: "",
-                type_mouvement: typesMouvement[0]?.nom || "",
+                type_mouvement: "",
                 localisation_origine: "",
                 localisation_destination: "",
                 remarques: "",
               })
-              setLigneFormData({
-                article_id: "",
-                quantite: 1,
-              })
-              setArticleSearch("")
             }}
           >
             Annuler
           </Button>
+
           <Button
-            size="lg"
             className="h-14 px-8 text-lg"
             onClick={validerMouvement}
           >
-            Valider le mouvement ({lignesMouvement.length} ligne{lignesMouvement.length > 1 ? 's' : ''})
+            Valider ({lignesMouvement.length})
           </Button>
         </div>
       </div>
     )
   }
+  /* ======================================================================
+        ✅ VALIDATION DU MOUVEMENT
+     ====================================================================== */
 
-  // --- Affichage de la Liste des Mouvements ---
+  async function validerMouvement() {
+    if (!mouvementData.type_mouvement) {
+      alert("Veuillez sélectionner un type de mouvement.")
+      return
+    }
+
+    if (!mouvementData.localisation_origine) {
+      alert("Veuillez sélectionner une localisation d'origine.")
+      return
+    }
+
+    if (!mouvementData.localisation_destination) {
+      alert("Veuillez sélectionner une localisation de destination.")
+      return
+    }
+
+    if (lignesMouvement.length === 0) {
+      alert("Veuillez ajouter au moins un article.")
+      return
+    }
+
+    const typeNorm = mapTypeToConstraint(mouvementData.type_mouvement)
+
+    try {
+      for (const ligne of lignesMouvement) {
+        let numeroSerieId = ligne.numero_serie_id
+
+        /* ---------------------------------------------------------
+            SI NOUVEAU NUMÉRO DE SÉRIE → CRÉER DANS LA BASE
+        ---------------------------------------------------------- */
+        if (ligne.nouveau_numero_serie?.trim()) {
+          const { data: ns, error: nsErr } = await supabase
+            .from("numeros_serie")
+            .insert({
+              numero_serie: ligne.nouveau_numero_serie,
+              adresse_mac: ligne.nouvelle_adresse_mac || null,
+              article_id: ligne.article_id,
+              statut: "disponible",
+            })
+            .select()
+            .single()
+
+          if (nsErr) throw nsErr
+
+          numeroSerieId = ns.id
+        }
+
+        /* ---------------------------------------------------------
+            INSERT DU MOUVEMENT
+        ---------------------------------------------------------- */
+        const { error: mvtErr } = await supabase.from("mouvements").insert({
+          article_id: ligne.article_id,
+          numero_serie_id: numeroSerieId || null,
+          type_mouvement: mouvementData.type_mouvement,
+          localisation_origine: mouvementData.localisation_origine,
+          localisation_destination: mouvementData.localisation_destination,
+          personne_source_id: mouvementData.personne_source_id || null,
+          personne_id: mouvementData.personne_id || null,
+          quantite: ligne.quantite,
+          remarques: mouvementData.remarques || null,
+        })
+
+        if (mvtErr) throw mvtErr
+
+        /* ---------------------------------------------------------
+            GESTION STOCK SELON TYPE
+        ---------------------------------------------------------- */
+
+        // 🔹 RÉCEPTION
+        if (typeNorm === "reception") {
+          await supabase.rpc("incrementer_stock_article", {
+            article_id_input: ligne.article_id,
+            quantite_input: ligne.quantite,
+          })
+        }
+
+        // 🔹 SORTIE TECHNICIEN
+        if (typeNorm === "sortie_technicien") {
+          await supabase.rpc("sortie_technicien_article", {
+            article_id_input: ligne.article_id,
+            technicien_id_input: mouvementData.personne_id,
+            quantite_input: ligne.quantite,
+            numero_serie_id_input: numeroSerieId || null,
+          })
+        }
+
+        // 🔹 TRANSFERT TECHNICIEN
+        if (typeNorm === "transfert_depot") {
+          await supabase.rpc("transfert_technicien", {
+            article_id_input: ligne.article_id,
+            technicien_source_id_input: mouvementData.personne_source_id,
+            technicien_dest_id_input: mouvementData.personne_id,
+            quantite_input: ligne.quantite,
+            numero_serie_id_input: numeroSerieId || null,
+          })
+        }
+
+        // 🔹 INSTALLATION CLIENT
+        if (typeNorm === "installation_client") {
+          await supabase.rpc("installation_client", {
+            article_id_input: ligne.article_id,
+            technicien_id_input: mouvementData.personne_source_id,
+            quantite_input: ligne.quantite,
+            numero_serie_id_input: numeroSerieId || null,
+          })
+        }
+      }
+
+      alert("Mouvement enregistré avec succès !")
+      setShowForm(false)
+      setLignesMouvement([])
+
+      await fetchMouvements()
+      await fetchArticles()
+    } catch (err) {
+      console.error("❌ Erreur validation mouvement:", err)
+      alert("Erreur lors de la validation du mouvement.")
+    }
+  }
+
+  /* ======================================================================
+        📊 SECTION LISTE DES MOUVEMENTS
+     ====================================================================== */
+
+  const mouvementsFiltres = useMemo(() => {
+    return mouvements.filter((m) => {
+      if (
+        filterSearch &&
+        !(
+          m.article?.nom?.toLowerCase().includes(filterSearch.toLowerCase()) ||
+          m.numero_serie?.numero_serie
+            ?.toLowerCase()
+            .includes(filterSearch.toLowerCase()) ||
+          m.personne_source?.nom
+            ?.toLowerCase()
+            .includes(filterSearch.toLowerCase()) ||
+          m.personne_dest?.nom
+            ?.toLowerCase()
+            .includes(filterSearch.toLowerCase())
+        )
+      ) {
+        return false
+      }
+
+      if (filterType && m.type_mouvement !== filterType) return false
+      if (filterTechnicien &&
+          !(
+            m.personne_source_id === filterTechnicien ||
+            m.personne_id === filterTechnicien
+          )
+      ) {
+        return false
+      }
+
+      if (filterDateDebut && m.date_mouvement < filterDateDebut) return false
+      if (filterDateFin && m.date_mouvement > filterDateFin) return false
+
+      return true
+    })
+  }, [
+    mouvements,
+    filterSearch,
+    filterType,
+    filterTechnicien,
+    filterDateDebut,
+    filterDateFin,
+  ])
+
+  /* ======================================================================
+        PAGE PRINCIPALE
+     ====================================================================== */
+
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+    <div className="space-y-6 p-6">
+      <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Mouvements de stock</h1>
-          <p className="text-muted-foreground mt-1">Historique complet des mouvements d'articles</p>
+          <h1 className="text-2xl font-bold">Mouvements de Stock</h1>
+          <p className="text-muted-foreground">
+            Visualiser et filtrer les derniers mouvements
+          </p>
         </div>
-        <Button className="btn-shimmer" onClick={() => setShowForm(true)}>
-          <Plus className="mr-2 h-4 w-4" /> Nouveau mouvement
+
+        <Button className="h-12 px-6" onClick={() => setShowForm(true)}>
+          <Plus className="mr-2 h-5 w-5" /> Nouveau mouvement
         </Button>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center">
-              <div className="rounded-full bg-green-100 p-3 mr-4">
-                <TrendingUp className="h-6 w-6 text-green-600" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Réceptions</p>
-                <p className="text-2xl font-bold">{stats.receptions}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center">
-              <div className="rounded-full bg-blue-100 p-3 mr-4">
-                <TrendingDown className="h-6 w-6 text-blue-600" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Sorties</p>
-                <p className="text-2xl font-bold">{stats.sorties}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center">
-              <div className="rounded-full bg-blue-100 p-3 mr-4">
-                <TrendingDown className="h-6 w-6 text-blue-600" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Installations</p>
-                <p className="text-2xl font-bold">{stats.installations}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center">
-              <div className="rounded-full bg-orange-100 p-3 mr-4">
-                <RefreshCw className="h-6 w-6 text-orange-600" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Retours</p>
-                <p className="text-2xl font-bold">{stats.retours}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
+      {/* ==================================================================
+          FILTRES
+      =================================================================== */}
       <Card>
         <CardHeader>
           <CardTitle>Filtres</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <Label className="text-base mb-2 block">Recherche</Label>
-              <Input
-                placeholder="Rechercher dans les articles, séries, MAC..."
-                value={filterSearch}
-                onChange={(e) => setFilterSearch(e.target.value)}
-              />
-            </div>
-            <div>
-              <Label className="text-base mb-2 block">Type</Label>
-              <Select value={filterType} onValueChange={setFilterType}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Tous les types" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="">Tous les types</SelectItem>
-                  <SelectItem value="reception">Réception</SelectItem>
-                  <SelectItem value="sortie">Sortie</SelectItem>
-                  <SelectItem value="installation">Installation</SelectItem>
-                  <SelectItem value="retour">Retour</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label className="text-base mb-2 block">Technicien Source</Label>
-              <Select value={filterTechnicien} onValueChange={setFilterTechnicien}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Tous les techniciens" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="">Tous les techniciens</SelectItem>
-                  {personnes.filter(p => p.type === 'technicien').map((p) => (
-                    // ✅ CORRIGÉ : Vérifier que l'ID de personne est valide
-                    p.id && p.id.trim() !== "" && p.nom && p.nom.trim() !== "" ? (
-                      <SelectItem key={p.id} value={p.id}>{p.nom} {p.prenom}</SelectItem>
-                    ) : null
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+
+        <CardContent className="grid grid-cols-1 md:grid-cols-4 gap-6">
+
+          <div>
+            <Label>Recherche</Label>
+            <Input
+              value={filterSearch}
+              onChange={(e) => setFilterSearch(e.target.value)}
+              placeholder="Article, série, technicien…"
+              className="h-12"
+            />
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+          <div>
+            <Label>Type</Label>
+            <Select
+              value={filterType}
+              onValueChange={setFilterType}
+            >
+              <SelectTrigger className="h-12">
+                <SelectValue placeholder="Tous" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">Tous</SelectItem>
+                {typesMouvement
+                  .filter((t) => t.nom?.trim())
+                  .map((t) => (
+                    <SelectItem key={t.id} value={t.nom}>
+                      {t.nom}
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <Label>Technicien</Label>
+            <Select
+              value={filterTechnicien}
+              onValueChange={setFilterTechnicien}
+            >
+              <SelectTrigger className="h-12">
+                <SelectValue placeholder="Tous" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">Tous</SelectItem>
+                {personnes
+                  .filter((p) => p.type === "technicien")
+                  .map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.nom} {p.prenom}
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label className="text-base mb-2 block">Date (du)</Label>
+              <Label>Début</Label>
               <Input
                 type="date"
                 value={filterDateDebut}
                 onChange={(e) => setFilterDateDebut(e.target.value)}
+                className="h-12"
               />
             </div>
+
             <div>
-              <Label className="text-base mb-2 block">Date (au)</Label>
+              <Label>Fin</Label>
               <Input
                 type="date"
                 value={filterDateFin}
                 onChange={(e) => setFilterDateFin(e.target.value)}
+                className="h-12"
               />
             </div>
           </div>
         </CardContent>
       </Card>
 
+      {/* ==================================================================
+          TABLEAU DES MOUVEMENTS
+      =================================================================== */}
       <Card>
         <CardHeader>
-          <CardTitle>Mouvements</CardTitle>
+          <CardTitle>Mouvements ({mouvementsFiltres.length})</CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b">
-                  <th className="p-4 text-left">Date</th>
-                  <th className="p-4 text-left">Type</th>
-                  <th className="p-4 text-left">Origine</th>
-                  <th className="p-4 text-left">Destination</th>
-                  <th className="p-4 text-left">Personne Source</th>
-                  <th className="p-4 text-left">Personne Destination</th>
-                  <th className="p-4 text-left">Article</th>
-                  <th className="p-4 text-left">Série</th>
-                  <th className="p-4 text-left">Quantité</th>
-                  <th className="p-4 text-left">Remarques</th>
+
+        <CardContent className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b">
+                <th className="p-3 text-left">Date</th>
+                <th className="p-3 text-left">Article</th>
+                <th className="p-3 text-left">N° Série</th>
+                <th className="p-3 text-left">Type</th>
+                <th className="p-3 text-left">Source</th>
+                <th className="p-3 text-left">Destination</th>
+                <th className="p-3 text-left">Qté</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {mouvementsFiltres.map((m) => (
+                <tr key={m.id} className="border-b hover:bg-muted/30">
+                  <td className="p-3">{m.date_mouvement?.slice(0, 10)}</td>
+                  <td className="p-3">{m.article?.nom}</td>
+                  <td className="p-3 font-mono text-sm">
+                    {m.numero_serie?.numero_serie || "-"}
+                  </td>
+                  <td className="p-3 font-semibold">{m.type_mouvement}</td>
+                  <td className="p-3">{m.personne_source?.nom || m.localisation_origine}</td>
+                  <td className="p-3">{m.personne_dest?.nom || m.localisation_destination}</td>
+                  <td className="p-3 font-bold">{m.quantite}</td>
                 </tr>
-              </thead>
-              <tbody>
-                {filteredMouvements.map((mouvement) => {
-                  const Icon = getTypeIcon(mouvement.type_mouvement)
-                  return (
-                    <tr key={mouvement.id} className="border-b hover:bg-muted/50">
-                      <td className="p-4">{new Date(mouvement.date_mouvement).toLocaleDateString()}</td>
-                      <td className="p-4">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getTypeBadge(mouvement.type_mouvement)}`}>
-                          <Icon className="mr-1 h-3 w-3" />
-                          {mouvement.type_mouvement}
-                        </span>
-                      </td>
-                      <td className="p-4">{mouvement.localisation_origine}</td>
-                      <td className="p-4">{mouvement.localisation_destination}</td>
-                      <td className="p-4">{mouvement.personne_source ? `${mouvement.personne_source.nom} ${mouvement.personne_source.prenom}` : '-'}</td>
-                      <td className="p-4">{mouvement.personne_dest ? `${mouvement.personne_dest.nom} ${mouvement.personne_dest.prenom}` : '-'}</td>
-                      <td className="p-4">{mouvement.article?.nom || 'Inconnu'}</td>
-                      <td className="p-4">{mouvement.numero_serie?.numero_serie || '-'}</td>
-                      <td className="p-4 text-center font-bold">{mouvement.quantite}</td>
-                      <td className="p-4 text-sm text-muted-foreground max-w-xs truncate">{mouvement.remarques}</td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
+              ))}
+            </tbody>
+          </table>
         </CardContent>
       </Card>
     </div>
