@@ -39,7 +39,7 @@ export default function TechniciensPage() {
   const [formData, setFormData] = useState({
     nom: "",
     prenom: "",
-    type: "technicien" as "technicien" | "client" | "gestionnaire" | "transporteur" | "fournisseur" | "autre",
+    type: "technicien" as "technicien" | "client" | "gestionnaire" | "transporteur" | "autre",
     email: "",
     telephone: "",
     entreprise: "",
@@ -124,18 +124,68 @@ export default function TechniciensPage() {
       }
 
       if (editingPerson) {
+        // Mise à jour
         const { error } = await supabase
           .from('personnes')
           .update(dataToSave)
           .eq('id', editingPerson.id)
 
         if (error) throw error
+        
+        // Si c'est un client, mettre à jour aussi dans la table clients
+        if (formData.type === 'client') {
+          const clientData = {
+            nom: `${formData.nom} ${formData.prenom}`.trim(),
+            adresse: formData.adresse ? `${formData.adresse} ${formData.numero}`.trim() : null,
+            code_postal: formData.code_postal || null,
+            ville: formData.commune || null,
+            telephone: formData.telephone || null,
+            email: formData.email || null,
+          }
+          
+          // Vérifier si le client existe déjà
+          const { data: existingClient } = await supabase
+            .from('clients')
+            .select('id')
+            .eq('nom', clientData.nom)
+            .maybeSingle()
+          
+          if (existingClient) {
+            await supabase
+              .from('clients')
+              .update(clientData)
+              .eq('id', existingClient.id)
+          } else {
+            await supabase
+              .from('clients')
+              .insert([clientData])
+          }
+        }
       } else {
-        const { error } = await supabase
+        // Création
+        const { data: newPerson, error } = await supabase
           .from('personnes')
           .insert([dataToSave])
+          .select()
+          .single()
 
         if (error) throw error
+        
+        // Si c'est un client, ajouter aussi dans la table clients
+        if (formData.type === 'client' && newPerson) {
+          const clientData = {
+            nom: `${formData.nom} ${formData.prenom}`.trim(),
+            adresse: formData.adresse ? `${formData.adresse} ${formData.numero}`.trim() : null,
+            code_postal: formData.code_postal || null,
+            ville: formData.commune || null,
+            telephone: formData.telephone || null,
+            email: formData.email || null,
+          }
+          
+          await supabase
+            .from('clients')
+            .insert([clientData])
+        }
       }
 
       setDialogOpen(false)
@@ -216,37 +266,45 @@ export default function TechniciensPage() {
     setDialogOpen(true)
   }
 
-  const filteredPersonnes = personnes.filter(p => {
+  const filteredPersonnes = personnes.filter((p: any) => {
     const matchesSearch = 
       p.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (p.prenom && p.prenom.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (p.email && p.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (p.numero_perid && p.numero_perid.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (p.erp_id && p.erp_id.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (p.projet_id && projets.find(pr => pr.id === p.projet_id)?.nom.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (p.fonction_id && fonctions.find(f => f.id === p.fonction_id)?.nom.toLowerCase().includes(searchTerm.toLowerCase()))
+      (p.entreprise && p.entreprise.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (p.projet_id && (() => {
+        const projet = projets.find(proj => proj.id === p.projet_id)
+        return projet && projet.nom.toLowerCase().includes(searchTerm.toLowerCase())
+      })()) ||
+      (p.fonction_id && (() => {
+        const fonction = fonctions.find(f => f.id === p.fonction_id)
+        return fonction && fonction.nom.toLowerCase().includes(searchTerm.toLowerCase())
+      })())
     
-    if (filterType === "all") return matchesSearch
-    return matchesSearch && p.type === filterType
+    const matchesType = filterType === "all" || p.type === filterType
+    return matchesSearch && matchesType
   })
 
   const stats = {
     total: personnes.length,
-    techniciens: personnes.filter(p => p.type === 'technicien').length,
-    clients: personnes.filter(p => p.type === 'client').length,
-    fournisseurs: personnes.filter(p => p.type === 'fournisseur').length,
+    techniciens: personnes.filter((p: any) => p.type === 'technicien').length,
+    clients: personnes.filter((p: any) => p.type === 'client').length,
+    gestionnaires: personnes.filter((p: any) => p.type === 'gestionnaire').length,
   }
 
-  const getTypeBadge = (type: string) => {
-    const variants: Record<string, string> = {
-      technicien: 'bg-blue-100 text-blue-800',
-      client: 'bg-green-100 text-green-800',
-      fournisseur: 'bg-purple-100 text-purple-800',
-	  gestionnaire: 'bg-purple-100 text-purple-800',
-	  transporteur: 'bg-purple-100 text-purple-800',
-      autre: 'bg-gray-100 text-gray-800',
+  function getTypeBadge(type: string) {
+    switch (type) {
+      case 'technicien':
+        return 'bg-blue-100 text-blue-800'
+      case 'client':
+        return 'bg-green-100 text-green-800'
+      case 'gestionnaire':
+        return 'bg-purple-100 text-purple-800'
+      case 'transporteur':
+        return 'bg-orange-100 text-orange-800'
+      default:
+        return 'bg-gray-100 text-gray-800'
     }
-    return variants[type] || variants.autre
   }
 
   if (loading) {
@@ -261,16 +319,14 @@ export default function TechniciensPage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Techniciens & Personnes</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Personnes</h1>
           <p className="text-muted-foreground mt-1">
-            Gérez vos techniciens, clients et contacts
+            Gérer les techniciens, clients et autres contacts
           </p>
         </div>
-        <Dialog 
-          open={dialogOpen} 
-          onOpenChange={(open) => {
-            setDialogOpen(open)
-            if (!open) {
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <DialogTrigger asChild>
+            <Button className="btn-shimmer" onClick={() => {
               setEditingPerson(null)
               setFormData({
                 nom: "",
@@ -294,179 +350,114 @@ export default function TechniciensPage() {
                 projet_id: "",
                 fonction_id: "",
               })
-            }
-          }}
-        >
-          <DialogTrigger asChild>
-            <Button className="btn-shimmer">
+            }}>
               <Plus className="mr-2 h-4 w-4" />
-              Nouvelle personne
+              Ajouter une personne
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
-                {editingPerson ? "Modifier la personne" : "Ajouter une personne"}
+                {editingPerson ? 'Modifier la personne' : 'Ajouter une personne'}
               </DialogTitle>
               <DialogDescription>
-                {editingPerson 
-                  ? "Modifiez les informations de cette personne"
-                  : "Ajoutez un technicien, client ou autre contact"
-                }
+                Remplissez les informations de la personne
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-6">
-              <div className="space-y-4">
-                <h3 className="text-sm font-semibold">Informations générales</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="nom">Nom *</Label>
-                    <Input
-                      id="nom"
-                      value={formData.nom}
-                      onChange={(e) => setFormData({...formData, nom: e.target.value})}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="prenom">Prénom</Label>
-                    <Input
-                      id="prenom"
-                      value={formData.prenom}
-                      onChange={(e) => setFormData({...formData, prenom: e.target.value})}
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="type">Type *</Label>
-                  <Select 
-                    value={formData.type} 
-                    onValueChange={(value: any) => setFormData({...formData, type: value})}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="technicien">Technicien</SelectItem>
-                      <SelectItem value="client">Client</SelectItem>
-                      <SelectItem value="fournisseur">Fournisseur</SelectItem>
-					  <SelectItem value="gestionnaire">Gestionnaire</SelectItem>
-					  <SelectItem value="transporteur">Transporteur</SelectItem>					  
-                      <SelectItem value="autre">Autre</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="space-y-4 p-4 bg-gray-50 dark:bg-gray-900/20 rounded-lg border">
-                <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                  Projet & Fonction
-                </h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="projet_id">Projet</Label>
-                    <Select 
-                      value={formData.projet_id || "none"} 
-                      onValueChange={(value) => setFormData({...formData, projet_id: value === "none" ? "" : value})}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Sélectionnez un projet" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">Aucun projet</SelectItem>
-                        {projets.map((projet) => (
-                          <SelectItem key={projet.id} value={projet.id}>
-                            {projet.nom}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="fonction_id">Fonction</Label>
-                    <Select 
-                      value={formData.fonction_id || "none"} 
-                      onValueChange={(value) => setFormData({...formData, fonction_id: value === "none" ? "" : value})}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Sélectionnez une fonction" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">Aucune fonction</SelectItem>
-                        {fonctions.map((fonction) => (
-                          <SelectItem key={fonction.id} value={fonction.id}>
-                            {fonction.nom}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              </div>
-
-              {formData.type === 'technicien' && (
-                <div className="space-y-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border">
-                  <h3 className="text-sm font-semibold text-blue-900 dark:text-blue-100">
-                    Identifiants technicien
-                  </h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="numero_perid">Numéro PERID</Label>
-                      <Input
-                        id="numero_perid"
-                        value={formData.numero_perid}
-                        onChange={(e) => setFormData({...formData, numero_perid: e.target.value})}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="erp_id">ERP ID</Label>
-                      <Input
-                        id="erp_id"
-                        value={formData.erp_id}
-                        onChange={(e) => setFormData({...formData, erp_id: e.target.value})}
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              <div className="space-y-4">
-                <h3 className="text-sm font-semibold">Coordonnées</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      value={formData.email}
-                      onChange={(e) => setFormData({...formData, email: e.target.value})}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="telephone">Téléphone</Label>
-                    <Input
-                      id="telephone"
-                      type="tel"
-                      value={formData.telephone}
-                      onChange={(e) => setFormData({...formData, telephone: e.target.value})}
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="entreprise">Entreprise</Label>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="nom">Nom *</Label>
                   <Input
-                    id="entreprise"
-                    value={formData.entreprise}
-                    onChange={(e) => setFormData({...formData, entreprise: e.target.value})}
+                    id="nom"
+                    value={formData.nom}
+                    onChange={(e) => setFormData({...formData, nom: e.target.value})}
+                    required
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="prenom">Prénom</Label>
+                  <Input
+                    id="prenom"
+                    value={formData.prenom}
+                    onChange={(e) => setFormData({...formData, prenom: e.target.value})}
                   />
                 </div>
               </div>
 
-              <div className="space-y-4">
-                <h3 className="text-sm font-semibold">Adresse</h3>
+              <div>
+                <Label htmlFor="type">Type *</Label>
+                <Select
+                  value={formData.type}
+                  onValueChange={(value: any) => setFormData({...formData, type: value})}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="technicien">Technicien</SelectItem>
+                    <SelectItem value="client">Client</SelectItem>
+                    <SelectItem value="gestionnaire">Gestionnaire</SelectItem>
+                    <SelectItem value="transporteur">Transporteur</SelectItem>
+                    <SelectItem value="autre">Autre</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="email">Email</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => setFormData({...formData, email: e.target.value})}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="telephone">Téléphone</Label>
+                  <Input
+                    id="telephone"
+                    value={formData.telephone}
+                    onChange={(e) => setFormData({...formData, telephone: e.target.value})}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <Label htmlFor="entreprise">Entreprise</Label>
+                <Input
+                  id="entreprise"
+                  value={formData.entreprise}
+                  onChange={(e) => setFormData({...formData, entreprise: e.target.value})}
+                />
+              </div>
+
+              {formData.type === 'technicien' && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="numero_perid">Numéro PERID</Label>
+                    <Input
+                      id="numero_perid"
+                      value={formData.numero_perid}
+                      onChange={(e) => setFormData({...formData, numero_perid: e.target.value})}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="erp_id">ERP ID</Label>
+                    <Input
+                      id="erp_id"
+                      value={formData.erp_id}
+                      onChange={(e) => setFormData({...formData, erp_id: e.target.value})}
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <h3 className="text-lg font-semibold">Adresse</h3>
                 <div className="grid grid-cols-3 gap-4">
-                  <div className="col-span-2 space-y-2">
+                  <div className="col-span-2">
                     <Label htmlFor="adresse">Rue</Label>
                     <Input
                       id="adresse"
@@ -474,8 +465,8 @@ export default function TechniciensPage() {
                       onChange={(e) => setFormData({...formData, adresse: e.target.value})}
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="numero">Numéro</Label>
+                  <div>
+                    <Label htmlFor="numero">N°</Label>
                     <Input
                       id="numero"
                       value={formData.numero}
@@ -484,15 +475,15 @@ export default function TechniciensPage() {
                   </div>
                 </div>
                 <div className="grid grid-cols-3 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="boite_postale">Boîte</Label>
+                  <div>
+                    <Label htmlFor="boite_postale">Boîte postale</Label>
                     <Input
                       id="boite_postale"
                       value={formData.boite_postale}
                       onChange={(e) => setFormData({...formData, boite_postale: e.target.value})}
                     />
                   </div>
-                  <div className="space-y-2">
+                  <div>
                     <Label htmlFor="code_postal">Code postal</Label>
                     <Input
                       id="code_postal"
@@ -500,7 +491,7 @@ export default function TechniciensPage() {
                       onChange={(e) => setFormData({...formData, code_postal: e.target.value})}
                     />
                   </div>
-                  <div className="space-y-2">
+                  <div>
                     <Label htmlFor="commune">Commune</Label>
                     <Input
                       id="commune"
@@ -511,52 +502,100 @@ export default function TechniciensPage() {
                 </div>
               </div>
 
-              <div className="space-y-4">
-                <h3 className="text-sm font-semibold">Informations financières</h3>
+              <div className="space-y-2">
+                <h3 className="text-lg font-semibold">Informations financières</h3>
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
+                  <div>
                     <Label htmlFor="numero_tva">Numéro TVA</Label>
                     <Input
                       id="numero_tva"
                       value={formData.numero_tva}
                       onChange={(e) => setFormData({...formData, numero_tva: e.target.value})}
-                      placeholder="BE0123456789"
                     />
                   </div>
-                  <div className="space-y-2">
+                  <div>
                     <Label htmlFor="delai_paiement_jours">Délai paiement (jours)</Label>
                     <Input
                       id="delai_paiement_jours"
                       type="number"
                       value={formData.delai_paiement_jours}
                       onChange={(e) => setFormData({...formData, delai_paiement_jours: e.target.value})}
-                      placeholder="30"
                     />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
+                  <div>
                     <Label htmlFor="iban">IBAN</Label>
                     <Input
                       id="iban"
                       value={formData.iban}
                       onChange={(e) => setFormData({...formData, iban: e.target.value})}
-                      placeholder="BE00 0000 0000 0000"
                     />
                   </div>
-                  <div className="space-y-2">
+                  <div>
                     <Label htmlFor="bic">BIC</Label>
                     <Input
                       id="bic"
                       value={formData.bic}
                       onChange={(e) => setFormData({...formData, bic: e.target.value})}
-                      placeholder="GEBABEBB"
                     />
                   </div>
                 </div>
               </div>
 
-              <div className="space-y-2">
+              {formData.type === 'technicien' && (
+                <div className="space-y-2">
+                  <h3 className="text-lg font-semibold">Affectation</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="projet_id">Projet</Label>
+                      <Select 
+                        value={formData.projet_id || "none"} 
+                        onValueChange={(value) => setFormData({
+                          ...formData, 
+                          projet_id: value === "none" ? "" : value
+                        })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Sélectionner un projet" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Aucun projet</SelectItem>
+                          {projets.map((projet) => (
+                            <SelectItem key={projet.id} value={projet.id}>
+                              {projet.nom}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label htmlFor="fonction_id">Fonction</Label>
+                      <Select 
+                        value={formData.fonction_id || "none"} 
+                        onValueChange={(value) => setFormData({
+                          ...formData, 
+                          fonction_id: value === "none" ? "" : value
+                        })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Sélectionner une fonction" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Aucune fonction</SelectItem>
+                          {fonctions.map((fonction) => (
+                            <SelectItem key={fonction.id} value={fonction.id}>
+                              {fonction.nom}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div>
                 <Label htmlFor="remarques">Remarques</Label>
                 <Input
                   id="remarques"
@@ -565,12 +604,12 @@ export default function TechniciensPage() {
                 />
               </div>
 
-              <div className="flex gap-2 justify-end pt-4">
+              <div className="flex justify-end gap-4">
                 <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
                   Annuler
                 </Button>
                 <Button type="submit">
-                  {editingPerson ? "Mettre à jour" : "Ajouter"}
+                  {editingPerson ? 'Mettre à jour' : 'Ajouter'}
                 </Button>
               </div>
             </form>
@@ -615,12 +654,12 @@ export default function TechniciensPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Fournisseurs
+              Gestionnaires
             </CardTitle>
             <User className="h-4 w-4 text-purple-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.fournisseurs}</div>
+            <div className="text-2xl font-bold">{stats.gestionnaires}</div>
           </CardContent>
         </Card>
       </div>
@@ -645,7 +684,6 @@ export default function TechniciensPage() {
                 <SelectItem value="all">Tous les types</SelectItem>
                 <SelectItem value="technicien">Techniciens</SelectItem>
                 <SelectItem value="client">Clients</SelectItem>
-                <SelectItem value="fournisseur">Fournisseurs</SelectItem>
                 <SelectItem value="autre">Autres</SelectItem>
               </SelectContent>
             </Select>
