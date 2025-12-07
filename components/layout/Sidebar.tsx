@@ -83,7 +83,7 @@ const navigation = [
     icon: Settings,
   },
   {
-    title: "Inventaires",
+    name: "Inventaires",
     href: "/inventaires",
     icon: ClipboardCheck, 
   },
