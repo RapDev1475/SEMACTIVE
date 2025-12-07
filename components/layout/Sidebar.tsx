@@ -83,10 +83,10 @@ const navigation = [
     icon: Settings,
   },
   {
-  title: "Inventaires",
-  href: "/inventaires",
-  icon: ClipboardCheck, 
-}
+    title: "Inventaires",
+    href: "/inventaires",
+    icon: ClipboardCheck, 
+  },
 ]
 
 export function Sidebar({ open, onClose }: SidebarProps) {
