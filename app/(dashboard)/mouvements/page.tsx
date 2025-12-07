@@ -41,9 +41,8 @@ type Scenario = {
   resume_action: string
 }
 
-// Type pour une ligne de mouvement temporaire
 type LigneMouvement = {
-  id: string // ID temporaire unique
+  id: string
   article_id: string
   article_nom: string
   article_numero: string
@@ -65,23 +64,23 @@ export default function MouvementsPage() {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [filterType, setFilterType] = useState<string>("all")
+  const [filterDateDebut, setFilterDateDebut] = useState("")
+  const [filterDateFin, setFilterDateFin] = useState("")
+  const [filterTechnicien, setFilterTechnicien] = useState<string>("all")
+  const [searchTechnicien, setSearchTechnicien] = useState("")
   const [showForm, setShowForm] = useState(false)
   const [articleSearch, setArticleSearch] = useState("")
-
-  // État pour les lignes de mouvement temporaires
   const [lignesMouvement, setLignesMouvement] = useState<LigneMouvement[]>([])
 
-  // Données communes à toutes les lignes du mouvement
   const [mouvementData, setMouvementData] = useState({
-    personne_id: "", // Technicien destination (ou unique)
-    personne_source_id: "", // Technicien source (pour transferts entre techniciens)
+    personne_id: "",
+    personne_source_id: "",
     type_mouvement: "",
     localisation_origine: "",
     localisation_destination: "",
     remarques: "",
   })
 
-  // Formulaire pour ajouter une ligne
   const [ligneFormData, setLigneFormData] = useState({
     article_id: "",
     quantite: 1,
@@ -110,7 +109,6 @@ export default function MouvementsPage() {
     }
   }
 
-  // Charger le stock du technicien source (pour les transferts entre techniciens)
   async function fetchStockTechnicienSource(technicienId: string) {
     if (!technicienId) {
       setStockTechnicienSource([])
@@ -125,7 +123,7 @@ export default function MouvementsPage() {
           numero_serie:numeros_serie(*)
         `)
         .eq('technicien_id', technicienId)
-        .gt('quantite', 0) // Seulement les articles avec quantité > 0
+        .gt('quantite', 0)
       if (error) throw error
       setStockTechnicienSource(data || [])
       console.log(`Stock technicien source chargé: ${data?.length} entrées`)
@@ -148,34 +146,34 @@ export default function MouvementsPage() {
     }
   }
 
-async function fetchMouvements() {
-  setLoading(true)
-  try {
-    console.log('🔄 Chargement des mouvements...')
-    const { data, error } = await supabase
-      .from('mouvements')
-      .select(`
-        *,
-        article:articles(nom, numero_article),
-        personne:personnes!mouvements_personne_id_fkey(nom, prenom),
-        personne_source:personnes!mouvements_personne_source_id_fkey(nom, prenom),
-        numero_serie:numeros_serie(numero_serie, adresse_mac)
-      `)
-      .order('date_mouvement', { ascending: false })
-      .limit(100)
-    if (error) {
-      console.error('❌ Erreur lors du chargement:', error)
-      throw error
+  async function fetchMouvements() {
+    setLoading(true)
+    try {
+      console.log('🔄 Chargement des mouvements...')
+      const { data, error } = await supabase
+        .from('mouvements')
+        .select(`
+          *,
+          article:articles(nom, numero_article),
+          personne:personnes!mouvements_personne_id_fkey(nom, prenom),
+          personne_source:personnes!mouvements_personne_source_id_fkey(nom, prenom),
+          numero_serie:numeros_serie(numero_serie, adresse_mac)
+        `)
+        .order('date_mouvement', { ascending: false })
+        .limit(100)
+      if (error) {
+        console.error('❌ Erreur lors du chargement:', error)
+        throw error
+      }
+      console.log(`✅ ${data?.length || 0} mouvements chargés`)
+      console.log('Premier mouvement:', data?.[0])
+      setMouvements(data || [])
+    } catch (error) {
+      console.error('Error fetching mouvements:', error)
+    } finally {
+      setLoading(false)
     }
-    console.log(`✅ ${data?.length || 0} mouvements chargés`)
-    console.log('Premier mouvement:', data?.[0])
-    setMouvements(data || [])
-  } catch (error) {
-    console.error('Error fetching mouvements:', error)
-  } finally {
-    setLoading(false)
   }
-}
 
   async function fetchArticles() {
     try {
@@ -210,7 +208,6 @@ async function fetchMouvements() {
         .order('nom')
       if (error) throw error
       setTypesMouvement(data || [])
-      // Si des types existent, sélectionner le premier par défaut
       if (data && data.length > 0) {
         setMouvementData(prev => ({ ...prev, type_mouvement: data[0].nom }))
       }
@@ -219,19 +216,15 @@ async function fetchMouvements() {
     }
   }
 
-  // Fonctions de filtrage basées sur les scénarios
-  // Obtenir les emplacements d'origine possibles
   function getOriginesDisponibles(): string[] {
     const origines = new Set(scenarios.map(s => s.emplacement_origine))
     return Array.from(origines).sort()
   }
 
-  // Obtenir les types de mouvements possibles selon l'origine sélectionnée
   function getTypesMouvementDisponibles(origine: string): Scenario[] {
     return scenarios.filter(s => s.emplacement_origine === origine)
   }
 
-  // Obtenir le scénario complet basé sur origine + type
   function getScenario(origine: string, typeMouvement: string): Scenario | null {
     return scenarios.find(s => 
       s.emplacement_origine === origine && 
@@ -239,97 +232,78 @@ async function fetchMouvements() {
     ) || null
   }
 
-  // Appliquer automatiquement le scénario sélectionné
   function appliquerScenario(origine: string, typeMouvement: string) {
     const scenario = getScenario(origine, typeMouvement)
     if (scenario) {
       setMouvementData(prev => ({
         ...prev,
         localisation_origine: scenario.emplacement_origine,
-        type_mouvement: scenario.type_mouvement, // <--- CORRECTIF: Utilise le type du scénario
+        type_mouvement: scenario.type_mouvement,
         localisation_destination: scenario.emplacement_destination,
-        personne_id: "", // Reset technicien destination
-        personne_source_id: "", // Reset technicien source
+        personne_id: "",
+        personne_source_id: "",
       }))
       console.log('Scénario appliqué:', scenario)
     } else {
-      // Si le scénario n'est pas trouvé, on peut quand même appliquer le type choisi
-      // Cela permet de conserver le type sélectionné même s'il n'y a pas de scénario correspondant
       setMouvementData(prev => ({
         ...prev,
         type_mouvement: typeMouvement,
-        // Ne pas toucher à l'origine et destination si le scénario n'est pas trouvé
       }))
-      console.log('Scénario non trouvé pour:', { origine, typeMouvement });
-      // Vous pouvez choisir de laisser un message ou non ici.
-      // alert(`Aucun scénario de mouvement trouvé pour cette combinaison: ${origine} → ${typeMouvement}`);
+      console.log('Scénario non trouvé pour:', { origine, typeMouvement })
     }
   }
 
-  // Déterminer si on a besoin de sélectionner des techniciens
   function needsTechnicienSource(): boolean {
-    // Si l'origine est "Stock Technicien", on a besoin du technicien source
     return mouvementData.localisation_origine === "Stock Technicien"
   }
 
   function needsTechnicienDestination(): boolean {
-    // Si la destination est "Stock Technicien", on a besoin du technicien destination
     return mouvementData.localisation_destination === "Stock Technicien"
   }
 
   function isTransfertEntreTechniciens(): boolean {
-    // C'est un transfert entre techniciens si origine ET destination = Stock Technicien
     return mouvementData.localisation_origine === "Stock Technicien" && 
            mouvementData.localisation_destination === "Stock Technicien"
   }
 
-// Mapper le nom du type : conserve les noms de scénarios connus, standardise les anciens formats
-function mapTypeToConstraint(typeNom: string): string {
-  // Liste des types connus qui doivent être standardisés
-  const standardMappings: Record<string, string> = {
-    'réception': 'reception',
-    'sortie technicien': 'sortie_technicien',
-    'sortie transport': 'sortie_transport',
-    'transfert depot': 'transfert_depot',
-    'transfert dépôt': 'transfert_depot',
-    'installation client': 'installation_client',
-    'Transfert_depot': 'transfert_depot', // Variante avec majuscule
-    // 'Transfert_Stock': 'transfert_stock', // <-- SI on veut le mapper vers une valeur standardisée en base
-    // MAIS, on veut le laisser tel quel
-  };
+  function mapTypeToConstraint(typeNom: string): string {
+    const standardMappings: Record<string, string> = {
+      'réception': 'reception',
+      'sortie technicien': 'sortie_technicien',
+      'sortie transport': 'sortie_transport',
+      'transfert depot': 'transfert_depot',
+      'transfert dépôt': 'transfert_depot',
+      'installation client': 'installation_client',
+      'Transfert_depot': 'transfert_depot',
+    }
 
-  // Vérifier les mappings standardisés
-  if (standardMappings[typeNom]) {
-    return standardMappings[typeNom];
+    if (standardMappings[typeNom]) {
+      return standardMappings[typeNom]
+    }
+
+    const lowerNom = typeNom.toLowerCase().trim()
+    const lowerStandardMappings: Record<string, string> = {
+      'réception': 'reception',
+      'sortie technicien': 'sortie_technicien',
+      'sortie transport': 'sortie_transport',
+      'transfert depot': 'transfert_depot',
+      'transfert dépôt': 'transfert_depot',
+      'installation client': 'installation_client',
+    }
+
+    if (lowerStandardMappings[lowerNom]) {
+      return lowerStandardMappings[lowerNom]
+    }
+
+    if (typeNom === 'Transfert_Stock') {
+      return typeNom
+    }
+
+    return typeNom
   }
 
-  const lowerNom = typeNom.toLowerCase().trim();
-  // Vérifier les mappings standardisés en minuscule
-  const lowerStandardMappings: Record<string, string> = {
-    'réception': 'reception',
-    'sortie technicien': 'sortie_technicien',
-    'sortie transport': 'sortie_transport',
-    'transfert depot': 'transfert_depot',
-    'transfert dépôt': 'transfert_depot',
-    'installation client': 'installation_client',
-  };
-
-  if (lowerStandardMappings[lowerNom]) {
-    return lowerStandardMappings[lowerNom];
-  }
-
-  // Cas spécifique pour 'Transfert_Stock' : on le laisse tel quel
-  if (typeNom === 'Transfert_Stock') {
-    return typeNom; // Cela enverra 'Transfert_Stock' à la base
-  }
-
-  // Si aucun mapping spécifique, laisser la valeur telle quelle
-  // Puisque la base accepte n'importe quelle chaîne.
-  return typeNom;
-}
   async function searchArticles(searchValue: string) {
     if (!searchValue.trim()) {
-      // Si transfert entre techniciens, afficher les articles du stock source
       if (isTransfertEntreTechniciens() && mouvementData.personne_source_id) {
         const articlesDisponibles = stockTechnicienSource.map(s => s.article).filter(Boolean)
         setArticles(articlesDisponibles)
@@ -341,15 +315,12 @@ function mapTypeToConstraint(typeNom: string): string {
     try {
       let isSerialOrMacSearch = false
       let foundNumeroSerie: any = null
-      // Si transfert entre techniciens, on doit chercher dans le stock du technicien source
       if (isTransfertEntreTechniciens() && mouvementData.personne_source_id) {
-        // Rechercher par numéro de série ou MAC dans le stock du technicien source
         const { data: serialData } = await supabase
           .from('numeros_serie')
           .select('*, article:articles(*)')
           .or(`numero_serie.ilike.%${searchValue}%,adresse_mac.ilike.%${searchValue}%`)
         if (serialData && serialData.length > 0) {
-          // Vérifier que ce numéro de série est bien dans le stock du technicien source
           const stockEntry = stockTechnicienSource.find(s => 
             s.numero_serie_id === serialData[0].id
           )
@@ -357,7 +328,6 @@ function mapTypeToConstraint(typeNom: string): string {
             isSerialOrMacSearch = true
             foundNumeroSerie = serialData[0]
             setArticles([serialData[0].article])
-            // Auto-ajout
             setTimeout(() => {
               ajouterLigneAuto(serialData[0].article, foundNumeroSerie)
             }, 100)
@@ -368,19 +338,15 @@ function mapTypeToConstraint(typeNom: string): string {
             return
           }
         } else {
-          // Recherche par nom d'article dans le stock du technicien source
           const articlesDisponibles = stockTechnicienSource
             .filter(s => s.article && s.article.nom.toLowerCase().includes(searchValue.toLowerCase()))
             .map(s => s.article)
             .filter(Boolean)
-          // Dédupliquer les articles
           const uniqueArticles = Array.from(new Map(articlesDisponibles.map(a => [a.id, a])).values())
           setArticles(uniqueArticles)
           return
         }
       }
-      // Recherche normale (pas un transfert entre techniciens)
-      // Rechercher d'abord par numéro de série ou MAC
       const { data: serialData } = await supabase
         .from('numeros_serie')
         .select('*, article:articles(*)')
@@ -389,9 +355,8 @@ function mapTypeToConstraint(typeNom: string): string {
       if (serialData && serialData.length > 0) {
         articleIds = [...new Set(serialData.map(s => s.article_id))]
         isSerialOrMacSearch = true
-        foundNumeroSerie = serialData[0] // Prendre le premier trouvé
+        foundNumeroSerie = serialData[0]
       }
-      // Rechercher les articles
       let query = supabase
         .from('articles')
         .select('*')
@@ -403,11 +368,9 @@ function mapTypeToConstraint(typeNom: string): string {
       }
       const { data } = await query
       setArticles(data || [])
-      // AUTO-SÉLECTION ET AUTO-AJOUT : Si un seul résultat
       if (data && data.length === 1) {
         const article = data[0]
         setLigneFormData({...ligneFormData, article_id: article.id})
-        // Si recherche par série/MAC, ajouter automatiquement la ligne
         if (isSerialOrMacSearch && foundNumeroSerie) {
           setTimeout(() => {
             ajouterLigneAuto(article, foundNumeroSerie)
@@ -419,16 +382,13 @@ function mapTypeToConstraint(typeNom: string): string {
     }
   }
 
-  // Ajouter une ligne automatiquement (lors du scan)
   function ajouterLigneAuto(article: Article, numeroSerie?: any) {
-    // Vérifier si ce numéro de série n'est pas déjà dans les lignes
     if (numeroSerie && lignesMouvement.find(l => l.numero_serie_id === numeroSerie.id)) {
       alert("Ce numéro de série est déjà dans la liste.")
       setArticleSearch("")
       setLigneFormData({ article_id: "", quantite: 1 })
       return
     }
-    // Si transfert entre techniciens, vérifier que l'article est dans le stock source
     if (isTransfertEntreTechniciens() && mouvementData.personne_source_id) {
       const stockEntry = stockTechnicienSource.find(s => 
         s.article_id === article.id && 
@@ -459,12 +419,10 @@ function mapTypeToConstraint(typeNom: string): string {
       stock_actuel: article.quantite_stock,
     }
     setLignesMouvement([...lignesMouvement, nouvelleLigne])
-    // Réinitialiser
     setArticleSearch("")
     setLigneFormData({ article_id: "", quantite: 1 })
   }
 
-  // Ajouter une ligne au mouvement
   function ajouterLigne(e: React.FormEvent) {
     e.preventDefault()
     if (!ligneFormData.article_id || ligneFormData.quantite < 1) {
@@ -474,8 +432,6 @@ function mapTypeToConstraint(typeNom: string): string {
     const article = articles.find(a => a.id === ligneFormData.article_id)
     if (!article) return
 
-    // Pas de vérification de doublon sur l'article seul - on peut ajouter le même article plusieurs fois
-    // mais pas avec le même numéro de série
     const nouvelleLigne: LigneMouvement = {
       id: crypto.randomUUID(),
       article_id: ligneFormData.article_id,
@@ -485,7 +441,6 @@ function mapTypeToConstraint(typeNom: string): string {
       stock_actuel: article.quantite_stock,
     }
     setLignesMouvement([...lignesMouvement, nouvelleLigne])
-    // Réinitialiser le formulaire de ligne
     setLigneFormData({
       article_id: "",
       quantite: 1,
@@ -493,12 +448,10 @@ function mapTypeToConstraint(typeNom: string): string {
     setArticleSearch("")
   }
 
-  // Supprimer une ligne
   function supprimerLigne(ligneId: string) {
     setLignesMouvement(lignesMouvement.filter(l => l.id !== ligneId))
   }
 
-  // Valider tout le mouvement
   async function validerMouvement() {
     if (lignesMouvement.length === 0) {
       alert("Veuillez ajouter au moins une ligne avant de valider")
@@ -508,7 +461,6 @@ function mapTypeToConstraint(typeNom: string): string {
       alert("Veuillez sélectionner un type de mouvement")
       return
     }
-    // Validation des techniciens
     if (mouvementData.localisation_origine === "Stock Technicien" && !mouvementData.personne_source_id) {
       alert("Veuillez sélectionner le technicien source")
       return
@@ -517,58 +469,44 @@ function mapTypeToConstraint(typeNom: string): string {
       alert("Veuillez sélectionner le technicien destination")
       return
     }
-    // Empêcher transfert vers le même technicien
     if (isTransfertEntreTechniciens() && mouvementData.personne_source_id === mouvementData.personne_id) {
       alert("Le technicien source et destination doivent être différents")
       return
     }
     try {
       const dateMouvement = new Date().toISOString()
-
-      // AJOUTER CES LOGS ICI
-      console.log('DEBUG - Valeur de mouvementData.type_mouvement AVANT mapping:', mouvementData.type_mouvement);
-
+      console.log('DEBUG - Valeur de mouvementData.type_mouvement AVANT mapping:', mouvementData.type_mouvement)
       const typeMapped = mapTypeToConstraint(mouvementData.type_mouvement)
+      console.log('DEBUG - Valeur de typeMapped APRES mapping:', typeMapped)
 
-      // AJOUTER CES LOGS ICI
-      console.log('DEBUG - Valeur de typeMapped APRES mapping:', typeMapped);
-
-      // DEBUG
-      console.log('Type original:', mouvementData.type_mouvement) // <--- Peut-être redondant maintenant
-      console.log('Type mappé:', typeMapped) // <--- Peut-être redondant maintenant
-
-      // Récupérer les noms des techniciens pour les remarques
       let remarquesFinales = mouvementData.remarques
       if (mouvementData.personne_source_id && mouvementData.personne_id) {
-        // Transfert entre techniciens - ajouter l'info dans les remarques
         const techSource = personnes.find(p => p.id === mouvementData.personne_source_id)
         const techDest = personnes.find(p => p.id === mouvementData.personne_id)
         const infoTransfert = `Transfert: ${techSource?.nom} ${techSource?.prenom || ''} → ${techDest?.nom} ${techDest?.prenom || ''}`
         remarquesFinales = remarquesFinales ? `${infoTransfert} | ${remarquesFinales}` : infoTransfert
       }
 
-      // Préparer toutes les lignes de mouvement à insérer
       const mouvementsToInsert = lignesMouvement.map(ligne => ({
         article_id: ligne.article_id,
         numero_serie_id: ligne.numero_serie_id || null,
         personne_id: mouvementData.personne_id || mouvementData.personne_source_id || null,
-        type_mouvement: typeMapped, // <--- C'est CETTE valeur qui est insérée
+        type_mouvement: typeMapped,
         localisation_origine: mouvementData.localisation_origine || null,
         localisation_destination: mouvementData.localisation_destination || null,
         quantite: ligne.quantite,
         remarques: remarquesFinales,
         date_mouvement: dateMouvement,
       }))
-	  console.log('DEBUG - Valeur de type_mouvement dans le premier objet à insérer:', mouvementsToInsert[0]?.type_mouvement);
+      console.log('DEBUG - Valeur de type_mouvement dans le premier objet à insérer:', mouvementsToInsert[0]?.type_mouvement)
       console.log('Données à insérer:', mouvementsToInsert)
-      // Insérer tous les mouvements
+
       const { error: mouvementError } = await supabase
         .from('mouvements')
         .insert(mouvementsToInsert)
       if (mouvementError) throw mouvementError
 
-      // Mettre à jour le stock pour chaque article
-      const typeMvt = typesMouvement.find(t => t.nom === mouvementData.type_mouvement) // <--- Utilise le nom d'origine pour la logique métier
+      const typeMvt = typesMouvement.find(t => t.nom === mouvementData.type_mouvement)
       for (const ligne of lignesMouvement) {
         const article = articles.find(a => a.id === ligne.article_id)
         if (!article) continue
@@ -585,7 +523,7 @@ function mapTypeToConstraint(typeNom: string): string {
           .update({ quantite_stock: newQuantity })
           .eq('id', ligne.article_id)
         if (stockError) throw stockError
-        // METTRE À JOUR L'EMPLACEMENT DU NUMÉRO DE SÉRIE
+
         if (ligne.numero_serie_id && mouvementData.localisation_destination) {
           try {
             const { error: updateSerieError } = await supabase
@@ -604,8 +542,7 @@ function mapTypeToConstraint(typeNom: string): string {
             console.error('Erreur lors de la mise à jour de l\'emplacement:', error)
           }
         }
-        // GESTION DU STOCK TECHNICIEN
-        // Cas 1 : Retrait depuis Stock Technicien (décrémenter stock du technicien source)
+
         if (mouvementData.personne_source_id && mouvementData.localisation_origine === "Stock Technicien") {
           try {
             let queryStock = supabase
@@ -620,17 +557,14 @@ function mapTypeToConstraint(typeNom: string): string {
             }
             const { data: existingStock } = await queryStock.maybeSingle()
             if (existingStock) {
-              // Décrémenter la quantité
               const newQty = existingStock.quantite - ligne.quantite
               console.log(`Retrait stock technicien source: ${existingStock.quantite} - ${ligne.quantite} = ${newQty}`)
               if (newQty <= 0) {
-                // Supprimer l'entrée si quantité = 0
                 await supabase
                   .from('stock_technicien')
                   .delete()
                   .eq('id', existingStock.id)
               } else {
-                // Mettre à jour la quantité
                 await supabase
                   .from('stock_technicien')
                   .update({ 
@@ -645,7 +579,7 @@ function mapTypeToConstraint(typeNom: string): string {
             alert(`Erreur lors du retrait du stock technicien pour ${ligne.article_nom}`)
           }
         }
-        // Cas 2 : Ajout vers Stock Technicien (incrémenter stock du technicien destination)
+
         if (mouvementData.personne_id && mouvementData.localisation_destination === "Stock Technicien") {
           try {
             let queryStock = supabase
@@ -660,7 +594,6 @@ function mapTypeToConstraint(typeNom: string): string {
             }
             const { data: existingStock } = await queryStock.maybeSingle()
             if (existingStock) {
-              // Incrémenter la quantité
               console.log(`Ajout stock technicien destination: ${existingStock.quantite} + ${ligne.quantite}`)
               await supabase
                 .from('stock_technicien')
@@ -670,7 +603,6 @@ function mapTypeToConstraint(typeNom: string): string {
                 })
                 .eq('id', existingStock.id)
             } else {
-              // Créer une nouvelle entrée
               console.log('Création nouvelle entrée stock_technicien destination pour:', ligne.article_nom)
               await supabase
                 .from('stock_technicien')
@@ -682,16 +614,15 @@ function mapTypeToConstraint(typeNom: string): string {
                   localisation: mouvementData.localisation_destination || 'camionnette',
                 })
             }
-    } catch (error: any) {
-      alert("Erreur: " + error.message)
-    }
-  }
+          } catch (error: any) {
+            alert("Erreur: " + error.message)
+          }
+        }
       }
-      // Fermer le dialog et réinitialiser
+
       setShowForm(false)
       fetchMouvements()
       fetchArticles()
-      // Réinitialiser tous les états
       setLignesMouvement([])
       setMouvementData({
         personne_id: "",
@@ -717,9 +648,35 @@ function mapTypeToConstraint(typeNom: string): string {
       (m.article?.nom && m.article.nom.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (m.personne?.nom && m.personne.nom.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (m.type_mouvement && m.type_mouvement.toLowerCase().includes(searchTerm.toLowerCase()))
-    if (filterType === "all") return matchesSearch
-    return matchesSearch && m.type_mouvement === filterType
+    
+    const matchesType = filterType === "all" || m.type_mouvement === filterType
+    
+    const matchesTechnicien = filterTechnicien === "all" || 
+      m.personne_id === filterTechnicien ||
+      (m as any).personne_source_id === filterTechnicien
+    
+    let matchesDate = true
+    if (filterDateDebut || filterDateFin) {
+      const mouvementDate = new Date(m.date_mouvement)
+      if (filterDateDebut) {
+        const dateDebut = new Date(filterDateDebut)
+        dateDebut.setHours(0, 0, 0, 0)
+        matchesDate = matchesDate && mouvementDate >= dateDebut
+      }
+      if (filterDateFin) {
+        const dateFin = new Date(filterDateFin)
+        dateFin.setHours(23, 59, 59, 999)
+        matchesDate = matchesDate && mouvementDate <= dateFin
+      }
+    }
+    
+    return matchesSearch && matchesType && matchesTechnicien && matchesDate
   })
+
+  const filteredPersonnes = personnes.filter(p => 
+    p.nom.toLowerCase().includes(searchTechnicien.toLowerCase()) ||
+    (p.prenom && p.prenom.toLowerCase().includes(searchTechnicien.toLowerCase()))
+  )
 
   console.log(`📊 Mouvements totaux: ${mouvements.length}, Filtrés: ${filteredMouvements.length}`)
   console.log(`🔍 Recherche: "${searchTerm}", Filtre type: "${filterType}"`)
@@ -763,7 +720,6 @@ function mapTypeToConstraint(typeNom: string): string {
     )
   }
 
-  // Affichage du formulaire pleine page
   if (showForm) {
     return (
       <div className="space-y-6 p-6">
@@ -783,7 +739,6 @@ function mapTypeToConstraint(typeNom: string): string {
           </Button>
         </div>
 
-        {/* Formulaire guidé par scénarios */}
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">Étape 1 : Sélectionnez l&apos;emplacement d&apos;origine</CardTitle>
@@ -795,7 +750,7 @@ function mapTypeToConstraint(typeNom: string): string {
                 setMouvementData({
                   ...mouvementData,
                   localisation_origine: value,
-                  type_mouvement: "", // Reset type et destination
+                  type_mouvement: "",
                   localisation_destination: "",
                 })
               }}
@@ -848,7 +803,6 @@ function mapTypeToConstraint(typeNom: string): string {
 
         {mouvementData.type_mouvement && (
           <>
-            {/* Cas 1 : Transfert entre techniciens - 4 colonnes */}
             {isTransfertEntreTechniciens() ? (
               <div className="grid grid-cols-4 gap-6">
                 <Card>
@@ -923,7 +877,6 @@ function mapTypeToConstraint(typeNom: string): string {
                 </Card>
               </div>
             ) : (
-              /* Cas 2 : Autres mouvements - 2 ou 3 colonnes selon besoin de technicien */
               <div className={`grid ${needsTechnicienSource() || needsTechnicienDestination() ? 'grid-cols-3' : 'grid-cols-2'} gap-6`}>
                 <Card>
                   <CardHeader>
@@ -1186,7 +1139,6 @@ function mapTypeToConstraint(typeNom: string): string {
     )
   }
 
-  // Affichage normal de la liste des mouvements
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -1251,8 +1203,8 @@ function mapTypeToConstraint(typeNom: string): string {
 
       <Card>
         <CardContent className="pt-6">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center">
-            <div className="relative flex-1">
+          <div className="grid gap-4">
+            <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Rechercher par article, personne ou type..."
@@ -1261,19 +1213,94 @@ function mapTypeToConstraint(typeNom: string): string {
                 className="pl-10"
               />
             </div>
-            <Select value={filterType} onValueChange={setFilterType}>
-              <SelectTrigger className="w-full md:w-48">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tous les types</SelectItem>
-                {typesMouvement.map((type) => (
-                  <SelectItem key={type.id} value={type.nom}>
-                    {type.nom}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="date-debut" className="text-sm font-medium">
+                  Date début
+                </Label>
+                <Input
+                  id="date-debut"
+                  type="date"
+                  value={filterDateDebut}
+                  onChange={(e) => setFilterDateDebut(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="date-fin" className="text-sm font-medium">
+                  Date fin
+                </Label>
+                <Input
+                  id="date-fin"
+                  type="date"
+                  value={filterDateFin}
+                  onChange={(e) => setFilterDateFin(e.target.value)}
+                />
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Type de mouvement</Label>
+                <Select value={filterType} onValueChange={setFilterType}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Tous les types</SelectItem>
+                    {typesMouvement.map((type) => (
+                      <SelectItem key={type.id} value={type.nom}>
+                        {type.nom}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Technicien</Label>
+                <Select value={filterTechnicien} onValueChange={setFilterTechnicien}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Tous les techniciens" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <div className="p-2">
+                      <Input
+                        placeholder="Rechercher..."
+                        value={searchTechnicien}
+                        onChange={(e) => setSearchTechnicien(e.target.value)}
+                        className="h-8 mb-2"
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    </div>
+                    <SelectItem value="all">Tous les techniciens</SelectItem>
+                    {filteredPersonnes.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.nom} {p.prenom}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            
+            {(filterDateDebut || filterDateFin || filterType !== "all" || filterTechnicien !== "all" || searchTerm) && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setFilterDateDebut("")
+                  setFilterDateFin("")
+                  setFilterType("all")
+                  setFilterTechnicien("all")
+                  setSearchTerm("")
+                  setSearchTechnicien("")
+                }}
+              >
+                <X className="mr-2 h-4 w-4" />
+                Réinitialiser les filtres
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>
