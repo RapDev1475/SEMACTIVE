@@ -23,13 +23,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Plus, Search, Users, User, Phone, Mail, Edit, MapPin, CreditCard, Briefcase, Projector } from "lucide-react" // Ajout des icônes
-import type { Personne, Projet, Fonction } from "@/lib/types" // Assure-toi que Projet et Fonction sont définis dans ton fichier de types
+import { Plus, Search, Users, User, Phone, Mail, Edit, MapPin, CreditCard, Briefcase, Projector } from "lucide-react"
+import type { Personne, Projet, Fonction } from "@/lib/types"
 
 export default function TechniciensPage() {
   const [personnes, setPersonnes] = useState<Personne[]>([])
-  const [projets, setProjets] = useState<Projet[]>([]) // Nouvel état pour les projets
-  const [fonctions, setFonctions] = useState<Fonction[]>([]) // Nouvel état pour les fonctions
+  const [projets, setProjets] = useState<Projet[]>([])
+  const [fonctions, setFonctions] = useState<Fonction[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [filterType, setFilterType] = useState<string>("all")
@@ -55,19 +55,17 @@ export default function TechniciensPage() {
     boite_postale: "",
     code_postal: "",
     commune: "",
-    // --- Nouvelles propriétés ---
-    projet_id: "", // Maintenant un ID
-    fonction_id: "", // Maintenant un ID
-    // ---
+    projet_id: "",
+    fonction_id: "",
   })
 
   useEffect(() => {
     fetchPersonnes()
-    fetchProjets() // Appel à la fonction pour charger les projets
-    fetchFonctions() // Appel à la fonction pour charger les fonctions
+    fetchProjets()
+    fetchFonctions()
   }, [])
 
-  async function fetchProjets() { // Nouvelle fonction
+  async function fetchProjets() {
     try {
       const { data, error } = await supabase
         .from('projets')
@@ -75,17 +73,14 @@ export default function TechniciensPage() {
         .order('nom')
 
       if (error) throw error
-      // --- FILTRE RENFORCÉ ICI ---
-      // On s'assure que chaque projet a un id non vide et non null
-      const projetsFiltres = (data || []).filter(p => p && p.id && typeof p.id === 'string' && p.id.trim() !== '');
-      setProjets(projetsFiltres);
-      console.log("Projets chargés et filtrés:", projetsFiltres.length);
+      const projetsFiltres = (data || []).filter(p => p && p.id && typeof p.id === 'string' && p.id.trim() !== '')
+      setProjets(projetsFiltres)
     } catch (error) {
       console.error('Error fetching projets:', error)
     }
   }
 
-  async function fetchFonctions() { // Nouvelle fonction
+  async function fetchFonctions() {
     try {
       const { data, error } = await supabase
         .from('fonctions')
@@ -93,11 +88,8 @@ export default function TechniciensPage() {
         .order('nom')
 
       if (error) throw error
-      // --- FILTRE RENFORCÉ ICI ---
-      // On s'assure que chaque fonction a un id non vide et non null
-      const fonctionsFiltrees = (data || []).filter(f => f && f.id && typeof f.id === 'string' && f.id.trim() !== '');
-      setFonctions(fonctionsFiltrees);
-      console.log("Fonctions chargées et filtrées:", fonctionsFiltrees.length);
+      const fonctionsFiltrees = (data || []).filter(f => f && f.id && typeof f.id === 'string' && f.id.trim() !== '')
+      setFonctions(fonctionsFiltrees)
     } catch (error) {
       console.error('Error fetching fonctions:', error)
     }
@@ -127,10 +119,8 @@ export default function TechniciensPage() {
       const dataToSave = {
         ...formData,
         delai_paiement_jours: formData.delai_paiement_jours ? parseInt(formData.delai_paiement_jours) : null,
-        // --- Conversion des champs projet_id/fonction_id en null si vide ---
         projet_id: formData.projet_id || null,
         fonction_id: formData.fonction_id || null,
-        // ---
       }
 
       if (editingPerson) {
@@ -171,42 +161,35 @@ export default function TechniciensPage() {
         boite_postale: "",
         code_postal: "",
         commune: "",
-        // --- Réinitialisation des nouveaux champs ---
         projet_id: "",
         fonction_id: "",
-        // ---
       })
     } catch (error: any) {
       alert("Erreur: " + error.message)
     }
   }
 
-  // --- CHANGEMENT : handleEdit avec vérification RENFORCÉE et existence ---
   function handleEdit(personne: any) {
     setEditingPerson(personne)
 
-    // --- VÉRIFICATION RENFORCÉE ET EXISTENCE ---
-    // On s'assure que les IDs sont des chaînes non vides
-    const projetIdRaw = personne.projet_id;
-    const fonctionIdRaw = personne.fonction_id;
+    const projetIdRaw = personne.projet_id
+    const fonctionIdRaw = personne.fonction_id
 
-    // Vérifier si les IDs sont des chaînes non vides et si elles existent dans les listes chargées
-    // On ne fait la vérification d'existence que si les listes sont chargées (longueur > 0)
     const projetIdToSet = (
       projetIdRaw && 
       typeof projetIdRaw === 'string' && 
       projetIdRaw.trim() !== '' && 
-      projets.length > 0 && // Vérifier que la liste est chargée
-      projets.some(p => p.id === projetIdRaw) // Vérifier l'existence
-    ) ? projetIdRaw : "";
+      projets.length > 0 && 
+      projets.some(p => p.id === projetIdRaw)
+    ) ? projetIdRaw : ""
 
     const fonctionIdToSet = (
       fonctionIdRaw && 
       typeof fonctionIdRaw === 'string' && 
       fonctionIdRaw.trim() !== '' && 
-      fonctions.length > 0 && // Vérifier que la liste est chargée
-      fonctions.some(f => f.id === fonctionIdRaw) // Vérifier l'existence
-    ) ? fonctionIdRaw : "";
+      fonctions.length > 0 && 
+      fonctions.some(f => f.id === fonctionIdRaw)
+    ) ? fonctionIdRaw : ""
 
     setFormData({
       nom: personne.nom,
@@ -227,14 +210,11 @@ export default function TechniciensPage() {
       boite_postale: personne.boite_postale || "",
       code_postal: personne.code_postal || "",
       commune: personne.commune || "",
-      // --- Assignation avec vérification ---
       projet_id: projetIdToSet,
       fonction_id: fonctionIdToSet,
-      // ---
     })
     setDialogOpen(true)
   }
-  // --- FIN CHANGEMENT ---
 
   const filteredPersonnes = personnes.filter(p => {
     const matchesSearch = 
@@ -242,11 +222,9 @@ export default function TechniciensPage() {
       (p.prenom && p.prenom.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (p.email && p.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (p.numero_perid && p.numero_perid.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (p.erp_id && p.erp_id.toLowerCase().includes(searchTerm.toLowerCase()))
-      // --- Recherche sur le nom du projet/fonction via les tableaux locaux ---
-      || (p.projet_id && projets.find(pr => pr.id === p.projet_id)?.nom.toLowerCase().includes(searchTerm.toLowerCase())) 
-      || (p.fonction_id && fonctions.find(f => f.id === p.fonction_id)?.nom.toLowerCase().includes(searchTerm.toLowerCase()))
-      // ---
+      (p.erp_id && p.erp_id.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (p.projet_id && projets.find(pr => pr.id === p.projet_id)?.nom.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (p.fonction_id && fonctions.find(f => f.id === p.fonction_id)?.nom.toLowerCase().includes(searchTerm.toLowerCase()))
     
     if (filterType === "all") return matchesSearch
     return matchesSearch && p.type === filterType
@@ -311,10 +289,8 @@ export default function TechniciensPage() {
                 boite_postale: "",
                 code_postal: "",
                 commune: "",
-                // --- Réinitialisation des nouveaux champs ---
                 projet_id: "",
                 fonction_id: "",
-                // ---
               })
             }
           }}
@@ -337,282 +313,270 @@ export default function TechniciensPage() {
                 }
               </DialogDescription>
             </DialogHeader>
-            {/* Vérifie que projets et fonctions sont chargés avant de rendre le formulaire */}
-            {projets.length === 0 || fonctions.length === 0 ? (
-              <div className="flex items-center justify-center h-20">
-                <div className="h-8 w-8 border-4 border-primary/30 border-t-primary rounded-full animate-spin" />
-              </div>
-            ) : (
-              <form onSubmit={handleSubmit} className="space-y-6">
-                {/* Informations générales */}
-                <div className="space-y-4">
-                  <h3 className="text-sm font-semibold">Informations générales</h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="nom">Nom *</Label>
-                      <Input
-                        id="nom"
-                        value={formData.nom}
-                        onChange={(e) => setFormData({...formData, nom: e.target.value})}
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="prenom">Prénom</Label>
-                      <Input
-                        id="prenom"
-                        value={formData.prenom}
-                        onChange={(e) => setFormData({...formData, prenom: e.target.value})}
-                      />
-                    </div>
-                  </div>
-
+            <form onSubmit={handleSubmit} className="space-y-6">
+              {/* Informations générales */}
+              <div className="space-y-4">
+                <h3 className="text-sm font-semibold">Informations générales</h3>
+                <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="type">Type *</Label>
-                    <Select 
-                      value={formData.type} 
-                      onValueChange={(value: any) => setFormData({...formData, type: value})}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="technicien">Technicien</SelectItem>
-                        <SelectItem value="client">Client</SelectItem>
-                        <SelectItem value="fournisseur">Fournisseur</SelectItem>
-                        <SelectItem value="autre">Autre</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                {/* --- NOUVEAU : Informations Projet/Fonction avec Select (TEMPORAIREMENT COMMENTÉ) --- */}
-                {/* <div className="space-y-4 p-4 bg-gray-50 dark:bg-gray-900/20 rounded-lg border">
-                  <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                    Projet & Fonction
-                  </h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="projet_id">Projet</Label>
-                      <Select 
-                        value={formData.projet_id} 
-                        onValueChange={(value) => setFormData({...formData, projet_id: value})}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Sélectionnez un projet" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="">Aucun projet</SelectItem>
-                          {projets
-                            .filter(p => p.id && p.id !== "") // Filtrer les projets avec un ID valide
-                            .map((projet) => (
-                            <SelectItem key={projet.id} value={projet.id}>
-                              {projet.nom}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="fonction_id">Fonction</Label>
-                      <Select 
-                        value={formData.fonction_id} 
-                        onValueChange={(value) => setFormData({...formData, fonction_id: value})}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Sélectionnez une fonction" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="">Aucune fonction</SelectItem>
-                          {fonctions
-                            .filter(f => f.id && f.id !== "") // Filtrer les fonctions avec un ID valide
-                            .map((fonction) => (
-                            <SelectItem key={fonction.id} value={fonction.id}>
-                              {fonction.nom}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                </div> */}
-                {/* --- FIN NOUVEAU --- */}
-
-                {/* Identifiants technicien */}
-                {formData.type === 'technicien' && (
-                  <div className="space-y-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border">
-                    <h3 className="text-sm font-semibold text-blue-900 dark:text-blue-100">
-                      Identifiants technicien
-                    </h3>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="numero_perid">Numéro PERID</Label>
-                        <Input
-                          id="numero_perid"
-                          value={formData.numero_perid}
-                          onChange={(e) => setFormData({...formData, numero_perid: e.target.value})}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="erp_id">ERP ID</Label>
-                        <Input
-                          id="erp_id"
-                          value={formData.erp_id}
-                          onChange={(e) => setFormData({...formData, erp_id: e.target.value})}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Coordonnées */}
-                <div className="space-y-4">
-                  <h3 className="text-sm font-semibold">Coordonnées</h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="email">Email</Label>
-                      <Input
-                        id="email"
-                        type="email"
-                        value={formData.email}
-                        onChange={(e) => setFormData({...formData, email: e.target.value})}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="telephone">Téléphone</Label>
-                      <Input
-                        id="telephone"
-                        type="tel"
-                        value={formData.telephone}
-                        onChange={(e) => setFormData({...formData, telephone: e.target.value})}
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="entreprise">Entreprise</Label>
+                    <Label htmlFor="nom">Nom *</Label>
                     <Input
-                      id="entreprise"
-                      value={formData.entreprise}
-                      onChange={(e) => setFormData({...formData, entreprise: e.target.value})}
+                      id="nom"
+                      value={formData.nom}
+                      onChange={(e) => setFormData({...formData, nom: e.target.value})}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="prenom">Prénom</Label>
+                    <Input
+                      id="prenom"
+                      value={formData.prenom}
+                      onChange={(e) => setFormData({...formData, prenom: e.target.value})}
                     />
                   </div>
                 </div>
 
-                {/* Adresse */}
-                <div className="space-y-4">
-                  <h3 className="text-sm font-semibold">Adresse</h3>
-                  <div className="grid grid-cols-3 gap-4">
-                    <div className="col-span-2 space-y-2">
-                      <Label htmlFor="adresse">Rue</Label>
-                      <Input
-                        id="adresse"
-                        value={formData.adresse}
-                        onChange={(e) => setFormData({...formData, adresse: e.target.value})}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="numero">Numéro</Label>
-                      <Input
-                        id="numero"
-                        value={formData.numero}
-                        onChange={(e) => setFormData({...formData, numero: e.target.value})}
-                      />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-3 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="boite_postale">Boîte</Label>
-                      <Input
-                        id="boite_postale"
-                        value={formData.boite_postale}
-                        onChange={(e) => setFormData({...formData, boite_postale: e.target.value})}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="code_postal">Code postal</Label>
-                      <Input
-                        id="code_postal"
-                        value={formData.code_postal}
-                        onChange={(e) => setFormData({...formData, code_postal: e.target.value})}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="commune">Commune</Label>
-                      <Input
-                        id="commune"
-                        value={formData.commune}
-                        onChange={(e) => setFormData({...formData, commune: e.target.value})}
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Informations financières */}
-                <div className="space-y-4">
-                  <h3 className="text-sm font-semibold">Informations financières</h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="numero_tva">Numéro TVA</Label>
-                      <Input
-                        id="numero_tva"
-                        value={formData.numero_tva}
-                        onChange={(e) => setFormData({...formData, numero_tva: e.target.value})}
-                        placeholder="BE0123456789"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="delai_paiement_jours">Délai paiement (jours)</Label>
-                      <Input
-                        id="delai_paiement_jours"
-                        type="number"
-                        value={formData.delai_paiement_jours}
-                        onChange={(e) => setFormData({...formData, delai_paiement_jours: e.target.value})}
-                        placeholder="30"
-                      />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="iban">IBAN</Label>
-                      <Input
-                        id="iban"
-                        value={formData.iban}
-                        onChange={(e) => setFormData({...formData, iban: e.target.value})}
-                        placeholder="BE00 0000 0000 0000"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="bic">BIC</Label>
-                      <Input
-                        id="bic"
-                        value={formData.bic}
-                        onChange={(e) => setFormData({...formData, bic: e.target.value})}
-                        placeholder="GEBABEBB"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Remarques */}
                 <div className="space-y-2">
-                  <Label htmlFor="remarques">Remarques</Label>
+                  <Label htmlFor="type">Type *</Label>
+                  <Select 
+                    value={formData.type} 
+                    onValueChange={(value: any) => setFormData({...formData, type: value})}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="technicien">Technicien</SelectItem>
+                      <SelectItem value="client">Client</SelectItem>
+                      <SelectItem value="fournisseur">Fournisseur</SelectItem>
+                      <SelectItem value="autre">Autre</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Projet & Fonction */}
+              <div className="space-y-4 p-4 bg-gray-50 dark:bg-gray-900/20 rounded-lg border">
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                  Projet & Fonction
+                </h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="projet_id">Projet</Label>
+                    <Select 
+                      value={formData.projet_id} 
+                      onValueChange={(value) => setFormData({...formData, projet_id: value})}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Sélectionnez un projet" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">Aucun projet</SelectItem>
+                        {projets.map((projet) => (
+                          <SelectItem key={projet.id} value={projet.id}>
+                            {projet.nom}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="fonction_id">Fonction</Label>
+                    <Select 
+                      value={formData.fonction_id} 
+                      onValueChange={(value) => setFormData({...formData, fonction_id: value})}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Sélectionnez une fonction" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">Aucune fonction</SelectItem>
+                        {fonctions.map((fonction) => (
+                          <SelectItem key={fonction.id} value={fonction.id}>
+                            {fonction.nom}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Identifiants technicien */}
+              {formData.type === 'technicien' && (
+                <div className="space-y-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border">
+                  <h3 className="text-sm font-semibold text-blue-900 dark:text-blue-100">
+                    Identifiants technicien
+                  </h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="numero_perid">Numéro PERID</Label>
+                      <Input
+                        id="numero_perid"
+                        value={formData.numero_perid}
+                        onChange={(e) => setFormData({...formData, numero_perid: e.target.value})}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="erp_id">ERP ID</Label>
+                      <Input
+                        id="erp_id"
+                        value={formData.erp_id}
+                        onChange={(e) => setFormData({...formData, erp_id: e.target.value})}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Coordonnées */}
+              <div className="space-y-4">
+                <h3 className="text-sm font-semibold">Coordonnées</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      value={formData.email}
+                      onChange={(e) => setFormData({...formData, email: e.target.value})}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="telephone">Téléphone</Label>
+                    <Input
+                      id="telephone"
+                      type="tel"
+                      value={formData.telephone}
+                      onChange={(e) => setFormData({...formData, telephone: e.target.value})}
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="entreprise">Entreprise</Label>
                   <Input
-                    id="remarques"
-                    value={formData.remarques}
-                    onChange={(e) => setFormData({...formData, remarques: e.target.value})}
+                    id="entreprise"
+                    value={formData.entreprise}
+                    onChange={(e) => setFormData({...formData, entreprise: e.target.value})}
                   />
                 </div>
+              </div>
 
-                <div className="flex gap-2 justify-end pt-4">
-                  <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
-                    Annuler
-                  </Button>
-                  <Button type="submit">
-                    {editingPerson ? "Mettre à jour" : "Ajouter"}
-                  </Button>
+              {/* Adresse */}
+              <div className="space-y-4">
+                <h3 className="text-sm font-semibold">Adresse</h3>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="col-span-2 space-y-2">
+                    <Label htmlFor="adresse">Rue</Label>
+                    <Input
+                      id="adresse"
+                      value={formData.adresse}
+                      onChange={(e) => setFormData({...formData, adresse: e.target.value})}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="numero">Numéro</Label>
+                    <Input
+                      id="numero"
+                      value={formData.numero}
+                      onChange={(e) => setFormData({...formData, numero: e.target.value})}
+                    />
+                  </div>
                 </div>
-              </form>
-            )}
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="boite_postale">Boîte</Label>
+                    <Input
+                      id="boite_postale"
+                      value={formData.boite_postale}
+                      onChange={(e) => setFormData({...formData, boite_postale: e.target.value})}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="code_postal">Code postal</Label>
+                    <Input
+                      id="code_postal"
+                      value={formData.code_postal}
+                      onChange={(e) => setFormData({...formData, code_postal: e.target.value})}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="commune">Commune</Label>
+                    <Input
+                      id="commune"
+                      value={formData.commune}
+                      onChange={(e) => setFormData({...formData, commune: e.target.value})}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Informations financières */}
+              <div className="space-y-4">
+                <h3 className="text-sm font-semibold">Informations financières</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="numero_tva">Numéro TVA</Label>
+                    <Input
+                      id="numero_tva"
+                      value={formData.numero_tva}
+                      onChange={(e) => setFormData({...formData, numero_tva: e.target.value})}
+                      placeholder="BE0123456789"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="delai_paiement_jours">Délai paiement (jours)</Label>
+                    <Input
+                      id="delai_paiement_jours"
+                      type="number"
+                      value={formData.delai_paiement_jours}
+                      onChange={(e) => setFormData({...formData, delai_paiement_jours: e.target.value})}
+                      placeholder="30"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="iban">IBAN</Label>
+                    <Input
+                      id="iban"
+                      value={formData.iban}
+                      onChange={(e) => setFormData({...formData, iban: e.target.value})}
+                      placeholder="BE00 0000 0000 0000"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="bic">BIC</Label>
+                    <Input
+                      id="bic"
+                      value={formData.bic}
+                      onChange={(e) => setFormData({...formData, bic: e.target.value})}
+                      placeholder="GEBABEBB"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Remarques */}
+              <div className="space-y-2">
+                <Label htmlFor="remarques">Remarques</Label>
+                <Input
+                  id="remarques"
+                  value={formData.remarques}
+                  onChange={(e) => setFormData({...formData, remarques: e.target.value})}
+                />
+              </div>
+
+              <div className="flex gap-2 justify-end pt-4">
+                <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
+                  Annuler
+                </Button>
+                <Button type="submit">
+                  {editingPerson ? "Mettre à jour" : "Ajouter"}
+                </Button>
+              </div>
+            </form>
           </DialogContent>
         </Dialog>
       </div>
@@ -714,30 +678,28 @@ export default function TechniciensPage() {
                         {personne.entreprise}
                       </p>
                     )}
-                    {/* --- Affichage Projet/Fonction via recherche dans les tableaux locaux --- */}
-                    {(personne.projet_id || personne.fonction_id) && ( // Vérifie si un ID est présent
+                    {(personne.projet_id || personne.fonction_id) && (
                       <div className="flex flex-wrap gap-1 mt-1">
                         {personne.projet_id && (() => {
-                          const projet = projets.find(p => p.id === personne.projet_id); // Recherche dans le tableau local
-                          return projet ? ( // Si trouvé
+                          const projet = projets.find(p => p.id === personne.projet_id)
+                          return projet ? (
                             <Badge variant="secondary" className="text-xs">
                               <Projector className="mr-1 h-3 w-3" />
-                              {projet.nom} {/* Affiche le nom */}
+                              {projet.nom}
                             </Badge>
-                          ) : null; // Sinon, affiche rien
+                          ) : null
                         })()}
                         {personne.fonction_id && (() => {
-                          const fonction = fonctions.find(f => f.id === personne.fonction_id); // Recherche dans le tableau local
-                          return fonction ? ( // Si trouvé
+                          const fonction = fonctions.find(f => f.id === personne.fonction_id)
+                          return fonction ? (
                             <Badge variant="secondary" className="text-xs">
                               <Briefcase className="mr-1 h-3 w-3" />
-                              {fonction.nom} {/* Affiche le nom */}
+                              {fonction.nom}
                             </Badge>
-                          ) : null; // Sinon, affiche rien
+                          ) : null
                         })()}
                       </div>
                     )}
-                    {/* --- Fin Affichage --- */}
                   </div>
                   <Badge className={getTypeBadge(personne.type)}>
                     {personne.type.charAt(0).toUpperCase() + personne.type.slice(1)}
