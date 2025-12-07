@@ -405,14 +405,23 @@ async function loadNumerosSerieForArticle(articleId: string) {
       )
       setNumerosSerieDisponibles(seriesInStock.map(s => s.numero_serie).filter(Boolean))
     } else {
-      // Sinon, charger tous les numéros de série de cet article
-      const { data } = await supabase
-        .from('numeros_serie')
-        .select('*')
-        .eq('article_id', articleId)
-        .eq('statut', 'disponible')
-      setNumerosSerieDisponibles(data || [])
-    }
+  // Pour les réceptions, charger TOUS les numéros de série de cet article, quel que soit leur statut
+  if (mouvementData.type_mouvement?.toLowerCase().includes('reception')) {
+    const { data } = await supabase
+      .from('numeros_serie')
+      .select('*')
+      .eq('article_id', articleId)
+    setNumerosSerieDisponibles(data || [])
+  } else {
+    // Pour les autres types de mouvements, charger uniquement les séries disponibles
+    const { data } = await supabase
+      .from('numeros_serie')
+      .select('*')
+      .eq('article_id', articleId)
+      .eq('statut', 'disponible')
+    setNumerosSerieDisponibles(data || [])
+  }
+}
   } catch (error) {
     console.error('Error loading numeros serie:', error)
     setNumerosSerieDisponibles([])
