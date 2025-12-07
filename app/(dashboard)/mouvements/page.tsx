@@ -861,7 +861,7 @@ const filteredMouvements = mouvements.filter(m => {
     m.numero_serie?.numero_serie?.toLowerCase().includes(filterSearch.toLowerCase()) ||
     m.numero_serie?.adresse_mac?.toLowerCase().includes(filterSearch.toLowerCase())
   )
-  const matchesType = !filterType || filterType === "all" || m.type_mouvement.toLowerCase().includes(filterType.toLowerCase())
+  const matchesType = filterType === "all" || m.type_mouvement === filterType
   const matchesTechnicien = !filterTechnicien || filterTechnicien === "all" || (
     (m as any).personne_source_id === filterTechnicien ||
     m.personne_id === filterTechnicien
@@ -1349,21 +1349,22 @@ const filteredMouvements = mouvements.filter(m => {
                 onChange={(e) => setFilterSearch(e.target.value)}
               />
             </div>
-            <div>
-              <Label className="text-base mb-2 block">Type</Label>
-              <Select value={filterType} onValueChange={setFilterType}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Tous les types" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tous les types</SelectItem>
-                  <SelectItem value="reception">Réception</SelectItem>
-                  <SelectItem value="sortie">Sortie</SelectItem>
-                  <SelectItem value="installation">Installation</SelectItem>
-                  <SelectItem value="retour">Retour</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+				<div>
+				<Label className="text-base mb-2 block">Type</Label>
+				<Select value={filterType} onValueChange={setFilterType}>
+					<SelectTrigger>
+					<SelectValue placeholder="Tous les types" />
+					</SelectTrigger>
+					<SelectContent>
+					<SelectItem value="all">Tous les types</SelectItem>
+					{typesMouvement.map((type) => (
+						<SelectItem key={type.id} value={type.nom}>
+						{type.nom}
+						</SelectItem>
+					))}
+					</SelectContent>
+				</Select>
+				</div>
             <div>
               <Label className="text-base mb-2 block">Technicien Source</Label>
               <Select value={filterTechnicien} onValueChange={setFilterTechnicien}>
