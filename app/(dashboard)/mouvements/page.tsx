@@ -448,21 +448,37 @@ async function loadNumerosSerieForArticle(articleId: string) {
         return
       }
     }
-    const nouvelleLigne: LigneMouvement = {
-      id: crypto.randomUUID(),
-      article_id: article.id,
-      article_nom: article.nom,
-      article_numero: article.numero_article,
-      numero_serie_id: numeroSerie?.id,
-      numero_serie: numeroSerie?.numero_serie,
-      adresse_mac: numeroSerie?.adresse_mac,
-      quantite: 1,
-      stock_actuel: article.quantite_stock,
-    }
-    setLignesMouvement([...lignesMouvement, nouvelleLigne])
-    setArticleSearch("")
-    setLigneFormData({ article_id: "", quantite: 1 })
+ const nouvelleLigne: LigneMouvement = {
+    id: crypto.randomUUID(),
+    article_id: article.id,
+    article_nom: article.nom,
+    article_numero: article.numero_article,
+    numero_serie_id: numeroSerie?.id,
+    numero_serie: numeroSerie?.numero_serie,
+    adresse_mac: numeroSerie?.adresse_mac,
+    quantite: 1,
+    stock_actuel: article.quantite_stock,
   }
+  setLignesMouvement([...lignesMouvement, nouvelleLigne])
+  
+  // IMPORTANT: Recharger TOUS les articles disponibles après le scan
+  if (isTransfertEntreTechniciens() && mouvementData.personne_source_id) {
+    // Pour transfert entre techniciens: tous les articles du stock source
+    const articlesDisponibles = stockTechnicienSource.map(s => s.article).filter(Boolean)
+    const uniqueArticles = Array.from(new Map(articlesDisponibles.map(a => [a.id, a])).values())
+    setArticles(uniqueArticles)
+  } else {
+    // Pour les autres cas: tous les articles
+    fetchArticles()
+  }
+  
+  // Réinitialiser les champs
+  setArticleSearch("")
+  setArticleSearchSelect("")
+  setLigneFormData({ article_id: "", quantite: 1 })
+  setNumerosSerieDisponibles([])
+  setNumeroSerieSelectionne("")
+}
 
 function ajouterLigne(e: React.FormEvent) {
   e.preventDefault()
