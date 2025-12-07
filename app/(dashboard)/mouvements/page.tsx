@@ -72,6 +72,8 @@ export default function MouvementsPage() {
   const [articleSearch, setArticleSearch] = useState("")
   const [lignesMouvement, setLignesMouvement] = useState<LigneMouvement[]>([])
   const [articleSearchSelect, setArticleSearchSelect] = useState("")
+  const [numerosSerieDisponibles, setNumerosSerieDisponibles] = useState<any[]>([])
+  const [numeroSerieSelectionne, setNumeroSerieSelectionne] = useState<string>("")
 
   const [mouvementData, setMouvementData] = useState({
     personne_id: "",
@@ -382,7 +384,35 @@ export default function MouvementsPage() {
       console.error('Error searching articles:', error)
     }
   }
+async function loadNumerosSerieForArticle(articleId: string) {
+  if (!articleId) {
+    setNumerosSerieDisponibles([])
+    setNumeroSerieSelectionne("")
+    return
+  }
 
+  try {
+    // Si transfert entre techniciens, charger uniquement depuis le stock source
+    if (isTransfertEntreTechniciens() && mouvementData.personne_source_id) {
+      const seriesInStock = stockTechnicienSource.filter(s => 
+        s.article_id === articleId && 
+        s.numero_serie_id !== null
+      )
+      setNumerosSerieDisponibles(seriesInStock.map(s => s.numero_serie).filter(Boolean))
+    } else {
+      // Sinon, charger tous les numéros de série de cet article
+      const { data } = await supabase
+        .from('numeros_serie')
+        .select('*')
+        .eq('article_id', articleId)
+        .eq('statut', 'disponible')
+      setNumerosSerieDisponibles(data || [])
+    }
+  } catch (error) {
+    console.error('Error loading numeros serie:', error)
+    setNumerosSerieDisponibles([])
+  }
+}
   function ajouterLigneAuto(article: Article, numeroSerie?: any) {
     if (numeroSerie && lignesMouvement.find(l => l.numero_serie_id === numeroSerie.id)) {
       alert("Ce numéro de série est déjà dans la liste.")
@@ -434,30 +464,42 @@ export default function MouvementsPage() {
     setLigneFormData({ article_id: "", quantite: 1 })
   }
 
-  function ajouterLigne(e: React.FormEvent) {
-    e.preventDefault()
-    if (!ligneFormData.article_id || ligneFormData.quantite < 1) {
-      alert("Veuillez sélectionner un article et une quantité valide")
-      return
-    }
-    const article = articles.find(a => a.id === ligneFormData.article_id)
-    if (!article) return
-
-    const nouvelleLigne: LigneMouvement = {
-      id: crypto.randomUUID(),
-      article_id: ligneFormData.article_id,
-      article_nom: article.nom,
-      article_numero: article.numero_article,
-      quantite: ligneFormData.quantite,
-      stock_actuel: article.quantite_stock,
-    }
-    setLignesMouvement([...lignesMouvement, nouvelleLigne])
-    setLigneFormData({
-      article_id: "",
-      quantite: 1,
-    })
-    setArticleSearch("")
+function ajouterLigne(e: React.FormEvent) {
+  e.preventDefault()
+  if (!ligneFormData.article_id || ligneFormData.quantite < 1) {
+    alert("Veuillez sélectionner un article et une quantité valide")
+    return
   }
+  const article = articles.find(a => a.id === ligneFormData.article_id)
+  if (!article) return
+
+  // Récupérer les infos du numéro de série si sélectionné
+  let serieInfo = null
+  if (numeroSerieSelectionne && numeroSerieSelectionne !== "none") {
+    serieInfo = numerosSerieDisponibles.find(s => s.id === numeroSerieSelectionne)
+  }
+
+  const nouvelleLigne: LigneMouvement = {
+    id: crypto.randomUUID(),
+    article_id: ligneFormData.article_id,
+    article_nom: article.nom,
+    article_numero: article.numero_article,
+    numero_serie_id: serieInfo?.id,
+    numero_serie: serieInfo?.numero_serie,
+    adresse_mac: serieInfo?.adresse_mac,
+    quantite: ligneFormData.quantite,
+    stock_actuel: article.quantite_stock,
+  }
+  setLignesMouvement([...lignesMouvement, nouvelleLigne])
+  setLigneFormData({
+    article_id: "",
+    quantite: 1,
+  })
+  setArticleSearch("")
+  setArticleSearchSelect("")
+  setNumerosSerieDisponibles([])
+  setNumeroSerieSelectionne("")
+}
 
   function supprimerLigne(ligneId: string) {
     setLignesMouvement(lignesMouvement.filter(l => l.id !== ligneId))
@@ -1058,6 +1100,7 @@ export default function MouvementsPage() {
     onValueChange={(value) => {
       setLigneFormData({...ligneFormData, article_id: value})
       setArticleSearchSelect("") // Reset recherche Select après sélection
+	  loadNumerosSerieForArticle(value)
     }}
   >
     <SelectTrigger className="h-14 text-lg">
@@ -1096,6 +1139,34 @@ export default function MouvementsPage() {
     </SelectContent>
   </Select>
 </div>
+{ligneFormData.article_id && numerosSerieDisponibles.length > 0 && (
+  <div>
+    <Label className="text-base mb-2 block">Numéro de série / MAC</Label>
+    <Select 
+      value={numeroSerieSelectionne} 
+      onValueChange={setNumeroSerieSelectionne}
+    >
+      <SelectTrigger className="h-14 text-lg">
+        <SelectValue placeholder="Sélectionnez un N° série (optionnel)" />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="none">Aucun (article sans série)</SelectItem>
+        {numerosSerieDisponibles.map((serie) => (
+          <SelectItem key={serie.id} value={serie.id}>
+            <div className="flex flex-col py-1">
+              <span className="font-semibold font-mono">{serie.numero_serie}</span>
+              {serie.adresse_mac && (
+                <span className="text-xs text-muted-foreground font-mono">
+                  MAC: {serie.adresse_mac}
+                </span>
+              )}
+            </div>
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  </div>
+)}
         </div>
       </form>
     </CardContent>
