@@ -71,6 +71,7 @@ export default function MouvementsPage() {
   const [showForm, setShowForm] = useState(false)
   const [articleSearch, setArticleSearch] = useState("")
   const [lignesMouvement, setLignesMouvement] = useState<LigneMouvement[]>([])
+  const [articleSearchSelect, setArticleSearchSelect] = useState("")
 
   const [mouvementData, setMouvementData] = useState({
     personne_id: "",
@@ -385,8 +386,18 @@ export default function MouvementsPage() {
   function ajouterLigneAuto(article: Article, numeroSerie?: any) {
     if (numeroSerie && lignesMouvement.find(l => l.numero_serie_id === numeroSerie.id)) {
       alert("Ce numéro de série est déjà dans la liste.")
-      setArticleSearch("")
-      setLigneFormData({ article_id: "", quantite: 1 })
+	  setLignesMouvement([...lignesMouvement, nouvelleLigne])
+		// Recharger tous les articles pour le Select
+		if (isTransfertEntreTechniciens() && mouvementData.personne_source_id) {
+		const articlesDisponibles = stockTechnicienSource.map(s => s.article).filter(Boolean)
+		const uniqueArticles = Array.from(new Map(articlesDisponibles.map(a => [a.id, a])).values())
+		setArticles(uniqueArticles)
+		} else {
+		fetchArticles()
+		}
+		setArticleSearch("")
+		setArticleSearchSelect("")
+		setLigneFormData({ article_id: "", quantite: 1 })
       return
     }
     if (isTransfertEntreTechniciens() && mouvementData.personne_source_id) {
@@ -642,7 +653,10 @@ export default function MouvementsPage() {
       alert("Erreur: " + error.message)
     }
   }
-
+	const articlesForSelect = articles.filter(article => 
+	article.nom.toLowerCase().includes(articleSearchSelect.toLowerCase()) ||
+	article.numero_article.toLowerCase().includes(articleSearchSelect.toLowerCase())
+	)
   const filteredMouvements = mouvements.filter(m => {
     const matchesSearch = 
       (m.article?.nom && m.article.nom.toLowerCase().includes(searchTerm.toLowerCase())) ||
@@ -1037,34 +1051,38 @@ export default function MouvementsPage() {
         })()}
 
         <div className="grid grid-cols-2 gap-6">
-          <div>
+<div>
   <Label className="text-base mb-2 block">Article sélectionné</Label>
   <Select 
     value={ligneFormData.article_id} 
-    onValueChange={(value) => setLigneFormData({...ligneFormData, article_id: value})}
+    onValueChange={(value) => {
+      setLigneFormData({...ligneFormData, article_id: value})
+      setArticleSearchSelect("") // Reset recherche Select après sélection
+    }}
   >
     <SelectTrigger className="h-14 text-lg">
       <SelectValue placeholder="Sélectionnez un article" />
     </SelectTrigger>
     <SelectContent>
-      <div className="p-2 sticky top-0 bg-background">
+      <div className="p-2 sticky top-0 bg-background z-10">
         <Input
           placeholder="Rechercher par nom..."
-          value={articleSearch}
+          value={articleSearchSelect}
           onChange={(e) => {
-            setArticleSearch(e.target.value)
-            searchArticles(e.target.value)
+            e.stopPropagation()
+            setArticleSearchSelect(e.target.value)
           }}
           className="h-10 mb-2"
           onClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => e.stopPropagation()}
         />
       </div>
-      {articles.length === 0 ? (
+      {articlesForSelect.length === 0 ? (
         <div className="p-4 text-muted-foreground text-center">
-          {articleSearch ? 'Aucun résultat' : 'Tapez pour rechercher'}
+          {articleSearchSelect ? 'Aucun résultat' : articles.length === 0 ? 'Recherchez d\'abord un article ci-dessus' : 'Aucun article trouvé'}
         </div>
       ) : (
-        articles.map((article) => (
+        articlesForSelect.map((article) => (
           <SelectItem key={article.id} value={article.id}>
             <div className="flex flex-col py-1">
               <span className="font-semibold">{article.nom}</span>
