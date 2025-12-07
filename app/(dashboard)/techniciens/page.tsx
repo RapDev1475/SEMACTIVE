@@ -314,7 +314,6 @@ export default function TechniciensPage() {
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Informations générales */}
               <div className="space-y-4">
                 <h3 className="text-sm font-semibold">Informations générales</h3>
                 <div className="grid grid-cols-2 gap-4">
@@ -356,63 +355,41 @@ export default function TechniciensPage() {
                 </div>
               </div>
 
-              {/* Projet & Fonction */}
-<div className="space-y-4 p-4 bg-gray-50 dark:bg-gray-900/20 rounded-lg border">
-  <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-    Projet & Fonction
-  </h3>
-  <div className="grid grid-cols-2 gap-4">
-    <div className="space-y-2">
-      <Label htmlFor="projet_id">Projet</Label>
-      <Select 
-        value={formData.projet_id || "none"} 
-        onValueChange={(value) => setFormData({...formData, projet_id: value === "none" ? "" : value})}
-      >
-        <SelectTrigger>
-          <SelectValue placeholder="Sélectionnez un projet" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="none">Aucun projet</SelectItem>
-          {projets.map((projet) => (
-            <SelectItem key={projet.id} value={projet.id}>
-              {projet.nom}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </div>
-    <div className="space-y-2">
-      <Label htmlFor="fonction_id">Fonction</Label>
-      <Select 
-        value={formData.fonction_id || "none"} 
-        onValueChange={(value) => setFormData({...formData, fonction_id: value === "none" ? "" : value})}
-      >
-        <SelectTrigger>
-          <SelectValue placeholder="Sélectionnez une fonction" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="none">Aucune fonction</SelectItem>
-          {fonctions.map((fonction) => (
-            <SelectItem key={fonction.id} value={fonction.id}>
-              {fonction.nom}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </div>
-  </div>
-</div>
+              <div className="space-y-4 p-4 bg-gray-50 dark:bg-gray-900/20 rounded-lg border">
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                  Projet & Fonction
+                </h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="projet_id">Projet</Label>
+                    <Select 
+                      value={formData.projet_id || "none"} 
+                      onValueChange={(value) => setFormData({...formData, projet_id: value === "none" ? "" : value})}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Sélectionnez un projet" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Aucun projet</SelectItem>
+                        {projets.map((projet) => (
+                          <SelectItem key={projet.id} value={projet.id}>
+                            {projet.nom}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                   <div className="space-y-2">
                     <Label htmlFor="fonction_id">Fonction</Label>
                     <Select 
-                      value={formData.fonction_id} 
-                      onValueChange={(value) => setFormData({...formData, fonction_id: value})}
+                      value={formData.fonction_id || "none"} 
+                      onValueChange={(value) => setFormData({...formData, fonction_id: value === "none" ? "" : value})}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Sélectionnez une fonction" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">Aucune fonction</SelectItem>
+                        <SelectItem value="none">Aucune fonction</SelectItem>
                         {fonctions.map((fonction) => (
                           <SelectItem key={fonction.id} value={fonction.id}>
                             {fonction.nom}
@@ -424,7 +401,6 @@ export default function TechniciensPage() {
                 </div>
               </div>
 
-              {/* Identifiants technicien */}
               {formData.type === 'technicien' && (
                 <div className="space-y-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border">
                   <h3 className="text-sm font-semibold text-blue-900 dark:text-blue-100">
@@ -451,7 +427,6 @@ export default function TechniciensPage() {
                 </div>
               )}
 
-              {/* Coordonnées */}
               <div className="space-y-4">
                 <h3 className="text-sm font-semibold">Coordonnées</h3>
                 <div className="grid grid-cols-2 gap-4">
@@ -484,7 +459,6 @@ export default function TechniciensPage() {
                 </div>
               </div>
 
-              {/* Adresse */}
               <div className="space-y-4">
                 <h3 className="text-sm font-semibold">Adresse</h3>
                 <div className="grid grid-cols-3 gap-4">
@@ -533,7 +507,6 @@ export default function TechniciensPage() {
                 </div>
               </div>
 
-              {/* Informations financières */}
               <div className="space-y-4">
                 <h3 className="text-sm font-semibold">Informations financières</h3>
                 <div className="grid grid-cols-2 gap-4">
@@ -579,7 +552,6 @@ export default function TechniciensPage() {
                 </div>
               </div>
 
-              {/* Remarques */}
               <div className="space-y-2">
                 <Label htmlFor="remarques">Remarques</Label>
                 <Input
