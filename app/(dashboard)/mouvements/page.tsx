@@ -325,7 +325,7 @@ export default function MouvementsPage() {
       let foundNumeroSerie: NumeroSerie | null = null
 
       if (isTransfertEntreTechniciens() && mouvementData.personne_source_id) {
-        const { data: serialData } = await supabase
+        const {  serialData } = await supabase
           .from('numeros_serie')
           .select('*, article:articles(*)')
           .or(`numero_serie.ilike.%${searchValue}%,adresse_mac.ilike.%${searchValue}%`)
@@ -402,7 +402,8 @@ export default function MouvementsPage() {
           s.article_id === articleId &&
           s.numero_serie_id !== null
         )
-        setNumerosSerieDisponibles(seriesInStock.map(s => s.numero_serie).filter(Boolean) as NumeroSerie[])
+        // ✅ CORRIGÉ : Filtrer les séries avec un ID non vide
+        setNumerosSerieDisponibles(seriesInStock.map(s => s.numero_serie).filter(Boolean).filter(serie => serie && serie.id && serie.id.trim() !== "") as NumeroSerie[])
       } else {
         // Pour les réceptions, charger TOUS les numéros de série de cet article, quel que soit leur statut
         if (mouvementData.type_mouvement?.toLowerCase().includes('reception')) {
@@ -410,7 +411,8 @@ export default function MouvementsPage() {
             .from('numeros_serie')
             .select('*')
             .eq('article_id', articleId)
-          setNumerosSerieDisponibles(data || [])
+          // ✅ CORRIGÉ : Filtrer les séries avec un ID non vide
+          setNumerosSerieDisponibles(data?.filter(serie => serie && serie.id && serie.id.trim() !== "") || [])
         } else {
           // Pour les autres types de mouvements, charger uniquement les séries disponibles
           const { data } = await supabase
@@ -418,7 +420,8 @@ export default function MouvementsPage() {
             .select('*')
             .eq('article_id', articleId)
             .eq('statut', 'disponible')
-          setNumerosSerieDisponibles(data || [])
+          // ✅ CORRIGÉ : Filtrer les séries avec un ID non vide
+          setNumerosSerieDisponibles(data?.filter(serie => serie && serie.id && serie.id.trim() !== "") || [])
         }
       }
     } catch (error) {
@@ -649,7 +652,7 @@ export default function MouvementsPage() {
             console.warn(`Le numéro de série ${ligne.nouveau_numero_serie} existait déjà pour l'article ${ligne.article_id}, utilisation de l'ID existant.`);
           } else {
             // Sinon, on le crée
-            const { data: nouvelleSerie, error: createError } = await supabase
+            const {  nouvelleSerie, error: createError } = await supabase
               .from('numeros_serie')
               .insert([{
                 article_id: ligne.article_id,
@@ -764,7 +767,7 @@ export default function MouvementsPage() {
             } else {
               queryStock = queryStock.is('numero_serie_id', null)
             }
-            const { data: existingStock } = await queryStock.maybeSingle()
+            const {  existingStock } = await queryStock.maybeSingle()
 
             if (existingStock) {
               const newQty = existingStock.quantite - ligne.quantite
@@ -798,7 +801,7 @@ export default function MouvementsPage() {
             } else {
               queryStock = queryStock.is('numero_serie_id', null)
             }
-            const { data: existingStock } = await queryStock.maybeSingle()
+            const {  existingStock } = await queryStock.maybeSingle()
 
             if (existingStock) {
               await supabase
@@ -955,7 +958,10 @@ export default function MouvementsPage() {
                   </SelectTrigger>
                   <SelectContent>
                     {typesMouvement.map((type) => (
-                      <SelectItem key={type.id} value={type.nom}>{type.nom}</SelectItem>
+                      // ✅ CORRIGÉ : Vérifier que l'ID de type est valide
+                      type.id && type.id.trim() !== "" && type.nom && type.nom.trim() !== "" ? (
+                        <SelectItem key={type.id} value={type.nom}>{type.nom}</SelectItem>
+                      ) : null
                     ))}
                   </SelectContent>
                 </Select>
@@ -971,7 +977,10 @@ export default function MouvementsPage() {
                   </SelectTrigger>
                   <SelectContent>
                     {emplacements.map((emp) => (
-                      <SelectItem key={emp.id} value={emp.nom}>{emp.nom}</SelectItem>
+                      // ✅ CORRIGÉ : Vérifier que l'ID d'emplacement est valide
+                      emp.id && emp.id.trim() !== "" && emp.nom && emp.nom.trim() !== "" ? (
+                        <SelectItem key={emp.id} value={emp.nom}>{emp.nom}</SelectItem>
+                      ) : null
                     ))}
                   </SelectContent>
                 </Select>
@@ -992,7 +1001,10 @@ export default function MouvementsPage() {
                   <SelectContent>
                     <SelectItem value="none">Aucun</SelectItem>
                     {personnes.filter(p => p.type === 'technicien').map((p) => (
-                      <SelectItem key={p.id} value={p.id}>{p.nom} {p.prenom}</SelectItem>
+                      // ✅ CORRIGÉ : Vérifier que l'ID de personne est valide
+                      p.id && p.id.trim() !== "" && p.nom && p.nom.trim() !== "" ? (
+                        <SelectItem key={p.id} value={p.id}>{p.nom} {p.prenom}</SelectItem>
+                      ) : null
                     ))}
                   </SelectContent>
                 </Select>
@@ -1008,7 +1020,10 @@ export default function MouvementsPage() {
                   </SelectTrigger>
                   <SelectContent>
                     {emplacements.map((emp) => (
-                      <SelectItem key={emp.id} value={emp.nom}>{emp.nom}</SelectItem>
+                      // ✅ CORRIGÉ : Vérifier que l'ID d'emplacement est valide
+                      emp.id && emp.id.trim() !== "" && emp.nom && emp.nom.trim() !== "" ? (
+                        <SelectItem key={emp.id} value={emp.nom}>{emp.nom}</SelectItem>
+                      ) : null
                     ))}
                   </SelectContent>
                 </Select>
@@ -1025,7 +1040,10 @@ export default function MouvementsPage() {
                   <SelectContent>
                     <SelectItem value="none">Aucun</SelectItem>
                     {personnes.filter(p => p.type === 'technicien' && p.id !== mouvementData.personne_source_id).map((p) => (
-                      <SelectItem key={p.id} value={p.id}>{p.nom} {p.prenom}</SelectItem>
+                      // ✅ CORRIGÉ : Vérifier que l'ID de personne est valide
+                      p.id && p.id.trim() !== "" && p.nom && p.nom.trim() !== "" ? (
+                        <SelectItem key={p.id} value={p.id}>{p.nom} {p.prenom}</SelectItem>
+                      ) : null
                     ))}
                   </SelectContent>
                 </Select>
@@ -1092,14 +1110,17 @@ export default function MouvementsPage() {
                         article.nom.toLowerCase().includes(articleSearchSelect.toLowerCase()) ||
                         article.numero_article.toLowerCase().includes(articleSearchSelect.toLowerCase())
                       ).map((article) => (
-                        <SelectItem key={article.id} value={article.id}>
-                          <div className="flex flex-col py-1">
-                            <span className="font-semibold">{article.nom}</span>
-                            <span className="text-xs text-muted-foreground">
-                              {article.numero_article} • Stock: {article.quantite_stock}
-                            </span>
-                          </div>
-                        </SelectItem>
+                        // ✅ CORRIGÉ : Vérifier que l'ID d'article est valide
+                        article.id && article.id.trim() !== "" && article.nom && article.nom.trim() !== "" ? (
+                          <SelectItem key={article.id} value={article.id}>
+                            <div className="flex flex-col py-1">
+                              <span className="font-semibold">{article.nom}</span>
+                              <span className="text-xs text-muted-foreground">
+                                {article.numero_article} • Stock: {article.quantite_stock}
+                              </span>
+                            </div>
+                          </SelectItem>
+                        ) : null
                       ))}
                     </SelectContent>
                   </Select>
@@ -1140,11 +1161,13 @@ export default function MouvementsPage() {
                       </SelectTrigger>
                       <SelectContent>
                         {/* ✅ CORRIGÉ : Filtrer les séries avec un ID non vide */}
-                        {numerosSerieDisponibles.filter(serie => serie.id && serie.id.trim() !== "").map((serie) => (
-                          <SelectItem key={serie.id} value={serie.id}>
-                            {serie.numero_serie} {serie.adresse_mac ? `(${serie.adresse_mac})` : ''}
-                          </SelectItem>
-                        ))}
+                        {numerosSerieDisponibles
+                          .filter(serie => serie && serie.id && serie.id.trim() !== "" && serie.numero_serie && serie.numero_serie.trim() !== "")
+                          .map((serie) => (
+                            <SelectItem key={serie.id} value={serie.id}>
+                              {serie.numero_serie} {serie.adresse_mac ? `(${serie.adresse_mac})` : ''}
+                            </SelectItem>
+                          ))}
                       </SelectContent>
                     </Select>
                   </div>
@@ -1373,7 +1396,10 @@ export default function MouvementsPage() {
                 <SelectContent>
                   <SelectItem value="">Tous les techniciens</SelectItem>
                   {personnes.filter(p => p.type === 'technicien').map((p) => (
-                    <SelectItem key={p.id} value={p.id}>{p.nom} {p.prenom}</SelectItem>
+                    // ✅ CORRIGÉ : Vérifier que l'ID de personne est valide
+                    p.id && p.id.trim() !== "" && p.nom && p.nom.trim() !== "" ? (
+                      <SelectItem key={p.id} value={p.id}>{p.nom} {p.prenom}</SelectItem>
+                    ) : null
                   ))}
                 </SelectContent>
               </Select>
@@ -1450,5 +1476,5 @@ export default function MouvementsPage() {
         </CardContent>
       </Card>
     </div>
-   )
+  )
 }
