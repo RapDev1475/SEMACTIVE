@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Trash2, Plus, Save, Edit3, Package, Warehouse, Move3D } from "lucide-react"
 import { toast } from "sonner"
+import { ArrowRight, Workflow } from "lucide-react" // Ajoutez Workflow aux imports
 
 type Categorie = {
   id: string
@@ -579,6 +580,23 @@ export default function SettingsPage() {
             </div>
           </CardContent>
         </Card>
+		<Card className="hover:shadow-lg transition-shadow cursor-pointer" onClick={() => router.push('/settings/scenarios')}>
+  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+    <CardTitle className="text-lg font-semibold">
+      Scénarios de mouvements
+    </CardTitle>
+    <Workflow className="h-5 w-5 text-muted-foreground" />
+  </CardHeader>
+  <CardContent>
+    <p className="text-sm text-muted-foreground mb-4">
+      Gérer les scénarios de mouvements de stock pour automatiser les flux
+    </p>
+    <Button variant="outline" className="w-full">
+      <ArrowRight className="mr-2 h-4 w-4" />
+      Configurer les scénarios
+    </Button>
+  </CardContent>
+</Card>
       </div>
     </div>
   )
