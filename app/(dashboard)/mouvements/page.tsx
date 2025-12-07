@@ -542,6 +542,7 @@ export default function MouvementsPage() {
     setLignesMouvement(lignesMouvement.filter(l => l.id !== ligneId))
   }
 
+  // --- Fonction de Validation ---
   async function validerMouvement() {
     if (lignesMouvement.length === 0) {
       alert("Veuillez ajouter au moins une ligne avant de valider")
@@ -564,224 +565,230 @@ export default function MouvementsPage() {
       return
     }
 
+    // --- NOUVEAU : Créer les numéros de série manquants ---
+    // On va devoir traiter les lignes pour créer les numéros de série si nécessaire
+    // On va supposer que `lignesMouvement` est du type `LigneMouvementAvecNouveau[]` ou similaire
+    // interface LigneMouvementAvecNouveau extends Omit<Mouvement, 'numero_serie_id'> { numero_serie_id?: string; nouveau_numero_serie?: string; nouvelle_adresse_mac?: string; }
+    type LigneMouvementAvecNouveau = Mouvement & { nouveau_numero_serie?: string; nouvelle_adresse_mac?: string; };
+
+    const lignesAMettreAJour = [...lignesMouvement].map(l => ({...l} as LigneMouvementAvecNouveau));
+
     try {
-      const lignesAMettreAJour = [...lignesMouvement];
       for (let i = 0; i < lignesAMettreAJour.length; i++) {
         const ligne = lignesAMettreAJour[i];
-        const nouveauxNumerosSerieEnAttente: Record<string, { numero: string, mac?: string }> = {};
-        type LigneMouvementAvecNouveau = Mouvement & { nouveau_numero_serie?: string, nouvelle_adresse_mac?: string };
-        const lignesAvecInfosNouvelles: LigneMouvementAvecNouveau[] = lignesAMettreAJour.map(l => ({...l}));
-        const [nouveauxNumerosSeriePourLigne, setNouveauxNumerosSeriePourLigne] = useState<Record<string, { numero: string, mac?: string }>>({});
-        interface LigneMouvementAvecNouveau extends Omit<Mouvement, 'numero_serie_id'> { numero_serie_id?: string; nouveau_numero_serie?: string; nouvelle_adresse_mac?: string; }
-        for (let i = 0; i < lignesAMettreAJour.length; i++) {
-          const ligne = lignesAMettreAJour[i] as LigneMouvementAvecNouveau; 
-          if (ligne.numero_serie_id === undefined && ligne.nouveau_numero_serie) {
-            const { data: serieExistante } = await supabase
+        if (ligne.numero_serie_id === undefined && ligne.nouveau_numero_serie) {
+          const { data: serieExistante } = await supabase
+            .from('numeros_serie')
+            .select('id')
+            .eq('numero_serie', ligne.nouveau_numero_serie)
+            .eq('article_id', ligne.article_id)
+            .maybeSingle();
+
+          let nouvelleSerieId;
+          if (serieExistante) {
+            nouvelleSerieId = serieExistante.id;
+            console.warn(`Le numéro de série ${ligne.nouveau_numero_serie} existait déjà pour l'article ${ligne.article_id}, utilisation de l'ID existant.`);
+          } else {
+            // Sinon, on le crée
+            const { data: nouvelleSerie, error: createError } = await supabase
               .from('numeros_serie')
+              .insert([{
+                article_id: ligne.article_id,
+                numero_serie: ligne.nouveau_numero_serie,
+                adresse_mac: ligne.nouvelle_adresse_mac || null,
+                statut: 'disponible',
+                localisation: mouvementData.localisation_destination || 'inconnue', 
+              }])
               .select('id')
-              .eq('numero_serie', ligne.nouveau_numero_serie)
-              .eq('article_id', ligne.article_id)
-              .maybeSingle();
+              .single();
 
-            let nouvelleSerieId;
-            if (serieExistante) {
-              nouvelleSerieId = serieExistante.id;
-              console.warn(`Le numéro de série ${ligne.nouveau_numero_serie} existait déjà pour l'article ${ligne.article_id}, utilisation de l'ID existant.`);
+            if (createError) throw createError;
+            nouvelleSerieId = nouvelleSerie.id;
+            console.log(`✅ Nouveau numéro de série créé: ${ligne.nouveau_numero_serie} avec ID ${nouvelleSerieId}`);
+          }
+        
+          ligne.numero_serie_id = nouvelleSerieId;
+          delete ligne.nouveau_numero_serie;
+          delete ligne.nouvelle_adresse_mac;
+        }
+      }
+
+      
+      const dateMouvement = new Date().toISOString()
+      console.log('DEBUG - Valeur de mouvementData.type_mouvement AVANT mapping:', mouvementData.type_mouvement)
+      const typeMapped = mapTypeToConstraint(mouvementData.type_mouvement)
+      console.log('DEBUG - Valeur de typeMapped APRES mapping:', typeMapped)
+      let remarquesFinales = mouvementData.remarques
+      if (mouvementData.personne_source_id && mouvementData.personne_id) {
+        const techSource = personnes.find(p => p.id === mouvementData.personne_source_id)
+        const techDest = personnes.find(p => p.id === mouvementData.personne_id)
+        const infoTransfert = `Transfert: ${techSource?.nom} ${techSource?.prenom || ''} → ${techDest?.nom} ${techDest?.prenom || ''}`
+        remarquesFinales = remarquesFinales ? `${infoTransfert} | ${remarquesFinales}` : infoTransfert
+      }
+
+     
+      const mouvementsToInsert = lignesAMettreAJour.map(ligne => ({
+        article_id: ligne.article_id,
+        numero_serie_id: ligne.numero_serie_id || null,
+        personne_id: ligne.personne_id || mouvementData.personne_id || mouvementData.personne_source_id || null,
+        personne_source_id: ligne.personne_source_id || mouvementData.personne_source_id || null,
+        type_mouvement: ligne.type_mouvement || typeMapped,
+        localisation_origine: ligne.localisation_origine || mouvementData.localisation_origine || null,
+        localisation_destination: ligne.localisation_destination || mouvementData.localisation_destination || null,
+        quantite: ligne.quantite,
+        remarques: ligne.remarques || remarquesFinales,
+        date_mouvement: dateMouvement,
+      }))
+
+      console.log('DEBUG - Valeur de type_mouvement dans le premier objet à insérer:', mouvementsToInsert[0]?.type_mouvement)
+      console.log('Données à insérer:', mouvementsToInsert)
+
+      const { error: mouvementError } = await supabase
+        .from('mouvements')
+        .insert(mouvementsToInsert)
+      if (mouvementError) throw mouvementError
+
+   
+      for (const ligne of lignesAMettreAJour) {
+        const article = articles.find(a => a.id === ligne.article_id)
+        if (!article) continue
+
+        let newQuantity = article.quantite_stock
+        const typeMvt = typesMouvement.find(t => t.nom === (ligne.type_mouvement || mouvementData.type_mouvement))
+        if (typeMvt) {
+          if (typeMvt.nom.toLowerCase().includes('reception') || typeMvt.nom.toLowerCase().includes('retour')) {
+            newQuantity += ligne.quantite
+          } else if (typeMvt.nom.toLowerCase().includes('sortie') || typeMvt.nom.toLowerCase().includes('installation')) {
+            newQuantity -= ligne.quantite
+          }
+        }
+
+        const { error: stockError } = await supabase
+          .from('articles')
+          .update({ quantite_stock: newQuantity })
+          .eq('id', ligne.article_id)
+        if (stockError) throw stockError
+
+        if (ligne.numero_serie_id && (ligne.localisation_destination || mouvementData.localisation_destination)) {
+          try {
+            const destination = ligne.localisation_destination || mouvementData.localisation_destination;
+            const { error: updateSerieError } = await supabase
+              .from('numeros_serie')
+              .update({
+                localisation: destination,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', ligne.numero_serie_id)
+
+            if (updateSerieError) {
+              console.error('Erreur mise à jour emplacement série:', updateSerieError)
             } else {
-              const { data: nouvelleSerie, error: createError } = await supabase
-                .from('numeros_serie')
-                .insert([{
-                  article_id: ligne.article_id,
-                  numero_serie: ligne.nouveau_numero_serie,
-                  adresse_mac: ligne.nouvelle_adresse_mac || null,
-                  statut: 'disponible', 
-                  localisation: mouvementData.localisation_destination || 'inconnue',
-                }])
-                .select('id')
-                .single();
-
-              if (createError) throw createError;
-              nouvelleSerieId = nouvelleSerie.id;
-              console.log(`✅ Nouveau numéro de série créé: ${ligne.nouveau_numero_serie} avec ID ${nouvelleSerieId}`);
+              console.log(`✅ Emplacement mis à jour pour série ${ligne.numero_serie_id}: ${destination}`)
             }
-            (lignesAMettreAJour[i] as LigneMouvementAvecNouveau).numero_serie_id = nouvelleSerieId;
-            delete (lignesAMettreAJour[i] as any).nouveau_numero_serie;
-            delete (lignesAMettreAJour[i] as any).nouvelle_adresse_mac;
+          } catch (error) {
+            console.error('Erreur lors de la mise à jour de l\'emplacement:', error)
           }
         }
 
-        const dateMouvement = new Date().toISOString()
-        console.log('DEBUG - Valeur de mouvementData.type_mouvement AVANT mapping:', mouvementData.type_mouvement)
-        const typeMapped = mapTypeToConstraint(mouvementData.type_mouvement)
-        console.log('DEBUG - Valeur de typeMapped APRES mapping:', typeMapped)
-        let remarquesFinales = mouvementData.remarques
-        if (mouvementData.personne_source_id && mouvementData.personne_id) {
-          const techSource = personnes.find(p => p.id === mouvementData.personne_source_id)
-          const techDest = personnes.find(p => p.id === mouvementData.personne_id)
-          const infoTransfert = `Transfert: ${techSource?.nom} ${techSource?.prenom || ''} → ${techDest?.nom} ${techDest?.prenom || ''}`
-          remarquesFinales = remarquesFinales ? `${infoTransfert} | ${remarquesFinales}` : infoTransfert
-        }
-
-        const mouvementsToInsert = lignesAMettreAJour.map(ligne => ({
-          article_id: ligne.article_id,
-          numero_serie_id: ligne.numero_serie_id || null,
-          personne_id: ligne.personne_id || mouvementData.personne_id || mouvementData.personne_source_id || null,
-          personne_source_id: ligne.personne_source_id || mouvementData.personne_source_id || null,
-          type_mouvement: ligne.type_mouvement || typeMapped, 
-          localisation_origine: ligne.localisation_origine || mouvementData.localisation_origine || null, 
-          localisation_destination: ligne.localisation_destination || mouvementData.localisation_destination || null,
-          quantite: ligne.quantite,
-          remarques: ligne.remarques || remarquesFinales, 
-          date_mouvement: dateMouvement,
-        }))
-
-        console.log('DEBUG - Valeur de type_mouvement dans le premier objet à insérer:', mouvementsToInsert[0]?.type_mouvement)
-        console.log('Données à insérer:', mouvementsToInsert)
-
-        const { error: mouvementError } = await supabase
-          .from('mouvements')
-          .insert(mouvementsToInsert)
-        if (mouvementError) throw mouvementError
-
-
-        for (const ligne of lignesAMettreAJour) { 
-          const article = articles.find(a => a.id === ligne.article_id)
-          if (!article) continue
-
-          let newQuantity = article.quantite_stock
-          const typeMvt = typesMouvement.find(t => t.nom === (ligne.type_mouvement || mouvementData.type_mouvement))
-          if (typeMvt) {
-            if (typeMvt.nom.toLowerCase().includes('reception') || typeMvt.nom.toLowerCase().includes('retour')) {
-              newQuantity += ligne.quantite
-            } else if (typeMvt.nom.toLowerCase().includes('sortie') || typeMvt.nom.toLowerCase().includes('installation')) {
-              newQuantity -= ligne.quantite
+        // Gestion du stock technique
+        const sourceId = ligne.personne_source_id || mouvementData.personne_source_id;
+        if (sourceId && (ligne.localisation_origine || mouvementData.localisation_origine) === "Stock Technicien") {
+          try {
+            let queryStock = supabase
+              .from('stock_technicien')
+              .select('*')
+              .eq('technicien_id', sourceId)
+              .eq('article_id', ligne.article_id)
+            if (ligne.numero_serie_id) {
+              queryStock = queryStock.eq('numero_serie_id', ligne.numero_serie_id)
+            } else {
+              queryStock = queryStock.is('numero_serie_id', null)
             }
-          }
+            const { data: existingStock } = await queryStock.maybeSingle()
 
-          const { error: stockError } = await supabase
-            .from('articles')
-            .update({ quantite_stock: newQuantity })
-            .eq('id', ligne.article_id)
-          if (stockError) throw stockError
-
-          if (ligne.numero_serie_id && (ligne.localisation_destination || mouvementData.localisation_destination)) {
-            try {
-              const destination = ligne.localisation_destination || mouvementData.localisation_destination;
-              const { error: updateSerieError } = await supabase
-                .from('numeros_serie')
-                .update({
-                  localisation: destination,
-                  updated_at: new Date().toISOString()
-                })
-                .eq('id', ligne.numero_serie_id)
-
-              if (updateSerieError) {
-                console.error('Erreur mise à jour emplacement série:', updateSerieError)
-              } else {
-                console.log(`✅ Emplacement mis à jour pour série ${ligne.numero_serie_id}: ${destination}`)
-              }
-            } catch (error) {
-              console.error('Erreur lors de la mise à jour de l\'emplacement:', error)
-            }
-          }
-
-          const sourceId = ligne.personne_source_id || mouvementData.personne_source_id;
-          if (sourceId && (ligne.localisation_origine || mouvementData.localisation_origine) === "Stock Technicien") {
-            try {
-              let queryStock = supabase
-                .from('stock_technicien')
-                .select('*')
-                .eq('technicien_id', sourceId)
-                .eq('article_id', ligne.article_id)
-              if (ligne.numero_serie_id) {
-                queryStock = queryStock.eq('numero_serie_id', ligne.numero_serie_id)
-              } else {
-                queryStock = queryStock.is('numero_serie_id', null)
-              }
-              const { data: existingStock } = await queryStock.maybeSingle()
-
-              if (existingStock) {
-                const newQty = existingStock.quantite - ligne.quantite
-                if (newQty >= 0) {
-                  await supabase
-                    .from('stock_technicien')
-                    .update({
-                      quantite: newQty,
-                      derniere_mise_a_jour: new Date().toISOString()
-                    })
-                    .eq('id', existingStock.id)
-                } else {
-                  throw new Error(`Stock insuffisant pour le technicien source: ${existingStock.quantite}`)
-                }
-              }
-            } catch (error: any) {
-              alert("Erreur mise à jour stock source: " + error.message)
-            }
-          }
-
-          const destId = ligne.personne_id || mouvementData.personne_id;
-          if (destId && (ligne.localisation_destination || mouvementData.localisation_destination) === "Stock Technicien") {
-            try {
-              let queryStock = supabase
-                .from('stock_technicien')
-                .select('*')
-                .eq('technicien_id', destId)
-                .eq('article_id', ligne.article_id)
-              if (ligne.numero_serie_id) {
-                queryStock = queryStock.eq('numero_serie_id', ligne.numero_serie_id)
-              } else {
-                queryStock = queryStock.is('numero_serie_id', null)
-              }
-              const { data: existingStock } = await queryStock.maybeSingle()
-
-              if (existingStock) {
+            if (existingStock) {
+              const newQty = existingStock.quantite - ligne.quantite
+              if (newQty >= 0) {
                 await supabase
                   .from('stock_technicien')
                   .update({
-                    quantite: existingStock.quantite + ligne.quantite,
+                    quantite: newQty,
                     derniere_mise_a_jour: new Date().toISOString()
                   })
                   .eq('id', existingStock.id)
               } else {
-                console.log('Création nouvelle entrée stock_technicien destination pour:', article.nom)
-                await supabase
-                  .from('stock_technicien')
-                  .insert({
-                    technicien_id: destId,
-                    article_id: ligne.article_id,
-                    numero_serie_id: ligne.numero_serie_id || null,
-                    quantite: ligne.quantite,
-                    localisation: (ligne.localisation_destination || mouvementData.localisation_destination) || 'camionnette',
-                  })
+                throw new Error(`Stock insuffisant pour le technicien source: ${existingStock.quantite}`)
               }
-            } catch (error: any) {
-              alert("Erreur mise à jour stock destination: " + error.message)
             }
+          } catch (error: any) {
+            alert("Erreur mise à jour stock source: " + error.message)
           }
         }
 
-        setShowForm(false)
-        fetchMouvements() 
-        fetchArticles() 
-        setLignesMouvement([])
-        setMouvementData({
-          personne_id: "",
-          personne_source_id: "",
-          type_mouvement: typesMouvement[0]?.nom || "",
-          localisation_origine: "",
-          localisation_destination: "",
-          remarques: "",
-        })
-        setLigneFormData({
-          article_id: "",
-          quantite: 1,
-        })
-        setArticleSearch("")
-        alert(`${lignesAMouvement.length} ligne(s) de mouvement enregistrée(s) avec succès !`)
+        const destId = ligne.personne_id || mouvementData.personne_id;
+        if (destId && (ligne.localisation_destination || mouvementData.localisation_destination) === "Stock Technicien") {
+          try {
+            let queryStock = supabase
+              .from('stock_technicien')
+              .select('*')
+              .eq('technicien_id', destId)
+              .eq('article_id', ligne.article_id)
+            if (ligne.numero_serie_id) {
+              queryStock = queryStock.eq('numero_serie_id', ligne.numero_serie_id)
+            } else {
+              queryStock = queryStock.is('numero_serie_id', null)
+            }
+            const { data: existingStock } = await queryStock.maybeSingle()
+
+            if (existingStock) {
+              await supabase
+                .from('stock_technicien')
+                .update({
+                  quantite: existingStock.quantite + ligne.quantite,
+                  derniere_mise_a_jour: new Date().toISOString()
+                })
+                .eq('id', existingStock.id)
+            } else {
+              console.log('Création nouvelle entrée stock_technicien destination pour:', article.nom)
+              await supabase
+                .from('stock_technicien')
+                .insert({
+                  technicien_id: destId,
+                  article_id: ligne.article_id,
+                  numero_serie_id: ligne.numero_serie_id || null,
+                  quantite: ligne.quantite,
+                  localisation: (ligne.localisation_destination || mouvementData.localisation_destination) || 'camionnette',
+                })
+            }
+          } catch (error: any) {
+            alert("Erreur mise à jour stock destination: " + error.message)
+          }
+        }
+      }
+
+      // Réinitialisation du formulaire
+      setShowForm(false)
+      fetchMouvements() // Recharge la liste des mouvements
+      fetchArticles() // Recharge les stocks
+      setLignesMouvement([]) // Réinitialise la liste des lignes en cours
+      setMouvementData({
+        personne_id: "",
+        personne_source_id: "",
+        type_mouvement: typesMouvement[0]?.nom || "",
+        localisation_origine: "",
+        localisation_destination: "",
+        remarques: "",
+      })
+      setLigneFormData({
+        article_id: "",
+        quantite: 1,
+      })
+      setArticleSearch("")
+      alert(`${lignesMouvement.length} ligne(s) de mouvement enregistrée(s) avec succès !`)
     } catch (error: any) {
       alert("Erreur: " + error.message)
     }
-  }
+  } // Fin de la fonction validerMouvement
   const filteredMouvements = mouvements.filter(m => {
     const matchesSearch = !filterSearch || (
       m.article?.nom.toLowerCase().includes(filterSearch.toLowerCase()) ||
