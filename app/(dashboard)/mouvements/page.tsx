@@ -980,20 +980,44 @@ export default function MouvementsPage() {
             </CardHeader>
             <CardContent>
               <form onSubmit={ajouterLigne} className="space-y-6">
-                <div className="grid grid-cols-12 gap-6">
-                  <div className="col-span-8">
-                    <Label className="text-base mb-2 block">Rechercher article (Scanner EAN / MAC / Série)</Label>
-                    <Input
-                      className="h-16 text-xl"
-                      placeholder="Scanner ou rechercher..."
-                      value={articleSearch}
-                      onChange={(e) => {
-                        setArticleSearch(e.target.value)
-                        searchArticles(e.target.value)
-                      }}
-                      autoFocus
-                    />
-                  </div>
+				<div className="space-y-4">
+				{/* Affichage de l'article sélectionné */}
+				{ligneFormData.article_id && (() => {
+					const art = articles.find(a => a.id === ligneFormData.article_id)
+					if (!art) return null
+					return (
+						<div className="p-6 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950 dark:to-indigo-950 rounded-xl border-2 border-blue-300 dark:border-blue-700">
+						<div className="flex items-center gap-4">
+						<div className="h-16 w-16 rounded-lg bg-blue-500 flex items-center justify-center text-white font-bold text-2xl">
+							{art.nom.charAt(0)}
+						</div>
+						<div className="flex-1">
+							<p className="text-2xl font-bold text-blue-900 dark:text-blue-100">{art.nom}</p>
+							<div className="flex gap-4 mt-1 text-sm text-blue-700 dark:text-blue-300">
+							<span className="font-mono font-semibold">N°: {art.numero_article}</span>
+							<span>•</span>
+							<span className="font-semibold">Stock disponible: {art.quantite_stock}</span>
+							</div>
+							</div>
+							</div>
+						</div>
+						)
+				})()}
+				</div>
+					<div className="grid grid-cols-12 gap-6">
+					<div className="col-span-8">
+					<Label className="text-base mb-2 block">Rechercher article (Scanner EAN / MAC / Série)</Label>
+					<Input
+						className="h-16 text-xl"
+						placeholder="Scanner ou rechercher..."
+						value={articleSearch}
+						onChange={(e) => {
+						setArticleSearch(e.target.value)
+						searchArticles(e.target.value)
+						}}
+						autoFocus
+						/>
+				</div>
                   <div className="col-span-2">
                     <Label className="text-base mb-2 block">Quantité</Label>
                     <Input
@@ -1074,42 +1098,47 @@ export default function MouvementsPage() {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="border rounded-lg overflow-hidden">
-                <table className="w-full">
-                  <thead className="bg-muted">
-                    <tr>
-                      <th className="text-left p-4 font-semibold text-base">Article</th>
-                      <th className="text-left p-4 font-semibold text-base">N° Article</th>
-                      <th className="text-left p-4 font-semibold text-base">N° Série</th>
-                      <th className="text-left p-4 font-semibold text-base">Adresse MAC</th>
-                      <th className="text-center p-4 font-semibold text-base">Stock</th>
-                      <th className="text-center p-4 font-semibold text-base">Qté</th>
-                      <th className="text-center p-4 font-semibold text-base w-24">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {lignesMouvement.map((ligne, idx) => (
-                      <tr key={ligne.id} className={idx % 2 === 0 ? 'bg-card' : 'bg-muted/30'}>
-                        <td className="p-4 font-medium text-base">{ligne.article_nom}</td>
-                        <td className="p-4 text-muted-foreground">{ligne.article_numero}</td>
-                        <td className="p-4 text-sm">{ligne.numero_serie || '-'}</td>
-                        <td className="p-4 text-sm">{ligne.adresse_mac || '-'}</td>
-                        <td className="p-4 text-center text-base">{ligne.stock_actuel}</td>
-                        <td className="p-4 text-center font-semibold text-lg">{ligne.quantite}</td>
-                        <td className="p-4 text-center">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => supprimerLigne(ligne.id)}
-                          >
-                            <Trash2 className="h-5 w-5 text-red-500" />
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+				<div className="border rounded-lg overflow-hidden">
+				<table className="w-full">
+					<thead className="bg-muted">
+					<tr>
+						<th className="text-left p-4 font-semibold text-base">Article</th>
+						<th className="text-left p-4 font-semibold text-base">N° Article</th>
+						<th className="text-left p-4 font-semibold text-base">N° Série</th>
+						<th className="text-left p-4 font-semibold text-base">Adresse MAC</th>
+						<th className="text-center p-4 font-semibold text-base">Stock</th>
+						<th className="text-center p-4 font-semibold text-base">Qté</th>
+						<th className="text-center p-4 font-semibold text-base w-24">Action</th>
+					</tr>
+					</thead>
+					<tbody>
+					{lignesMouvement.map((ligne, idx) => (
+						<tr key={ligne.id} className={idx % 2 === 0 ? 'bg-card' : 'bg-muted/30'}>
+						<td className="p-4">
+							<div>
+							<p className="font-bold text-base">{ligne.article_nom}</p>
+							<p className="text-xs text-muted-foreground">{ligne.article_numero}</p>
+							</div>
+						</td>
+						<td className="p-4 text-muted-foreground font-mono text-sm">{ligne.article_numero}</td>
+						<td className="p-4 text-sm font-mono">{ligne.numero_serie || '-'}</td>
+						<td className="p-4 text-sm font-mono">{ligne.adresse_mac || '-'}</td>
+						<td className="p-4 text-center text-base font-semibold">{ligne.stock_actuel}</td>
+						<td className="p-4 text-center font-bold text-xl text-blue-600">{ligne.quantite}</td>
+						<td className="p-4 text-center">
+							<Button
+							variant="ghost"
+							size="sm"
+							onClick={() => supprimerLigne(ligne.id)}
+							>
+							<Trash2 className="h-5 w-5 text-red-500" />
+							</Button>
+							</td>
+						</tr>
+					))}
+						</tbody>
+				</table>
+				</div>
             </CardContent>
           </Card>
         )}
