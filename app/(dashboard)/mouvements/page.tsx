@@ -51,6 +51,25 @@ interface StockTechnicien {
 
 interface Mouvement {
   id: string
+  article_id: string // Clé étrangère vers la table articles
+  numero_serie_id?: string // Clé étrangère vers la table numeros_serie
+  personne_id?: string // Clé étrangère vers la table personnes
+  personne_source_id?: string // Clé étrangère vers la table personnes
+  type_mouvement: string
+  localisation_origine?: string
+  localisation_destination?: string
+  remarques?: string
+  date_mouvement: string
+  quantite: number // Quantité pour *cette* ligne
+  created_at: string
+}
+
+// Le type MouvementWithRelations est ajusté pour refléter la structure actuelle
+// Chaque entrée de la table mouvements est une ligne de mouvement
+interface MouvementWithRelations {
+  id: string
+  article_id: string
+  numero_serie_id?: string
   personne_id?: string
   personne_source_id?: string
   type_mouvement: string
@@ -58,22 +77,11 @@ interface Mouvement {
   localisation_destination?: string
   remarques?: string
   date_mouvement: string
-}
-
-interface LigneMouvement {
-  id: string
-  article_id: string
-  article_nom: string
-  article_numero: string
-  numero_serie_id?: string
-  numero_serie?: string
-  adresse_mac?: string
   quantite: number
-  stock_actuel: number
-}
-
-interface MouvementWithRelations extends Mouvement {
-  lignes: LigneMouvement[]
+  created_at: string
+  // Données liées chargées via les relations Supabase
+  article?: Article
+  numero_serie?: NumeroSerie
   personne_source?: Personne
   personne_dest?: Personne
 }
@@ -98,7 +106,8 @@ export default function MouvementsPage() {
     localisation_destination: "",
     remarques: "",
   })
-  const [lignesMouvement, setLignesMouvement] = useState<LigneMouvement[]>([])
+  // Maintenant, lignesMouvement correspond directement aux entrées de la table mouvements en attente
+  const [lignesMouvement, setLignesMouvement] = useState<Mouvement[]>([])
   const [stockTechnicienSource, setStockTechnicienSource] = useState<StockTechnicien[]>([])
 
   // --- États du Formulaire d'Ajout de Ligne ---
@@ -132,42 +141,31 @@ export default function MouvementsPage() {
   }, [])
 
   // --- Fonctions de Chargement ---
+  // ✅ CORRIGÉ : Utilise la structure de la table mouvements
   async function fetchMouvements() {
     try {
+      // Charger les mouvements avec les relations
       const { data, error } = await supabase
         .from('mouvements')
         .select(`
           *,
+          article:articles(nom, numero_article, quantite_stock),
+          numero_serie:numeros_serie(numero_serie, adresse_mac),
           personne_source:personnes!personne_source_id(nom, prenom),
-          personne_dest:personnes!personne_id(nom, prenom),
-          lignes_mouvement!inner(*, article:articles(nom, numero_article, quantite_stock))
+          personne_dest:personnes!personne_id(nom, prenom)
         `)
         .order('date_mouvement', { ascending: false })
+        .order('created_at', { ascending: true }) // Pour ordonner les lignes d'un même mouvement
 
       if (error) {
         console.error('❌ Erreur lors du chargement:', error)
         throw error
       }
 
-      // Remap les données pour correspondre à LigneMouvement
-      const mouvementsFormates: MouvementWithRelations[] = data.map(m => ({
-        ...m,
-        lignes: m.lignes_mouvement.map(l => ({
-          id: l.id,
-          article_id: l.article_id,
-          article_nom: l.article?.nom || 'Article inconnu',
-          article_numero: l.article?.numero_article || 'N/A',
-          numero_serie_id: l.numero_serie_id || undefined,
-          numero_serie: l.numero_serie?.numero_serie,
-          adresse_mac: l.numero_serie?.adresse_mac,
-          quantite: l.quantite,
-          stock_actuel: l.article?.quantite_stock || 0,
-        }))
-      }))
-
-      console.log(`✅ ${data.length || 0} mouvements chargés`)
-      console.log('Premier mouvement:', data[0])
-      setMouvements(mouvementsFormates)
+      console.log(`✅ ${data.length || 0} lignes de mouvement chargées`)
+      console.log('Premières lignes:', data.slice(0, 2))
+      // Les données sont déjà au bon format
+      setMouvements(data as MouvementWithRelations[])
     } catch (error) {
       console.error('Error fetching mouvements:', error)
     } finally {
@@ -447,16 +445,21 @@ export default function MouvementsPage() {
       }
     }
 
-    const nouvelleLigne: LigneMouvement = {
-      id: crypto.randomUUID(),
+    const nouvelleLigne: Mouvement = {
+      id: crypto.randomUUID(), // ID temporaire pour la liste
       article_id: article.id,
-      article_nom: article.nom,
-      article_numero: article.numero_article,
       numero_serie_id: numeroSerie?.id,
-      numero_serie: numeroSerie?.numero_serie,
-      adresse_mac: numeroSerie?.adresse_mac,
+      // Les personnes sont définies dans le formulaire principal
+      personne_id: mouvementData.personne_id,
+      personne_source_id: mouvementData.personne_source_id,
+      type_mouvement: mouvementData.type_mouvement,
+      localisation_origine: mouvementData.localisation_origine,
+      localisation_destination: mouvementData.localisation_destination,
+      remarques: mouvementData.remarques,
+      // Date sera définie lors de la validation
+      date_mouvement: "", // sera rempli plus tard
       quantite: 1,
-      stock_actuel: article.quantite_stock,
+      created_at: "", // sera rempli plus tard
     }
     setLignesMouvement([...lignesMouvement, nouvelleLigne])
 
@@ -496,31 +499,41 @@ export default function MouvementsPage() {
       // Pour une réception, on privilégie le nouveau numéro de série saisi
       if (nouveauNumeroSerie.trim()) {
         // On crée la ligne avec les infos du nouveau numéro, l'ID sera créé plus tard
-        const nouvelleLigne: LigneMouvement = {
-          id: crypto.randomUUID(),
+        const nouvelleLigne: Mouvement = {
+          id: crypto.randomUUID(), // ID temporaire pour la liste
           article_id: ligneFormData.article_id,
-          article_nom: article.nom,
-          article_numero: article.numero_article,
           numero_serie_id: undefined, // Sera créé dans validerMouvement
-          numero_serie: nouveauNumeroSerie.trim(),
-          adresse_mac: nouvelleAdresseMac.trim() || undefined,
+          // Les personnes sont définies dans le formulaire principal
+          personne_id: mouvementData.personne_id,
+          personne_source_id: mouvementData.personne_source_id,
+          type_mouvement: mouvementData.type_mouvement,
+          localisation_origine: mouvementData.localisation_origine,
+          localisation_destination: mouvementData.localisation_destination,
+          remarques: mouvementData.remarques,
+          // Date sera définie lors de la validation
+          date_mouvement: "", // sera rempli plus tard
           quantite: ligneFormData.quantite,
-          stock_actuel: article.quantite_stock,
+          created_at: "", // sera rempli plus tard
         }
         setLignesMouvement([...lignesMouvement, nouvelleLigne])
       } else if (numeroSerieSelectionne && numeroSerieSelectionne !== "none") {
         // Sinon, on peut quand même sélectionner un numéro existant
         const serieInfo = numerosSerieDisponibles.find(s => s.id === numeroSerieSelectionne)
-        const nouvelleLigne: LigneMouvement = {
-          id: crypto.randomUUID(),
+        const nouvelleLigne: Mouvement = {
+          id: crypto.randomUUID(), // ID temporaire pour la liste
           article_id: ligneFormData.article_id,
-          article_nom: article.nom,
-          article_numero: article.numero_article,
           numero_serie_id: serieInfo?.id,
-          numero_serie: serieInfo?.numero_serie,
-          adresse_mac: serieInfo?.adresse_mac,
+          // Les personnes sont définies dans le formulaire principal
+          personne_id: mouvementData.personne_id,
+          personne_source_id: mouvementData.personne_source_id,
+          type_mouvement: mouvementData.type_mouvement,
+          localisation_origine: mouvementData.localisation_origine,
+          localisation_destination: mouvementData.localisation_destination,
+          remarques: mouvementData.remarques,
+          // Date sera définie lors de la validation
+          date_mouvement: "", // sera rempli plus tard
           quantite: ligneFormData.quantite,
-          stock_actuel: article.quantite_stock,
+          created_at: "", // sera rempli plus tard
         }
         setLignesMouvement([...lignesMouvement, nouvelleLigne])
       } else {
@@ -535,16 +548,21 @@ export default function MouvementsPage() {
         serieInfo = numerosSerieDisponibles.find(s => s.id === numeroSerieSelectionne)
       }
 
-      const nouvelleLigne: LigneMouvement = {
-        id: crypto.randomUUID(),
+      const nouvelleLigne: Mouvement = {
+        id: crypto.randomUUID(), // ID temporaire pour la liste
         article_id: ligneFormData.article_id,
-        article_nom: article.nom,
-        article_numero: article.numero_article,
         numero_serie_id: serieInfo?.id,
-        numero_serie: serieInfo?.numero_serie,
-        adresse_mac: serieInfo?.adresse_mac,
+        // Les personnes sont définies dans le formulaire principal
+        personne_id: mouvementData.personne_id,
+        personne_source_id: mouvementData.personne_source_id,
+        type_mouvement: mouvementData.type_mouvement,
+        localisation_origine: mouvementData.localisation_origine,
+        localisation_destination: mouvementData.localisation_destination,
+        remarques: mouvementData.remarques,
+        // Date sera définie lors de la validation
+        date_mouvement: "", // sera rempli plus tard
         quantite: ligneFormData.quantite,
-        stock_actuel: article.quantite_stock,
+        created_at: "", // sera rempli plus tard
       }
       setLignesMouvement([...lignesMouvement, nouvelleLigne])
     }
@@ -594,227 +612,242 @@ export default function MouvementsPage() {
       const lignesAMettreAJour = [...lignesMouvement]; // Copie du tableau
       for (let i = 0; i < lignesAMettreAJour.length; i++) {
         const ligne = lignesAMettreAJour[i];
-        // Si la ligne a un numero_serie mais pas de numero_serie_id, c'est un nouveau (pour réception)
-        if (ligne.numero_serie && !ligne.numero_serie_id) {
-          // Vérifier s'il existe déjà dans la base pour éviter les doublons
-          const { data: serieExistante } = await supabase
-            .from('numeros_serie')
-            .select('id')
-            .eq('numero_serie', ligne.numero_serie)
-            .eq('article_id', ligne.article_id)
-            .maybeSingle();
-
-          let nouvelleSerieId;
-          if (serieExistante) {
-            // Si le numéro de série existe déjà pour cet article, on l'utilise
-            nouvelleSerieId = serieExistante.id;
-            console.warn(`Le numéro de série ${ligne.numero_serie} existait déjà pour l'article ${ligne.article_id}, utilisation de l'ID existant.`);
-          } else {
-            // Sinon, on le crée
-            const { data: nouvelleSerie, error: createError } = await supabase
+        const nouveauxNumerosSerieEnAttente: Record<string, { numero: string, mac?: string }> = {};
+        type LigneMouvementAvecNouveau = Mouvement & { nouveau_numero_serie?: string, nouvelle_adresse_mac?: string };
+        const lignesAvecInfosNouvelles: LigneMouvementAvecNouveau[] = lignesAMettreAJour.map(l => ({...l}));
+        const [nouveauxNumerosSeriePourLigne, setNouveauxNumerosSeriePourLigne] = useState<Record<string, { numero: string, mac?: string }>>({});
+        interface LigneMouvementAvecNouveau extends Omit<Mouvement, 'numero_serie_id'> { numero_serie_id?: string; nouveau_numero_serie?: string; nouvelle_adresse_mac?: string; }
+        for (let i = 0; i < lignesAMettreAJour.length; i++) {
+          const ligne = lignesAMettreAJour[i] as LigneMouvementAvecNouveau; // On le cast pour accéder aux champs temporaires
+          // Si la ligne a un nouveau_numero_serie mais pas de numero_serie_id, c'est un nouveau (pour réception)
+          if (ligne.numero_serie_id === undefined && ligne.nouveau_numero_serie) {
+            // Vérifier s'il existe déjà dans la base pour éviter les doublons
+            const { data: serieExistante } = await supabase
               .from('numeros_serie')
-              .insert([{
-                article_id: ligne.article_id,
-                numero_serie: ligne.numero_serie,
-                adresse_mac: ligne.adresse_mac || null,
-                statut: 'disponible', // Ou 'reçu', à vous de voir
-                localisation: mouvementData.localisation_destination || 'inconnue', // Initialiser la localisation
-              }])
               .select('id')
-              .single();
-
-            if (createError) throw createError;
-            nouvelleSerieId = nouvelleSerie.id;
-            console.log(`✅ Nouveau numéro de série créé: ${ligne.numero_serie} avec ID ${nouvelleSerieId}`);
-          }
-          // Mettre à jour la ligne avec le nouvel ID
-          lignesAMettreAJour[i] = { ...ligne, numero_serie_id: nouvelleSerieId };
-        }
-      }
-
-      // Maintenant, `lignesAMettreAJour` contient toutes les lignes avec un `numero_serie_id` valide
-      const dateMouvement = new Date().toISOString()
-      console.log('DEBUG - Valeur de mouvementData.type_mouvement AVANT mapping:', mouvementData.type_mouvement)
-      const typeMapped = mapTypeToConstraint(mouvementData.type_mouvement)
-      console.log('DEBUG - Valeur de typeMapped APRES mapping:', typeMapped)
-      let remarquesFinales = mouvementData.remarques
-      if (mouvementData.personne_source_id && mouvementData.personne_id) {
-        const techSource = personnes.find(p => p.id === mouvementData.personne_source_id)
-        const techDest = personnes.find(p => p.id === mouvementData.personne_id)
-        const infoTransfert = `Transfert: ${techSource?.nom} ${techSource?.prenom || ''} → ${techDest?.nom} ${techDest?.prenom || ''}`
-        remarquesFinales = remarquesFinales ? `${infoTransfert} | ${remarquesFinales}` : infoTransfert
-      }
-
-      // Utiliser `lignesAMettreAJour` au lieu de `lignesMouvement`
-      const mouvementsToInsert = lignesAMettreAJour.map(ligne => ({
-        article_id: ligne.article_id,
-        numero_serie_id: ligne.numero_serie_id || null, // Utiliser l'ID potentiellement créé
-        personne_id: mouvementData.personne_id || mouvementData.personne_source_id || null,
-        type_mouvement: typeMapped,
-        localisation_origine: mouvementData.localisation_origine || null,
-        localisation_destination: mouvementData.localisation_destination || null,
-        quantite: ligne.quantite,
-        remarques: remarquesFinales,
-        date_mouvement: dateMouvement,
-      }))
-
-      console.log('DEBUG - Valeur de type_mouvement dans le premier objet à insérer:', mouvementsToInsert[0]?.type_mouvement)
-      console.log('Données à insérer:', mouvementsToInsert)
-
-      const { error: mouvementError } = await supabase
-        .from('mouvements')
-        .insert(mouvementsToInsert)
-      if (mouvementError) throw mouvementError
-
-      // --- La boucle de mise à jour du stock commence ici ---
-      for (const ligne of lignesAMettreAJour) { // Toujours utiliser `lignesAMettreAJour`
-        const article = articles.find(a => a.id === ligne.article_id)
-        if (!article) continue
-
-        let newQuantity = article.quantite_stock
-        const typeMvt = typesMouvement.find(t => t.nom === mouvementData.type_mouvement)
-        if (typeMvt) {
-          if (typeMvt.nom.toLowerCase().includes('reception') || typeMvt.nom.toLowerCase().includes('retour')) {
-            newQuantity += ligne.quantite
-          } else if (typeMvt.nom.toLowerCase().includes('sortie') || typeMvt.nom.toLowerCase().includes('installation')) {
-            newQuantity -= ligne.quantite
-          }
-        }
-
-        const { error: stockError } = await supabase
-          .from('articles')
-          .update({ quantite_stock: newQuantity })
-          .eq('id', ligne.article_id)
-        if (stockError) throw stockError
-
-        if (ligne.numero_serie_id && mouvementData.localisation_destination) {
-          try {
-            const { error: updateSerieError } = await supabase
-              .from('numeros_serie')
-              .update({
-                localisation: mouvementData.localisation_destination,
-                updated_at: new Date().toISOString()
-              })
-              .eq('id', ligne.numero_serie_id)
-
-            if (updateSerieError) {
-              console.error('Erreur mise à jour emplacement série:', updateSerieError)
-            } else {
-              console.log(`✅ Emplacement mis à jour pour série ${ligne.numero_serie}: ${mouvementData.localisation_destination}`)
-            }
-          } catch (error) {
-            console.error('Erreur lors de la mise à jour de l\'emplacement:', error)
-          }
-        }
-
-        // Gestion du stock technique
-        if (mouvementData.personne_source_id && mouvementData.localisation_origine === "Stock Technicien") {
-          try {
-            let queryStock = supabase
-              .from('stock_technicien')
-              .select('*')
-              .eq('technicien_id', mouvementData.personne_source_id)
+              .eq('numero_serie', ligne.nouveau_numero_serie)
               .eq('article_id', ligne.article_id)
-            if (ligne.numero_serie_id) {
-              queryStock = queryStock.eq('numero_serie_id', ligne.numero_serie_id)
-            } else {
-              queryStock = queryStock.is('numero_serie_id', null)
-            }
-            const { data: existingStock } = await queryStock.maybeSingle()
+              .maybeSingle();
 
-            if (existingStock) {
-              const newQty = existingStock.quantite - ligne.quantite
-              if (newQty >= 0) {
+            let nouvelleSerieId;
+            if (serieExistante) {
+              // Si le numéro de série existe déjà pour cet article, on l'utilise
+              nouvelleSerieId = serieExistante.id;
+              console.warn(`Le numéro de série ${ligne.nouveau_numero_serie} existait déjà pour l'article ${ligne.article_id}, utilisation de l'ID existant.`);
+            } else {
+              // Sinon, on le crée
+              const { data: nouvelleSerie, error: createError } = await supabase
+                .from('numeros_serie')
+                .insert([{
+                  article_id: ligne.article_id,
+                  numero_serie: ligne.nouveau_numero_serie,
+                  adresse_mac: ligne.nouvelle_adresse_mac || null,
+                  statut: 'disponible', // Ou 'reçu', à vous de voir
+                  localisation: mouvementData.localisation_destination || 'inconnue', // Initialiser la localisation
+                }])
+                .select('id')
+                .single();
+
+              if (createError) throw createError;
+              nouvelleSerieId = nouvelleSerie.id;
+              console.log(`✅ Nouveau numéro de série créé: ${ligne.nouveau_numero_serie} avec ID ${nouvelleSerieId}`);
+            }
+            // Mettre à jour la ligne avec le nouvel ID
+            (lignesAMettreAJour[i] as LigneMouvementAvecNouveau).numero_serie_id = nouvelleSerieId;
+            // Supprimer les champs temporaires pour la requête finale
+            delete (lignesAMettreAJour[i] as any).nouveau_numero_serie;
+            delete (lignesAMettreAJour[i] as any).nouvelle_adresse_mac;
+          }
+        }
+
+        // Maintenant, `lignesAMettreAJour` contient toutes les lignes avec un `numero_serie_id` valide
+        const dateMouvement = new Date().toISOString()
+        console.log('DEBUG - Valeur de mouvementData.type_mouvement AVANT mapping:', mouvementData.type_mouvement)
+        const typeMapped = mapTypeToConstraint(mouvementData.type_mouvement)
+        console.log('DEBUG - Valeur de typeMapped APRES mapping:', typeMapped)
+        let remarquesFinales = mouvementData.remarques
+        if (mouvementData.personne_source_id && mouvementData.personne_id) {
+          const techSource = personnes.find(p => p.id === mouvementData.personne_source_id)
+          const techDest = personnes.find(p => p.id === mouvementData.personne_id)
+          const infoTransfert = `Transfert: ${techSource?.nom} ${techSource?.prenom || ''} → ${techDest?.nom} ${techDest?.prenom || ''}`
+          remarquesFinales = remarquesFinales ? `${infoTransfert} | ${remarquesFinales}` : infoTransfert
+        }
+
+        // Utiliser `lignesAMettreAJour` au lieu de `lignesMouvement`
+        const mouvementsToInsert = lignesAMettreAJour.map(ligne => ({
+          article_id: ligne.article_id,
+          numero_serie_id: ligne.numero_serie_id || null, // Utiliser l'ID potentiellement créé
+          personne_id: ligne.personne_id || mouvementData.personne_id || mouvementData.personne_source_id || null, // Utiliser l'ID de la ligne ou du formulaire
+          personne_source_id: ligne.personne_source_id || mouvementData.personne_source_id || null, // Utiliser l'ID de la ligne ou du formulaire
+          type_mouvement: ligne.type_mouvement || typeMapped, // Utiliser le type de la ligne ou du formulaire
+          localisation_origine: ligne.localisation_origine || mouvementData.localisation_origine || null, // Utiliser l'origine de la ligne ou du formulaire
+          localisation_destination: ligne.localisation_destination || mouvementData.localisation_destination || null, // Utiliser la destination de la ligne ou du formulaire
+          quantite: ligne.quantite,
+          remarques: ligne.remarques || remarquesFinales, // Utiliser les remarques de la ligne ou du formulaire
+          date_mouvement: dateMouvement,
+        }))
+
+        console.log('DEBUG - Valeur de type_mouvement dans le premier objet à insérer:', mouvementsToInsert[0]?.type_mouvement)
+        console.log('Données à insérer:', mouvementsToInsert)
+
+        const { error: mouvementError } = await supabase
+          .from('mouvements')
+          .insert(mouvementsToInsert)
+        if (mouvementError) throw mouvementError
+
+        // --- La boucle de mise à jour du stock commence ici ---
+        for (const ligne of lignesAMettreAJour) { // Toujours utiliser `lignesAMettreAJour`
+          const article = articles.find(a => a.id === ligne.article_id)
+          if (!article) continue
+
+          let newQuantity = article.quantite_stock
+          const typeMvt = typesMouvement.find(t => t.nom === (ligne.type_mouvement || mouvementData.type_mouvement))
+          if (typeMvt) {
+            if (typeMvt.nom.toLowerCase().includes('reception') || typeMvt.nom.toLowerCase().includes('retour')) {
+              newQuantity += ligne.quantite
+            } else if (typeMvt.nom.toLowerCase().includes('sortie') || typeMvt.nom.toLowerCase().includes('installation')) {
+              newQuantity -= ligne.quantite
+            }
+          }
+
+          const { error: stockError } = await supabase
+            .from('articles')
+            .update({ quantite_stock: newQuantity })
+            .eq('id', ligne.article_id)
+          if (stockError) throw stockError
+
+          if (ligne.numero_serie_id && (ligne.localisation_destination || mouvementData.localisation_destination)) {
+            try {
+              const destination = ligne.localisation_destination || mouvementData.localisation_destination;
+              const { error: updateSerieError } = await supabase
+                .from('numeros_serie')
+                .update({
+                  localisation: destination,
+                  updated_at: new Date().toISOString()
+                })
+                .eq('id', ligne.numero_serie_id)
+
+              if (updateSerieError) {
+                console.error('Erreur mise à jour emplacement série:', updateSerieError)
+              } else {
+                console.log(`✅ Emplacement mis à jour pour série ${ligne.numero_serie_id}: ${destination}`)
+              }
+            } catch (error) {
+              console.error('Erreur lors de la mise à jour de l\'emplacement:', error)
+            }
+          }
+
+          // Gestion du stock technique
+          const sourceId = ligne.personne_source_id || mouvementData.personne_source_id;
+          if (sourceId && (ligne.localisation_origine || mouvementData.localisation_origine) === "Stock Technicien") {
+            try {
+              let queryStock = supabase
+                .from('stock_technicien')
+                .select('*')
+                .eq('technicien_id', sourceId)
+                .eq('article_id', ligne.article_id)
+              if (ligne.numero_serie_id) {
+                queryStock = queryStock.eq('numero_serie_id', ligne.numero_serie_id)
+              } else {
+                queryStock = queryStock.is('numero_serie_id', null)
+              }
+              const { data: existingStock } = await queryStock.maybeSingle()
+
+              if (existingStock) {
+                const newQty = existingStock.quantite - ligne.quantite
+                if (newQty >= 0) {
+                  await supabase
+                    .from('stock_technicien')
+                    .update({
+                      quantite: newQty,
+                      derniere_mise_a_jour: new Date().toISOString()
+                    })
+                    .eq('id', existingStock.id)
+                } else {
+                  throw new Error(`Stock insuffisant pour le technicien source: ${existingStock.quantite}`)
+                }
+              }
+            } catch (error: any) {
+              alert("Erreur mise à jour stock source: " + error.message)
+            }
+          }
+
+          const destId = ligne.personne_id || mouvementData.personne_id;
+          if (destId && (ligne.localisation_destination || mouvementData.localisation_destination) === "Stock Technicien") {
+            try {
+              let queryStock = supabase
+                .from('stock_technicien')
+                .select('*')
+                .eq('technicien_id', destId)
+                .eq('article_id', ligne.article_id)
+              if (ligne.numero_serie_id) {
+                queryStock = queryStock.eq('numero_serie_id', ligne.numero_serie_id)
+              } else {
+                queryStock = queryStock.is('numero_serie_id', null)
+              }
+              const { data: existingStock } = await queryStock.maybeSingle()
+
+              if (existingStock) {
                 await supabase
                   .from('stock_technicien')
                   .update({
-                    quantite: newQty,
+                    quantite: existingStock.quantite + ligne.quantite,
                     derniere_mise_a_jour: new Date().toISOString()
                   })
                   .eq('id', existingStock.id)
               } else {
-                throw new Error(`Stock insuffisant pour le technicien source: ${existingStock.quantite}`)
+                console.log('Création nouvelle entrée stock_technicien destination pour:', article.nom)
+                await supabase
+                  .from('stock_technicien')
+                  .insert({
+                    technicien_id: destId,
+                    article_id: ligne.article_id,
+                    numero_serie_id: ligne.numero_serie_id || null,
+                    quantite: ligne.quantite,
+                    localisation: (ligne.localisation_destination || mouvementData.localisation_destination) || 'camionnette',
+                  })
               }
+            } catch (error: any) {
+              alert("Erreur mise à jour stock destination: " + error.message)
             }
-          } catch (error: any) {
-            alert("Erreur mise à jour stock source: " + error.message)
           }
         }
 
-        if (mouvementData.personne_id && mouvementData.localisation_destination === "Stock Technicien") {
-          try {
-            let queryStock = supabase
-              .from('stock_technicien')
-              .select('*')
-              .eq('technicien_id', mouvementData.personne_id)
-              .eq('article_id', ligne.article_id)
-            if (ligne.numero_serie_id) {
-              queryStock = queryStock.eq('numero_serie_id', ligne.numero_serie_id)
-            } else {
-              queryStock = queryStock.is('numero_serie_id', null)
-            }
-            const { data: existingStock } = await queryStock.maybeSingle()
-
-            if (existingStock) {
-              await supabase
-                .from('stock_technicien')
-                .update({
-                  quantite: existingStock.quantite + ligne.quantite,
-                  derniere_mise_a_jour: new Date().toISOString()
-                })
-                .eq('id', existingStock.id)
-            } else {
-              console.log('Création nouvelle entrée stock_technicien destination pour:', ligne.article_nom)
-              await supabase
-                .from('stock_technicien')
-                .insert({
-                  technicien_id: mouvementData.personne_id,
-                  article_id: ligne.article_id,
-                  numero_serie_id: ligne.numero_serie_id || null,
-                  quantite: ligne.quantite,
-                  localisation: mouvementData.localisation_destination || 'camionnette',
-                })
-            }
-          } catch (error: any) {
-            alert("Erreur mise à jour stock destination: " + error.message)
-          }
-        }
-      }
-
-      // Réinitialisation du formulaire
-      setShowForm(false)
-      fetchMouvements()
-      fetchArticles()
-      setLignesMouvement([])
-      setMouvementData({
-        personne_id: "",
-        personne_source_id: "",
-        type_mouvement: typesMouvement[0]?.nom || "",
-        localisation_origine: "",
-        localisation_destination: "",
-        remarques: "",
-      })
-      setLigneFormData({
-        article_id: "",
-        quantite: 1,
-      })
-      setArticleSearch("")
-      alert(`${lignesMouvement.length} ligne(s) de mouvement enregistrée(s) avec succès !`)
+        // Réinitialisation du formulaire
+        setShowForm(false)
+        fetchMouvements() // Recharge la liste des mouvements
+        fetchArticles() // Recharge les stocks
+        setLignesMouvement([]) // Réinitialise la liste des lignes en cours
+        setMouvementData({
+          personne_id: "",
+          personne_source_id: "",
+          type_mouvement: typesMouvement[0]?.nom || "",
+          localisation_origine: "",
+          localisation_destination: "",
+          remarques: "",
+        })
+        setLigneFormData({
+          article_id: "",
+          quantite: 1,
+        })
+        setArticleSearch("")
+        alert(`${lignesAMouvement.length} ligne(s) de mouvement enregistrée(s) avec succès !`)
     } catch (error: any) {
       alert("Erreur: " + error.message)
     }
   }
-
-  // --- Filtrage des Mouvements Affichés ---
   const filteredMouvements = mouvements.filter(m => {
-    const matchesSearch = !filterSearch || m.lignes.some(l =>
-      l.article_nom.toLowerCase().includes(filterSearch.toLowerCase()) ||
-      l.article_numero.toLowerCase().includes(filterSearch.toLowerCase()) ||
-      l.numero_serie?.toLowerCase().includes(filterSearch.toLowerCase()) ||
-      l.adresse_mac?.toLowerCase().includes(filterSearch.toLowerCase())
+    const matchesSearch = !filterSearch || (
+      m.article?.nom.toLowerCase().includes(filterSearch.toLowerCase()) ||
+      m.article?.numero_article.toLowerCase().includes(filterSearch.toLowerCase()) ||
+      m.numero_serie?.numero_serie?.toLowerCase().includes(filterSearch.toLowerCase()) ||
+      m.numero_serie?.adresse_mac?.toLowerCase().includes(filterSearch.toLowerCase())
     )
     const matchesType = !filterType || m.type_mouvement.toLowerCase().includes(filterType.toLowerCase())
-    const matchesTechnicien = !filterTechnicien || (m as any).personne_source_id === filterTechnicien
+    const matchesTechnicien = !filterTechnicien || (
+      (m as any).personne_source_id === filterTechnicien ||
+      m.personne_id === filterTechnicien
+    )
     let matchesDate = true
     if (filterDateDebut || filterDateFin) {
       const mouvementDate = new Date(m.date_mouvement)
@@ -831,8 +864,6 @@ export default function MouvementsPage() {
     }
     return matchesSearch && matchesType && matchesTechnicien && matchesDate
   })
-
-  // --- Calculs Statistiques ---
   const stats = {
     receptions: mouvements.filter(m => m.type_mouvement?.toLowerCase().includes('reception')).length,
     sorties: mouvements.filter(m => m.type_mouvement?.toLowerCase().includes('sortie')).length,
@@ -1086,7 +1117,8 @@ export default function MouvementsPage() {
                         <SelectValue placeholder="Sélectionnez un numéro" />
                       </SelectTrigger>
                       <SelectContent>
-                        {numerosSerieDisponibles.map((serie) => (
+                        {/* Filtrer les séries avec un ID non vide */}
+                        {numerosSerieDisponibles.filter(serie => serie.id && serie.id.trim() !== "").map((serie) => (
                           <SelectItem key={serie.id} value={serie.id}>
                             {serie.numero_serie} {serie.adresse_mac ? `(${serie.adresse_mac})` : ''}
                           </SelectItem>
@@ -1132,36 +1164,42 @@ export default function MouvementsPage() {
                       <th className="p-4 text-left">N° Article</th>
                       <th className="p-4 text-left">N° de Série</th>
                       <th className="p-4 text-left">Adresse MAC</th>
-                      <th className="p-4 text-center">Stock Actuel</th>
                       <th className="p-4 text-center">Quantité</th>
                       <th className="p-4 text-center">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {lignesMouvement.map((ligne, idx) => (
-                      <tr key={ligne.id} className={idx % 2 === 0 ? 'bg-card' : 'bg-muted/30'}>
-                        <td className="p-4">
-                          <div>
-                            <p className="font-bold text-base">{ligne.article_nom}</p>
-                            <p className="text-xs text-muted-foreground">{ligne.article_numero}</p>
-                          </div>
-                        </td>
-                        <td className="p-4 text-muted-foreground font-mono text-sm">{ligne.article_numero}</td>
-                        <td className="p-4 text-sm font-mono">{ligne.numero_serie || '-'}</td>
-                        <td className="p-4 text-sm font-mono">{ligne.adresse_mac || '-'}</td>
-                        <td className="p-4 text-center text-base font-semibold">{ligne.stock_actuel}</td>
-                        <td className="p-4 text-center font-bold text-xl text-blue-600">{ligne.quantite}</td>
-                        <td className="p-4 text-center">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => supprimerLigne(ligne.id)}
-                          >
-                            <Trash2 className="h-5 w-5 text-red-500" />
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
+                    {lignesMouvement.map((ligne) => {
+                      // Trouver les infos de l'article et du numéro de série pour cette ligne temporaire
+                      const article = articles.find(a => a.id === ligne.article_id);
+                      // Si la ligne a un nouveau numéro de série en attente, on l'affiche
+                      const numeroSerieAffiche = ligne.numero_serie_id ? (numerosSerieDisponibles.find(s => s.id === ligne.numero_serie_id)?.numero_serie || 'Inconnu') : (ligne as any).nouveau_numero_serie || 'Nouveau à créer';
+                      const adresseMacAffiche = ligne.numero_serie_id ? (numerosSerieDisponibles.find(s => s.id === ligne.numero_serie_id)?.adresse_mac || '-') : (ligne as any).nouvelle_adresse_mac || '-';
+
+                      return (
+                        <tr key={ligne.id} className="border-b hover:bg-muted/50">
+                          <td className="p-4">
+                            <div>
+                              <p className="font-bold text-base">{article?.nom || 'Article inconnu'}</p>
+                              <p className="text-xs text-muted-foreground">{article?.numero_article || 'N/A'}</p>
+                            </div>
+                          </td>
+                          <td className="p-4 text-muted-foreground font-mono text-sm">{article?.numero_article || 'N/A'}</td>
+                          <td className="p-4 text-sm font-mono">{numeroSerieAffiche}</td>
+                          <td className="p-4 text-sm font-mono">{adresseMacAffiche}</td>
+                          <td className="p-4 text-center font-bold text-xl text-blue-600">{ligne.quantite}</td>
+                          <td className="p-4 text-center">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => supprimerLigne(ligne.id)}
+                            >
+                              <Trash2 className="h-5 w-5 text-red-500" />
+                            </Button>
+                          </td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -1355,8 +1393,10 @@ export default function MouvementsPage() {
                   <th className="p-4 text-left">Destination</th>
                   <th className="p-4 text-left">Personne Source</th>
                   <th className="p-4 text-left">Personne Destination</th>
+                  <th className="p-4 text-left">Article</th>
+                  <th className="p-4 text-left">Série</th>
+                  <th className="p-4 text-left">Quantité</th>
                   <th className="p-4 text-left">Remarques</th>
-                  <th className="p-4 text-left">Lignes</th>
                 </tr>
               </thead>
               <tbody>
@@ -1375,14 +1415,10 @@ export default function MouvementsPage() {
                       <td className="p-4">{mouvement.localisation_destination}</td>
                       <td className="p-4">{mouvement.personne_source ? `${mouvement.personne_source.nom} ${mouvement.personne_source.prenom}` : '-'}</td>
                       <td className="p-4">{mouvement.personne_dest ? `${mouvement.personne_dest.nom} ${mouvement.personne_dest.prenom}` : '-'}</td>
+                      <td className="p-4">{mouvement.article?.nom || 'Inconnu'}</td>
+                      <td className="p-4">{mouvement.numero_serie?.numero_serie || '-'}</td>
+                      <td className="p-4 text-center font-bold">{mouvement.quantite}</td>
                       <td className="p-4 text-sm text-muted-foreground max-w-xs truncate">{mouvement.remarques}</td>
-                      <td className="p-4">
-                        <ul className="list-disc list-inside text-sm">
-                          {mouvement.lignes.map(l => (
-                            <li key={l.id}>{l.article_nom} ({l.quantite}) - Série: {l.numero_serie || 'N/A'}</li>
-                          ))}
-                        </ul>
-                      </td>
                     </tr>
                   )
                 })}
