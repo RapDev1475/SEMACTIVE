@@ -1450,5 +1450,5 @@ export default function MouvementsPage() {
         </CardContent>
       </Card>
     </div>
-  )
+   )
 }
