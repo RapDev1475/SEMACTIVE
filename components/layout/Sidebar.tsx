@@ -16,7 +16,9 @@ import {
   ChevronRight,
   Hash,
   Settings,
+  ClipboardCheck
 } from "lucide-react"
+
 
 interface SidebarProps {
   open: boolean
