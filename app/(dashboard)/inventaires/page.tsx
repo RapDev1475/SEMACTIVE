@@ -139,122 +139,142 @@ export default function InventairesPage() {
     }
   }
 
-  async function scanArticleOuSerie(searchValue: string) {
-    if (!searchValue.trim()) return
+async function scanArticleOuSerie(searchValue: string) {
+  if (!searchValue.trim()) return
 
-    try {
-      // D'abord chercher dans les numéros de série
-      const { data: serialData } = await supabase
-        .from('numeros_serie')
-        .select('*, article:articles(*)')
-        .or(`numero_serie.ilike.%${searchValue}%,adresse_mac.ilike.%${searchValue}%`)
-        .limit(1)
+  try {
+    // D'abord chercher dans les numéros de série
+    const { data: serialData } = await supabase
+      .from('numeros_serie')
+      .select('*, article:articles(*)')
+      .or(`numero_serie.ilike.%${searchValue}%,adresse_mac.ilike.%${searchValue}%`)
+      .limit(1)
 
-      if (serialData && serialData.length > 0) {
-        const serie = serialData[0]
-        const article = serie.article as Article
-        
-        // Vérifier si déjà scanné
-        const dejaScan = lignesInventaire.find(l => l.numero_serie_id === serie.id)
-        if (dejaScan) {
-          alert(`Ce numéro de série a déjà été scanné`)
-          setScanInput("")
-          return
-        }
-
-        // Récupérer la quantité système
-        let quantiteSysteme = 0
-        if (inventaireData.localisation === "Stock Technicien" && inventaireData.technicien_id) {
-          const { data: stockData } = await supabase
-            .from('stock_technicien')
-            .select('quantite')
-            .eq('technicien_id', inventaireData.technicien_id)
-            .eq('numero_serie_id', serie.id)
-            .maybeSingle()
-          quantiteSysteme = stockData?.quantite || 0
-        } else {
-          // Pour warehouse, on considère qu'il y a 1 unité si le N° série existe
-          quantiteSysteme = 1
-        }
-
-        const nouvelleLigne: LigneInventaire = {
-          id: crypto.randomUUID(),
-          article_id: article.id,
-          article_nom: article.nom,
-          article_numero: article.numero_article,
-          numero_serie_id: serie.id,
-          numero_serie: serie.numero_serie,
-          adresse_mac: serie.adresse_mac,
-          quantite_comptée: 1,
-          quantite_système: quantiteSysteme,
-          ecart: 1 - quantiteSysteme,
-        }
-        setLignesInventaire([...lignesInventaire, nouvelleLigne])
+    if (serialData && serialData.length > 0) {
+      const serie = serialData[0]
+      const article = serie.article as Article
+      
+      // Vérifier si déjà scanné
+      const dejaScan = lignesInventaire.find(l => l.numero_serie_id === serie.id)
+      if (dejaScan) {
+        alert(`Ce numéro de série a déjà été scanné`)
         setScanInput("")
         return
       }
 
-      // Si pas trouvé en série, chercher dans les articles par code EAN/numéro
-      const { data: articleData } = await supabase
-        .from('articles')
-        .select('*')
-        .or(`numero_article.ilike.%${searchValue}%,code_ean.ilike.%${searchValue}%`)
-        .limit(1)
-
-      if (articleData && articleData.length > 0) {
-        const article = articleData[0]
-        
-        // Vérifier si déjà dans la liste
-        const dejaScan = lignesInventaire.find(l => 
-          l.article_id === article.id && !l.numero_serie_id
-        )
-        if (dejaScan) {
-          // Incrémenter la quantité comptée
-          setLignesInventaire(lignesInventaire.map(l => 
-            l.article_id === article.id && !l.numero_serie_id
-              ? { ...l, quantite_comptée: l.quantite_comptée + 1, ecart: (l.quantite_comptée + 1) - l.quantite_système }
-              : l
-          ))
-          setScanInput("")
-          return
-        }
-
-        // Récupérer la quantité système
-        let quantiteSysteme = 0
-        if (inventaireData.localisation === "Stock Technicien" && inventaireData.technicien_id) {
-          const { data: stockData } = await supabase
-            .from('stock_technicien')
-            .select('quantite')
-            .eq('technicien_id', inventaireData.technicien_id)
-            .eq('article_id', article.id)
-            .is('numero_serie_id', null)
-            .maybeSingle()
-          quantiteSysteme = stockData?.quantite || 0
-        } else {
-          quantiteSysteme = article.quantite_stock
-        }
-
-        const nouvelleLigne: LigneInventaire = {
-          id: crypto.randomUUID(),
-          article_id: article.id,
-          article_nom: article.nom,
-          article_numero: article.numero_article,
-          quantite_comptée: 1,
-          quantite_système: quantiteSysteme,
-          ecart: 1 - quantiteSysteme,
-        }
-        setLignesInventaire([...lignesInventaire, nouvelleLigne])
-        setScanInput("")
-        return
+      // Récupérer la quantité système
+      let quantiteSysteme = 0
+      if (inventaireData.localisation === "Stock Technicien" && inventaireData.technicien_id) {
+        const { data: stockData } = await supabase
+          .from('stock_technicien')
+          .select('quantite')
+          .eq('technicien_id', inventaireData.technicien_id)
+          .eq('numero_serie_id', serie.id)
+          .maybeSingle()
+        quantiteSysteme = stockData?.quantite || 0
+      } else {
+        // Pour warehouse, on considère qu'il y a 1 unité si le N° série existe
+        quantiteSysteme = 1
       }
 
-      alert("Article ou numéro de série non trouvé")
+      const nouvelleLigne: LigneInventaire = {
+        id: crypto.randomUUID(),
+        article_id: article.id,
+        article_nom: article.nom,
+        article_numero: article.numero_article,
+        numero_serie_id: serie.id,
+        numero_serie: serie.numero_serie,
+        adresse_mac: serie.adresse_mac,
+        quantite_comptée: 1,
+        quantite_système: quantiteSysteme,
+        ecart: 1 - quantiteSysteme,
+      }
+      setLignesInventaire([...lignesInventaire, nouvelleLigne])
       setScanInput("")
-    } catch (error) {
-      console.error('Error scanning:', error)
-      alert("Erreur lors du scan")
+      return
     }
+
+    // Si pas trouvé en série, chercher dans les articles par code EAN/numéro
+    const { data: articleData } = await supabase
+      .from('articles')
+      .select('*')
+      .or(`numero_article.ilike.%${searchValue}%,code_ean.ilike.%${searchValue}%`)
+      .limit(1)
+
+    if (articleData && articleData.length > 0) {
+      const article = articleData[0]
+      
+      // ✅ NOUVEAU : Vérifier si l'article a des numéros de série
+      const { data: seriesExistantes } = await supabase
+        .from('numeros_serie')
+        .select('id')
+        .eq('article_id', article.id)
+        .limit(1)
+
+      if (seriesExistantes && seriesExistantes.length > 0) {
+        // ⚠️ Article avec N° série : obliger le scan individuel
+        alert(`⚠️ Cet article a des numéros de série. Veuillez scanner chaque N° série ou MAC individuellement.`)
+        setScanInput("")
+        return
+      }
+
+      // Article SANS numéro de série : permettre le comptage groupé
+      
+      // Vérifier si déjà dans la liste
+      const dejaScan = lignesInventaire.find(l => 
+        l.article_id === article.id && !l.numero_serie_id
+      )
+      if (dejaScan) {
+        // Incrémenter la quantité comptée
+        setLignesInventaire(lignesInventaire.map(l => 
+          l.article_id === article.id && !l.numero_serie_id
+            ? { ...l, quantite_comptée: l.quantite_comptée + 1, ecart: (l.quantite_comptée + 1) - l.quantite_système }
+            : l
+        ))
+        setScanInput("")
+        return
+      }
+
+      // ✅ CORRIGÉ : Récupérer la quantité système correctement
+      let quantiteSysteme = 0
+      if (inventaireData.localisation === "Stock Technicien" && inventaireData.technicien_id) {
+        // Charger le stock du technicien pour cet article (sans N° série)
+        const { data: stockData } = await supabase
+          .from('stock_technicien')
+          .select('quantite')
+          .eq('technicien_id', inventaireData.technicien_id)
+          .eq('article_id', article.id)
+          .is('numero_serie_id', null)
+          .maybeSingle()
+        
+        quantiteSysteme = stockData?.quantite || 0
+        console.log(`📦 Stock technicien pour ${article.nom}:`, quantiteSysteme)
+      } else {
+        // Pour warehouse
+        quantiteSysteme = article.quantite_stock
+      }
+
+      const nouvelleLigne: LigneInventaire = {
+        id: crypto.randomUUID(),
+        article_id: article.id,
+        article_nom: article.nom,
+        article_numero: article.numero_article,
+        quantite_comptée: 1,
+        quantite_système: quantiteSysteme,
+        ecart: 1 - quantiteSysteme,
+      }
+      setLignesInventaire([...lignesInventaire, nouvelleLigne])
+      setScanInput("")
+      return
+    }
+
+    alert("Article ou numéro de série non trouvé")
+    setScanInput("")
+  } catch (error) {
+    console.error('Error scanning:', error)
+    alert("Erreur lors du scan")
   }
+}
 
   function supprimerLigne(ligneId: string) {
     setLignesInventaire(lignesInventaire.filter(l => l.id !== ligneId))
