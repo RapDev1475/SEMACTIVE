@@ -1,13 +1,13 @@
 "use client"
 
 import { useState, useEffect } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+// ✅ Import corrigé pour pointer vers le client Supabase
+import { supabase } from "@/lib/supabase/client"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Trash2, Plus, TrendingUp, TrendingDown, RefreshCw, History } from 'lucide-react'
-import { supabase } from '@/lib/supabase/client'
 
 // --- Types ---
 interface Article {
