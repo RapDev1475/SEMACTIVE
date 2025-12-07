@@ -973,115 +973,104 @@ export default function MouvementsPage() {
           </Card>
         )}
 
-        {mouvementData.type_mouvement && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Étape 3 : Ajouter des articles</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={ajouterLigne} className="space-y-6">
-				<div className="space-y-4">
-				{/* Affichage de l'article sélectionné */}
-				{ligneFormData.article_id && (() => {
-					const art = articles.find(a => a.id === ligneFormData.article_id)
-					if (!art) return null
-					return (
-						<div className="p-6 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950 dark:to-indigo-950 rounded-xl border-2 border-blue-300 dark:border-blue-700">
-						<div className="flex items-center gap-4">
-						<div className="h-16 w-16 rounded-lg bg-blue-500 flex items-center justify-center text-white font-bold text-2xl">
-							{art.nom.charAt(0)}
-						</div>
-						<div className="flex-1">
-							<p className="text-2xl font-bold text-blue-900 dark:text-blue-100">{art.nom}</p>
-							<div className="flex gap-4 mt-1 text-sm text-blue-700 dark:text-blue-300">
-							<span className="font-mono font-semibold">N°: {art.numero_article}</span>
-							<span>•</span>
-							<span className="font-semibold">Stock disponible: {art.quantite_stock}</span>
-							</div>
-							</div>
-							</div>
-						</div>
-						)
-				})()}
-				</div>
-					<div className="grid grid-cols-12 gap-6">
-					<div className="col-span-8">
-					<Label className="text-base mb-2 block">Rechercher article (Scanner EAN / MAC / Série)</Label>
-					<Input
-						className="h-16 text-xl"
-						placeholder="Scanner ou rechercher..."
-						value={articleSearch}
-						onChange={(e) => {
-						setArticleSearch(e.target.value)
-						searchArticles(e.target.value)
-						}}
-						autoFocus
-						/>
-				</div>
-                  <div className="col-span-2">
-                    <Label className="text-base mb-2 block">Quantité</Label>
-                    <Input
-                      className="h-16 text-xl text-center"
-                      type="number"
-                      min="1"
-                      value={ligneFormData.quantite}
-                      onChange={(e) => setLigneFormData({...ligneFormData, quantite: parseInt(e.target.value) || 1})}
-                    />
-                  </div>
-                  <div className="col-span-2">
-                    <Label className="text-base mb-2 block opacity-0">Action</Label>
-                    <Button type="submit" className="w-full h-16 text-lg" size="lg">
-                      <Plus className="mr-2 h-5 w-5" />
-                      Ajouter
-                    </Button>
+{mouvementData.type_mouvement && (
+  <Card>
+    <CardHeader>
+      <CardTitle className="text-lg">Étape 3 : Ajouter des articles</CardTitle>
+    </CardHeader>
+    <CardContent>
+      <form onSubmit={ajouterLigne} className="space-y-6">
+        <div className="grid grid-cols-12 gap-6">
+          <div className="col-span-8">
+            <Label className="text-base mb-2 block">Rechercher article (Scanner EAN / MAC / Série)</Label>
+            <Input
+              className="h-16 text-xl"
+              placeholder="Scanner ou rechercher..."
+              value={articleSearch}
+              onChange={(e) => {
+                setArticleSearch(e.target.value)
+                searchArticles(e.target.value)
+              }}
+              autoFocus
+            />
+          </div>
+          <div className="col-span-2">
+            <Label className="text-base mb-2 block">Quantité</Label>
+            <Input
+              className="h-16 text-xl text-center"
+              type="number"
+              min="1"
+              value={ligneFormData.quantite}
+              onChange={(e) => setLigneFormData({...ligneFormData, quantite: parseInt(e.target.value) || 1})}
+            />
+          </div>
+          <div className="col-span-2">
+            <Label className="text-base mb-2 block opacity-0">Action</Label>
+            <Button type="submit" className="w-full h-16 text-lg" size="lg">
+              <Plus className="mr-2 h-5 w-5" />
+              Ajouter
+            </Button>
+          </div>
+        </div>
+
+        {/* Affichage visuel de l'article sélectionné */}
+        {ligneFormData.article_id && (() => {
+          const art = articles.find(a => a.id === ligneFormData.article_id)
+          if (!art) return null
+          return (
+            <div className="p-6 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950 dark:to-indigo-950 rounded-xl border-2 border-blue-300 dark:border-blue-700">
+              <div className="flex items-center gap-4">
+                <div className="h-16 w-16 rounded-lg bg-blue-500 flex items-center justify-center text-white font-bold text-2xl">
+                  {art.nom.charAt(0)}
+                </div>
+                <div className="flex-1">
+                  <p className="text-2xl font-bold text-blue-900 dark:text-blue-100">{art.nom}</p>
+                  <div className="flex gap-4 mt-1 text-sm text-blue-700 dark:text-blue-300">
+                    <span className="font-mono font-semibold">N°: {art.numero_article}</span>
+                    <span>•</span>
+                    <span className="font-semibold">Stock disponible: {art.quantite_stock}</span>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-6">
-                  <div>
-                    <Label className="text-base mb-2 block">Article sélectionné</Label>
-                    <Select 
-                      value={ligneFormData.article_id} 
-                      onValueChange={(value) => setLigneFormData({...ligneFormData, article_id: value})}
-                    >
-                      <SelectTrigger className="h-14 text-lg">
-                        <SelectValue placeholder="Sélectionnez un article" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {articles.length === 0 ? (
-                          <div className="p-4 text-muted-foreground text-center">
-                            {articleSearch ? 'Aucun résultat' : 'Recherchez un article'}
-                          </div>
-                        ) : (
-                          articles.map((article) => (
-                            <SelectItem key={article.id} value={article.id}>
-                              {article.nom} ({article.numero_article}) - Stock: {article.quantite_stock}
-                            </SelectItem>
-                          ))
-                        )}
-                      </SelectContent>
-                    </Select>
+              </div>
+            </div>
+          )
+        })()}
+
+        <div className="grid grid-cols-2 gap-6">
+          <div>
+            <Label className="text-base mb-2 block">Article sélectionné</Label>
+            <Select 
+              value={ligneFormData.article_id} 
+              onValueChange={(value) => setLigneFormData({...ligneFormData, article_id: value})}
+            >
+              <SelectTrigger className="h-14 text-lg">
+                <SelectValue placeholder="Sélectionnez un article" />
+              </SelectTrigger>
+              <SelectContent>
+                {articles.length === 0 ? (
+                  <div className="p-4 text-muted-foreground text-center">
+                    {articleSearch ? 'Aucun résultat' : 'Recherchez un article'}
                   </div>
-                  {ligneFormData.article_id && (
-                    <div className="p-6 bg-blue-50 dark:bg-blue-950 rounded-lg border flex items-center">
-                      {(() => {
-                        const art = articles.find(a => a.id === ligneFormData.article_id)
-                        if (!art) return null
-                        return (
-                          <div>
-                            <p className="font-semibold text-lg">{art.nom}</p>
-                            <p className="text-muted-foreground">
-                              {art.numero_article} • Stock: {art.quantite_stock}
-                            </p>
-                          </div>
-                        )
-                      })()}
-                    </div>
-                  )}
-                </div>
-              </form>
-            </CardContent>
-          </Card>
-        )}
+                ) : (
+                  articles.map((article) => (
+                    <SelectItem key={article.id} value={article.id}>
+                      {article.nom} ({article.numero_article}) - Stock: {article.quantite_stock}
+                    </SelectItem>
+                  ))
+                )}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex items-end">
+            <div className="text-sm text-muted-foreground">
+              💡 Tapez le nom ou scannez un code pour rechercher
+            </div>
+          </div>
+        </div>
+      </form>
+    </CardContent>
+  </Card>
+)}
 
         {mouvementData.type_mouvement && lignesMouvement.length > 0 && (
           <Card>
