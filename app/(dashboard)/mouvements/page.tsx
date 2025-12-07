@@ -229,7 +229,8 @@ export default function MouvementsPage() {
   }
 
   function getTypesMouvementDisponibles(origine: string): Scenario[] {
-    return scenarios.filter(s => s.emplacement_origine === origine)
+    return scenarios.filter(s => s.emplacement_origine === origine && 
+    !s.type_mouvement.toLowerCase().includes('inventaire'))
   }
 
   function getScenario(origine: string, typeMouvement: string): Scenario | null {
@@ -1450,13 +1451,15 @@ export default function MouvementsPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Tous les types</SelectItem>
-                    {typesMouvement.map((type) => (
-                      <SelectItem key={type.id} value={type.nom}>
-                        {type.nom}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
+					<SelectItem value="all">Tous les types</SelectItem>
+					{typesMouvement
+						.filter(type => !type.nom.toLowerCase().includes('inventaire')) // ✅ Exclure inventaire
+						.map((type) => (
+						<SelectItem key={type.id} value={type.nom}>
+							{type.nom}
+						</SelectItem>
+						))}
+					</SelectContent>
                 </Select>
               </div>
               
